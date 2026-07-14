@@ -1,9 +1,9 @@
-import adapter from '@sveltejs/adapter-auto';
+import adapter from '@sveltejs/adapter-node';
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
 	kit: {
-		// Deploys to Cloudflare / Vercel / Node depending on the host.
+		// Standalone Node server (build/) — runs in the Docker image via `node build`.
 		adapter: adapter()
 	}
 };

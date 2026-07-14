@@ -1,0 +1,31 @@
+# Makutano Digital — single-container deployment.
+#
+#   cp .env.example .env      # fill in Supabase / Anthropic / Voyage / Resend / AUTH_SECRET
+#   docker compose up -d --build
+#
+# App:  http://localhost:3000
+#
+# The app reads all secrets at RUNTIME (env_file below), so the image contains
+# no credentials and the same image works across environments. When deploying to
+# a real domain behind a proxy, set ORIGIN=https://your-domain (or APP_ORIGIN in
+# .env) so form logins/settings pass SvelteKit's CSRF origin check.
+
+services:
+  app:
+    build: .
+    image: makutano-digital
+    container_name: makutano-digital
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    # Injects your .env (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY,
+    # VOYAGE_API_KEY, RESEND_API_KEY, AUTH_SECRET, ...) into the container at runtime.
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      # Public origin of this server. Local default below; override per environment,
+      # e.g. ORIGIN=https://app.makutano.digital
+      ORIGIN: ${APP_ORIGIN:-http://localhost:3000}

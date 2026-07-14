@@ -57,6 +57,29 @@ static/
    automatically), then open `http://localhost:5173/embed-demo.html` to try the
    widget against that client.
 
+## Deploy with Docker
+
+The app builds to a standalone Node server (`@sveltejs/adapter-node`) and ships a
+production image. All secrets are read at **runtime**, so the image contains no
+credentials.
+
+```sh
+cp .env.example .env        # fill in Supabase / Anthropic / Voyage / Resend / AUTH_SECRET
+docker compose up -d --build
+```
+
+App runs at `http://localhost:3000` (change the host port with `APP_PORT`).
+
+- Secrets come from your `.env` (injected via `env_file`); nothing is baked into
+  the image.
+- Behind a real domain/proxy, set `APP_ORIGIN=https://your-domain` in `.env` so
+  logins and settings forms pass SvelteKit's CSRF origin check.
+- Run migrations against your Supabase project first (`db/*.sql`), same as local.
+- Logs / stop: `docker compose logs -f` · `docker compose down`.
+
+Without Compose you can also run the built server directly:
+`npm run build && node --env-file=.env build`.
+
 ## Onboarding a client
 
 1. Create the `clients` row (name, slug, business_context, WhatsApp).
