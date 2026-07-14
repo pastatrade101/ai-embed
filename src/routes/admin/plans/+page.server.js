@@ -1,14 +1,14 @@
 import { fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
+import { PLAN_FEATURES } from '$lib/plans.js';
 
 function slugKey(s) {
 	return (s ?? '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
-function parseFeatures(s) {
-	return String(s ?? '')
-		.split('\n')
-		.map((l) => l.trim())
-		.filter(Boolean);
+// Only accept feature labels from the known catalogue (checkbox values).
+function pickFeatures(form) {
+	const known = new Set(PLAN_FEATURES);
+	return form.getAll('features').map(String).filter((f) => known.has(f));
 }
 
 export async function load() {
@@ -31,7 +31,7 @@ export const actions = {
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
 			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
 			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 0) || 0,
-			features: parseFeatures(form.get('features')),
+			features: pickFeatures(form),
 			is_active: form.get('is_active') === 'on'
 		};
 		if (!key || !patch.name) return fail(400, { error: 'Name is required.' });
@@ -60,7 +60,7 @@ export const actions = {
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
 			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
 			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 200) || 200,
-			features: parseFeatures(form.get('features')),
+			features: pickFeatures(form),
 			sort: 99
 		});
 		if (error) return fail(400, { section: 'new', error: error.code === '23505' ? `Key "${key}" already exists.` : error.message });
