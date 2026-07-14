@@ -34,6 +34,32 @@ export const actions = {
 		const client = await requireClient(params.slug);
 		return updateClientSettings(client.id, await request.formData(), { allowAdmin: true });
 	},
+
+	// Dedicated one-click plan change (upgrade or downgrade to ANY plan). Sets the
+	// plan + its conversation cap and activates the subscription.
+	changePlan: async ({ request, params }) => {
+		const client = await requireClient(params.slug);
+		const form = await request.formData();
+		const planKey = String(form.get('plan') ?? '').trim();
+		const { data: plan } = await supabase.from('plans').select('key, name, monthly_conversation_cap').eq('key', planKey).maybeSingle();
+		if (!plan) return fail(400, { section: 'plan', error: 'Unknown plan.' });
+
+		const { error: err } = await supabase
+			.from('clients')
+			.update({ plan: plan.key, monthly_conversation_cap: plan.monthly_conversation_cap, subscription_status: 'active' })
+			.eq('id', client.id);
+		if (err) return fail(400, { section: 'plan', error: err.message });
+
+		// Audit trail (best-effort; needs db/007_payments.sql).
+		await supabase.from('payment_events').insert({
+			client_id: client.id,
+			provider: 'manual',
+			event_type: 'plan_changed_by_admin',
+			status: 'active',
+			event_payload: { plan_key: plan.key, from: client.plan }
+		});
+		return { section: 'plan', ok: `${client.name} is now on ${plan.name}.` };
+	},
 	addItem: async ({ request, params }) => {
 		const client = await requireClient(params.slug);
 		return addKnowledge(client.id, await request.formData());

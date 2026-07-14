@@ -52,6 +52,24 @@
 
 {#if tab === 'overview'}
 	{#if !client.is_active}<div class="notice err">This client is <b>paused</b> — the widget will not answer. Re-activate under Settings.</div>{/if}
+
+	<div class="card">
+		<h2 class="section" style="margin:0">Plan</h2>
+		<p class="muted" style="margin:.3rem 0 .8rem">Upgrade or downgrade this client to any plan. The conversation cap follows the plan, and the subscription is set to <b>active</b>.</p>
+		{#if form?.section === 'plan' && form?.ok}<div class="notice">{form.ok}</div>{/if}
+		{#if form?.section === 'plan' && form?.error}<div class="notice err">{form.error}</div>{/if}
+		<form method="POST" action="?/changePlan" use:enhance class="rowflex" style="gap:.6rem;flex-wrap:wrap;align-items:flex-end">
+			<div style="flex:1;min-width:240px">
+				<label for="cp-plan">Assign plan</label>
+				<select id="cp-plan" name="plan">
+					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {p.price_amount > 0 ? `${p.price_currency} ${p.price_amount}/mo` : 'Free'} · {p.monthly_conversation_cap} conv{p.is_default ? ' · default' : ''}</option>{/each}
+				</select>
+			</div>
+			<button type="submit">Apply plan</button>
+		</form>
+		<div class="hint">Currently <b>{data.plans.find((p) => p.key === client.plan)?.name ?? client.plan}</b> · {client.monthly_conversation_cap} conversations / mo · {client.subscription_status}.</div>
+	</div>
+
 	<div class="card">
 		<h2 class="section">Embed snippet</h2>
 		<p class="muted" style="margin-top:-.4rem">The one tag the operator pastes into their site. Renders in a shadow DOM.</p>
