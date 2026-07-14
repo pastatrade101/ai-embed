@@ -114,6 +114,43 @@ export function pipeline(scoredLeads, tours) {
 	return { tiers, value: Math.round(value), matched, currency };
 }
 
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+function parseMonth(text) {
+	for (const m of MONTHS) if (text.includes(m) || text.includes(m.slice(0, 3))) return m.charAt(0).toUpperCase() + m.slice(1);
+	return null;
+}
+function parseBudget(text) {
+	let m = text.match(/(?:\$|usd\s*|budget[^0-9]{0,14})([0-9][0-9,.\s]{2,})/i);
+	if (!m) m = text.match(/\b([0-9]{4,})\b/);
+	if (!m) return null;
+	const n = Number(String(m[1]).replace(/[^0-9]/g, ''));
+	return Number.isFinite(n) && n >= 300 && n <= 500000 ? n : null;
+}
+
+/** Pull structured details out of a lead's interest + transcript (real text only). */
+export function extractLead(lead, tours) {
+	const userText = Array.isArray(lead.transcript) ? lead.transcript.filter((m) => m.role === 'user').map((m) => m.content).join(' ') : '';
+	const text = `${lead.interest ?? ''} ${userText}`;
+	const low = text.toLowerCase();
+	const kw = tourKeywords(tours);
+	let destination = null;
+	let tour = null;
+	for (const [k, t] of kw) {
+		if (low.includes(k)) {
+			destination = k.charAt(0).toUpperCase() + k.slice(1);
+			tour = t;
+			break;
+		}
+	}
+	const month = parseMonth(low);
+	const group = groupSize(low);
+	const budget = parseBudget(low);
+	const firstMessage =
+		(Array.isArray(lead.transcript) ? lead.transcript.find((m) => m.role === 'user')?.content : null) || lead.interest || '';
+	const estValue = tour && tour.price != null ? Math.round(Number(tour.price) * (group ?? 2)) : null;
+	return { destination, tour: tour?.title ?? null, month, group, budget, firstMessage, estValue };
+}
+
 /** Merge recent conversations + leads into a single reverse-chronological feed. */
 export function activityFeed(conversations, leads, limit = 8) {
 	const events = [];
