@@ -6,9 +6,9 @@
 
 <div class="page-head">
 	<div>
-		<h1>Knowledge</h1>
-		<div class="sub">This is what your assistant answers from. Keep prices and details current — a stale price is the #1 cause of wrong answers.</div>
+		<h1>AI Knowledge</h1>
+		<div class="sub">This is the information your AI assistant uses when answering customers. Keep it accurate and up to date — your AI stays ready automatically.</div>
 	</div>
 </div>
 
-<KnowledgeManager items={data.items} departures={data.departures} {form} />
+<KnowledgeManager items={data.items} departures={data.departures} questions={data.questions} slug={data.client.slug} {form} />

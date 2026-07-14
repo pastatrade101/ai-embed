@@ -118,6 +118,35 @@ export async function addKnowledge(clientId, form) {
 	return { section: 'item', ok: `Added "${title}".` };
 }
 
+/** Copy an existing item (operators often sell near-identical tours). */
+export async function duplicateKnowledge(clientId, form) {
+	const id = String(form.get('id') ?? '');
+	const { data: src } = await supabase.from('knowledge_items').select(ITEM_COLS).eq('id', id).eq('client_id', clientId).maybeSingle();
+	if (!src) return fail(404, { section: 'item', error: 'Item not found.' });
+
+	const { data: item, error } = await supabase
+		.from('knowledge_items')
+		.insert({
+			client_id: clientId,
+			title: `${src.title} (copy)`,
+			body: src.body,
+			category: src.category,
+			price_amount: src.price_amount,
+			price_currency: src.price_currency,
+			metadata: src.metadata
+		})
+		.select(ITEM_COLS)
+		.single();
+	if (error) return fail(400, { section: 'item', error: error.message });
+
+	try {
+		await reingestItem(item);
+	} catch (e) {
+		return { section: 'item', ok: `Copied "${src.title}" — edit the copy and save.` };
+	}
+	return { section: 'item', ok: `Copied "${src.title}" — edit the copy and save.` };
+}
+
 export async function updateKnowledge(clientId, form) {
 	const id = String(form.get('id') ?? '');
 	const title = String(form.get('title') ?? '').trim();

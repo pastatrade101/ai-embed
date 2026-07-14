@@ -138,6 +138,22 @@ export function activityFeed(conversations, leads, limit = 8) {
 	return events.filter((e) => e.at).sort((a, b) => new Date(b.at) - new Date(a.at)).slice(0, limit);
 }
 
+/** The questions customers actually asked (deduped), for the Knowledge page. */
+const GREETING = /^(hi+|hey+|hello+|hellow+|yo|habari|mambo|jambo|hola|thanks?|thank you|ok(ay)?|yes|no|test|good (morning|afternoon|evening))[\s!.?]*$/i;
+
+export function customerQuestions(conversations, limit = 6) {
+	const seen = new Map();
+	for (const c of conversations) {
+		const raw = Array.isArray(c.messages) ? (c.messages.find((m) => m.role === 'user')?.content ?? '').trim() : '';
+		if (raw.length < 6 || GREETING.test(raw)) continue; // skip bare greetings / noise
+		const key = raw.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 45);
+		if (!key) continue;
+		if (seen.has(key)) seen.get(key).count += 1;
+		else seen.set(key, { q: raw.length > 90 ? raw.slice(0, 90) + '…' : raw, count: 1 });
+	}
+	return [...seen.values()].sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
 /** Actionable items the operator should review — all derived from real state. */
 export function aiTasks({ client, stats, leads, items }) {
 	const tasks = [];
