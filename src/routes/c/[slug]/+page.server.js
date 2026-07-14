@@ -5,6 +5,7 @@
 import { error } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { listTours, departuresByItem } from '$lib/server/tours.js';
+import { FEATURE, planUnlocks } from '$lib/server/gating.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -42,7 +43,7 @@ export async function load({ params }) {
 	const { data: client } = await supabase
 		.from('clients')
 		.select(
-			'id, slug, name, logo_url, brand_color, whatsapp_number, contact_email, phone, address, business_hours, languages, assistant_name, welcome_message, suggested_questions, is_active, subscription_status'
+			'id, slug, name, plan, logo_url, brand_color, whatsapp_number, contact_email, phone, address, business_hours, languages, assistant_name, welcome_message, suggested_questions, is_active, subscription_status'
 		)
 		.eq('slug', params.slug)
 		.maybeSingle();
@@ -94,7 +95,8 @@ export async function load({ params }) {
 			languages: client.languages ?? null,
 			assistantName: client.assistant_name ?? null,
 			welcome: client.welcome_message ?? null,
-			suggestions: Array.isArray(client.suggested_questions) ? client.suggested_questions.slice(0, 6) : []
+			suggestions: Array.isArray(client.suggested_questions) ? client.suggested_questions.slice(0, 6) : [],
+			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
 		},
 		tours
 	};

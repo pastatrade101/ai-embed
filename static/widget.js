@@ -39,6 +39,7 @@
 	var welcome = null;
 	var suggestions = [];
 	var autoLeadCapture = true;
+	var hideBranding = false;
 	var assistantName = null;
 	var logo = null;
 
@@ -87,7 +88,9 @@
 		fetch(API + '/api/config?client=' + encodeURIComponent(CLIENT))
 			.then(function (r) { return r.json(); })
 			.then(function (cfg) {
-				if (!cfg || cfg.error) return;
+				// A definitive server response with an error (inactive client, or the
+				// plan doesn't include the website widget) → remove the widget entirely.
+				if (!cfg || cfg.error) { try { host.remove(); } catch (e) {} return; }
 				brand = cfg.brand || brand;
 				whatsapp = cfg.whatsapp || whatsapp;
 				welcome = cfg.welcome || null;
@@ -95,6 +98,7 @@
 				logo = cfg.logo || null;
 				suggestions = Array.isArray(cfg.suggestions) ? cfg.suggestions : [];
 				if (cfg.autoLeadCapture === false) autoLeadCapture = false;
+				hideBranding = cfg.hideBranding === true;
 				render();
 			})
 			.catch(function () {});
@@ -211,7 +215,7 @@
 			head +
 			'<div class="mk-log">' + body + '</div>' +
 			footer +
-			'<div class="mk-powered">Powered by <a href="https://makutano.digital" target="_blank" rel="noopener">Makutano</a></div>' +
+			(hideBranding ? '' : '<div class="mk-powered">Powered by <a href="https://makutano.digital" target="_blank" rel="noopener">Makutano</a></div>') +
 			'</div>'
 		);
 	}

@@ -3,6 +3,7 @@
 // Called by the widget on load so it can greet before the first message.
 import { supabase } from '$lib/server/supabase.js';
 import { preflight, jsonCors } from '$lib/server/cors.js';
+import { FEATURE, planAllows, planUnlocks } from '$lib/server/gating.js';
 
 export function OPTIONS() {
 	return preflight();
@@ -14,12 +15,18 @@ export async function GET({ url }) {
 
 	const { data: client } = await supabase
 		.from('clients')
-		.select('name, assistant_name, logo_url, brand_color, whatsapp_number, welcome_message, suggested_questions, auto_lead_capture, is_active, subscription_status')
+		.select('name, plan, assistant_name, logo_url, brand_color, whatsapp_number, welcome_message, suggested_questions, auto_lead_capture, is_active, subscription_status')
 		.eq('slug', slug)
 		.maybeSingle();
 
 	if (!client || !client.is_active || client.subscription_status === 'canceled') {
 		return jsonCors({ error: 'client not found' }, 404);
+	}
+
+	// The embeddable widget requires the "Website chat widget" plan feature — when
+	// the plan omits it, the widget won't initialise (the hosted page still works).
+	if (!(await planAllows(client.plan, FEATURE.WIDGET))) {
+		return jsonCors({ error: 'widget not available on this plan' }, 403);
 	}
 
 	return jsonCors({
@@ -30,6 +37,7 @@ export async function GET({ url }) {
 		whatsapp: client.whatsapp_number ?? null,
 		welcome: client.welcome_message ?? null,
 		suggestions: Array.isArray(client.suggested_questions) ? client.suggested_questions.slice(0, 6) : [],
-		autoLeadCapture: client.auto_lead_capture !== false
+		autoLeadCapture: client.auto_lead_capture !== false,
+		hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
 	});
 }

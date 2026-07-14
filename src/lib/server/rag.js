@@ -8,8 +8,11 @@ import { embed, embedQuery } from './embeddings.js';
 import { chunkItem } from './knowledge.js';
 import { estimateCost } from './pricing.js';
 import { TOOL_DEFS, runTool } from './tools.js';
+import { FEATURE, planAllows, planUnlocks } from './gating.js';
 
 const MAX_TOOL_LOOPS = 6;
+// Premium model tier unlocked by the "Advanced (Sonnet) AI model" plan feature.
+const SONNET_MODEL = 'claude-sonnet-5';
 
 // Memory: once a conversation passes SUMMARY_THRESHOLD messages, we summarize
 // the earlier ones and send [summary + last KEEP_RECENT] to the model.
@@ -125,11 +128,11 @@ function contextBlock(chunks) {
  * @param {{ slug: string, messages: {role:'user'|'assistant', content:string}[], conversationId?: string|null }} args
  * @returns {Promise<{ answer: string, conversationId: string|null, client: { name:string, whatsapp:string|null, brand:string } }>}
  */
-export async function answerQuestion({ slug, messages, conversationId = null }) {
+export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget' }) {
 	// 1. Resolve the tenant. Reject if inactive or the subscription is canceled.
 	const { data: client, error } = await supabase
 		.from('clients')
-		.select('id, name, business_context, whatsapp_number, lead_email, brand_color, is_active, subscription_status, monthly_conversation_cap, assistant_name, tone, business_hours, address, languages, escalation, auto_lead_capture')
+		.select('id, name, plan, business_context, whatsapp_number, lead_email, brand_color, is_active, subscription_status, monthly_conversation_cap, assistant_name, tone, business_hours, address, languages, escalation, auto_lead_capture')
 		.eq('slug', slug)
 		.maybeSingle();
 
@@ -139,6 +142,19 @@ export async function answerQuestion({ slug, messages, conversationId = null }) 
 		err.status = 404;
 		throw err;
 	}
+
+	// 1a. Plan gating. The hosted page (source 'hosted') is always available; the
+	//     embeddable widget requires the "Website chat widget" plan feature.
+	if (source !== 'hosted' && !(await planAllows(client.plan, FEATURE.WIDGET))) {
+		const err = new Error('widget not available on this plan');
+		err.status = 403;
+		throw err;
+	}
+	// Model tier + which tools are offered follow the plan.
+	const model = (await planUnlocks(client.plan, FEATURE.SONNET)) ? SONNET_MODEL : CHAT_MODEL;
+	const toursAllowed = await planAllows(client.plan, FEATURE.TOURS);
+	const summariesAllowed = await planAllows(client.plan, FEATURE.SUMMARIES);
+	const tools = toursAllowed ? TOOL_DEFS : TOOL_DEFS.filter((t) => t.name !== 'search_tours' && t.name !== 'get_tour_price');
 
 	// 1b. Resolve the conversation. A known id → we're continuing (append + reuse
 	//     its summary). Unknown/absent → a new conversation.
@@ -236,10 +252,10 @@ export async function answerQuestion({ slug, messages, conversationId = null }) 
 
 	for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
 		const response = await anthropic().messages.create({
-			model: CHAT_MODEL,
+			model,
 			max_tokens: 1024,
 			system,
-			tools: TOOL_DEFS,
+			tools,
 			messages: convo
 		});
 		addUsage(response.usage);
@@ -267,10 +283,10 @@ export async function answerQuestion({ slug, messages, conversationId = null }) 
 	// (no more tools) so the customer always gets a real answer, never a preamble.
 	if (lastStop === 'tool_use') {
 		const finalResp = await anthropic().messages.create({
-			model: CHAT_MODEL,
+			model,
 			max_tokens: 1024,
 			system,
-			tools: TOOL_DEFS,
+			tools,
 			tool_choice: { type: 'none' },
 			messages: convo
 		});
@@ -310,17 +326,17 @@ export async function answerQuestion({ slug, messages, conversationId = null }) 
 			.insert({
 				client_id: client.id,
 				conversation_id: convId,
-				model: CHAT_MODEL,
+				model,
 				input_tokens: totals.input_tokens,
 				cached_tokens: totals.cache_read_input_tokens,
 				output_tokens: totals.output_tokens,
 				tool_calls: toolCalls,
-				estimated_cost: estimateCost(CHAT_MODEL, totals)
+				estimated_cost: estimateCost(model, totals)
 			})
 			.then(({ error: uErr }) => {
 				if (uErr) console.error('[rag] usage log failed:', uErr.message);
 			});
-		summarizeConversation(client.id, convId, fullTranscript);
+		if (summariesAllowed) summarizeConversation(client.id, convId, fullTranscript);
 	}
 
 	return {

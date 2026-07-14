@@ -6,6 +6,7 @@ import { embedQuery } from './embeddings.js';
 import { supabase } from './supabase.js';
 import { sendLeadEmail } from './email.js';
 import { searchTours, getTourPrice } from './tours.js';
+import { FEATURE, planAllows } from './gating.js';
 
 /** Tool schemas exposed to Claude. */
 export const TOOL_DEFS = [
@@ -107,10 +108,13 @@ export async function runTool(name, input, ctx) {
 		}
 		const { error } = await supabase.from('leads').insert(lead);
 		if (error) return `Could not save lead: ${error.message}`;
-		try {
-			await sendLeadEmail({ to: ctx.client.lead_email, businessName: ctx.client.name, lead });
-		} catch {
-			/* email is best-effort; the lead is already saved */
+		// Email alerts are a plan feature; the lead is always saved regardless.
+		if (await planAllows(ctx.client.plan, FEATURE.EMAIL_ALERTS)) {
+			try {
+				await sendLeadEmail({ to: ctx.client.lead_email, businessName: ctx.client.name, lead });
+			} catch {
+				/* email is best-effort; the lead is already saved */
+			}
 		}
 		return 'Lead saved and the team has been notified. Tell the customer someone will follow up shortly.';
 	}

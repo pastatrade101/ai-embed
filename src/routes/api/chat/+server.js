@@ -15,13 +15,15 @@ export async function POST({ request }) {
 		return jsonCors({ error: 'invalid JSON' }, 400);
 	}
 
-	const { clientSlug, messages, conversationId } = payload ?? {};
+	const { clientSlug, messages, conversationId, source } = payload ?? {};
 	if (!clientSlug || !Array.isArray(messages) || messages.length === 0) {
 		return jsonCors({ error: 'clientSlug and messages[] are required' }, 400);
 	}
 
 	// A conversation id, if present, must be a plain string (a UUID from the DB).
 	const convId = typeof conversationId === 'string' && conversationId ? conversationId : null;
+	// The hosted page identifies itself so widget gating doesn't apply to it.
+	const src = source === 'hosted' ? 'hosted' : 'widget';
 
 	// Keep only the fields we trust from the client.
 	const clean = messages
@@ -31,11 +33,12 @@ export async function POST({ request }) {
 	if (!clean.length) return jsonCors({ error: 'no valid messages' }, 400);
 
 	try {
-		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId });
+		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId, source: src });
 		return jsonCors(result);
 	} catch (err) {
 		const status = err?.status ?? 500;
 		if (status === 404) return jsonCors({ error: 'client not found' }, 404);
+		if (status === 403) return jsonCors({ error: 'not available on this plan' }, 403);
 		console.error('[api/chat] error:', err?.message ?? err);
 		return jsonCors({ error: 'assistant unavailable' }, 500);
 	}

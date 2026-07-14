@@ -6,6 +6,7 @@ import { supabase } from './supabase.js';
 import { reingestItem } from './rag.js';
 import { parseDetails, parseKnowledgeInput } from './knowledge.js';
 import { departuresByItem } from './tours.js';
+import { FEATURE, planAllows } from './gating.js';
 
 const ITEM_COLS = 'id, client_id, title, body, category, price_amount, price_currency, metadata';
 
@@ -152,6 +153,10 @@ export async function updateKnowledge(clientId, form) {
  * embeds each. Returns a per-row summary so partial failures are visible.
  */
 export async function importKnowledge(clientId, form) {
+	const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+	if (!(await planAllows(c?.plan, FEATURE.BULK_IMPORT))) {
+		return fail(403, { section: 'import', error: 'Bulk import isn’t included in your plan — add items individually or upgrade.' });
+	}
 	const { items, errors } = parseKnowledgeInput(form.get('input'));
 	if (!items.length) {
 		return fail(400, { section: 'import', error: errors[0] ?? 'No valid rows found.' });
