@@ -648,7 +648,7 @@
 	<!-- Composer (sticky, centered) ------------------------------------------->
 	<footer class="composer">
 		<div class="column">
-			<form class="bar" on:submit={onSubmit}>
+			<form class="bar" on:submit={onSubmit} data-no-busy>
 				<button type="button" class="ic-btn" aria-label="Attach" title="Attach a photo or PDF">
 					<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
 						><path

@@ -2,6 +2,7 @@
 	// Shared logged-in shell: dark sidebar (brand + grouped nav + user card) and
 	// a glass topbar. Adapted from the Pastatrade dashboard layout.
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	export let user = null; // { name, email }
 	export let initials = '?';
 	export let avatarColor = null; // override the user-card avatar gradient
@@ -62,6 +63,8 @@
 			<div class="spacer"></div>
 			<slot name="actions" />
 		</div>
-		<div class="content"><slot /></div>
+		{#key $page.url.pathname}
+			<div class="content content-anim"><slot /></div>
+		{/key}
 	</div>
 </div>
