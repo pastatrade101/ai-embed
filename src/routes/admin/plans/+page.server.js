@@ -29,6 +29,7 @@ export const actions = {
 		const patch = {
 			name: String(form.get('name') ?? '').trim(),
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
+			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
 			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 0) || 0,
 			features: parseFeatures(form.get('features')),
 			is_active: form.get('is_active') === 'on'
@@ -51,6 +52,7 @@ export const actions = {
 			key,
 			name,
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
+			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
 			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 200) || 200,
 			features: parseFeatures(form.get('features')),
 			sort: 99

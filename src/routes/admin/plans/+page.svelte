@@ -2,12 +2,14 @@
 	import { enhance } from '$app/forms';
 	export let data;
 	export let form;
+	// Snippe settles in TZS; USD is fine for display/manual billing.
+	const CURRENCIES = ['TZS', 'USD', 'KES', 'UGX', 'RWF', 'EUR', 'GBP'];
 </script>
 
 <div class="page-head">
 	<div>
 		<h1>Plans &amp; billing</h1>
-		<div class="sub">Define subscription tiers. Assigning a plan to a client sets its monthly conversation cap. Billing is manual for now — no card processor wired up.</div>
+		<div class="sub">Define subscription tiers. Assigning a plan to a client sets its monthly conversation cap. To sell a plan online via Snippe, price it in <b>TZS</b> (Snippe's minimum charge is 500 TZS).</div>
 	</div>
 </div>
 
@@ -25,12 +27,18 @@
 			</div>
 			<div class="row">
 				<div><label>Name</label><input name="name" value={p.name} required /></div>
-				<div><label>Price ({p.price_currency}/mo)</label><input name="price_amount" value={p.price_amount} inputmode="decimal" /></div>
+				<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" value={p.monthly_conversation_cap} inputmode="numeric" /></div>
 			</div>
 			<div class="row">
-				<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" value={p.monthly_conversation_cap} inputmode="numeric" /></div>
-				<div style="display:flex;align-items:flex-end;gap:.5rem;padding-bottom:.6rem"><input type="checkbox" name="is_active" checked={p.is_active} style="width:auto" /><label style="margin:0">Available for new clients</label></div>
+				<div><label>Price / month</label><input name="price_amount" value={p.price_amount} inputmode="decimal" /></div>
+				<div>
+					<label>Currency</label>
+					<select name="price_currency" value={p.price_currency ?? 'USD'}>
+						{#each CURRENCIES as c}<option value={c}>{c}</option>{/each}
+					</select>
+				</div>
 			</div>
+			<div style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" name="is_active" checked={p.is_active} style="width:auto" /><label style="margin:0">Available for new clients</label></div>
 			<div><label>Features (one per line)</label><textarea name="features" style="min-height:90px">{(p.features ?? []).join('\n')}</textarea></div>
 			<div><button type="submit">Save plan</button></div>
 		</form>
@@ -46,9 +54,15 @@
 		<div><label>Key</label><input name="key" placeholder="enterprise (auto from name)" /></div>
 	</div>
 	<div class="row">
-		<div><label>Price /mo</label><input name="price_amount" inputmode="decimal" placeholder="199" /></div>
-		<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" inputmode="numeric" placeholder="20000" /></div>
+		<div><label>Price / month</label><input name="price_amount" inputmode="decimal" placeholder="50000" /></div>
+		<div>
+			<label>Currency</label>
+			<select name="price_currency" value="TZS">
+				{#each CURRENCIES as c}<option value={c}>{c}</option>{/each}
+			</select>
+		</div>
 	</div>
+	<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" inputmode="numeric" placeholder="20000" /></div>
 	<div><label>Features (one per line)</label><textarea name="features" style="min-height:90px" placeholder="Everything in Pro&#10;Unlimited websites&#10;Dedicated support"></textarea></div>
 	<div><button type="submit">Create plan</button></div>
 </form>
