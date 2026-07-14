@@ -80,29 +80,45 @@
 </div>
 
 <h2 class="section">All plans</h2>
-<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
-	{#each data.plans as p}
-		<div class="card" style={p.key === client.plan ? 'border-color:var(--mint)' : ''}>
-			<div class="rowflex" style="justify-content:space-between">
-				<strong>{p.name}</strong>
-				{#if p.key === client.plan}<span class="badge">current</span>{/if}
+<div class="plans-grid">
+	{#each data.plans as p (p.key)}
+		<div class="card plan-card" class:is-current={p.key === client.plan}>
+			<div class="plan-top">
+				<span class="plan-name">{p.name}</span>
+				{#if p.key === client.plan}<span class="badge">current</span>{:else if p.is_default}<span class="badge neutral">default</span>{/if}
 			</div>
-			<div style="font-size:1.5rem;font-weight:700;margin:.3rem 0">
-				{#if Number(p.price_amount) > 0}{p.price_currency} {p.price_amount}<span class="faint" style="font-size:.85rem;font-weight:500"> /mo</span>{:else}Free{/if}
+			<div class="plan-price">
+				{#if Number(p.price_amount) > 0}{p.price_currency} {Number(p.price_amount).toLocaleString()}<span class="per"> /mo</span>{:else}Free{/if}
 			</div>
-			<div class="muted" style="font-size:.85rem">{p.monthly_conversation_cap} conversations / month</div>
-			{#if p.features?.length}<ul style="margin:.7rem 0 .9rem;padding-left:1.1rem;font-size:.84rem;color:var(--body)">{#each p.features as f}<li>{f}</li>{/each}</ul>{/if}
+			<div class="plan-cap">{Number(p.monthly_conversation_cap).toLocaleString()} conversations / month</div>
 
-			{#if p.key !== client.plan && Number(p.price_amount) > 0}
-				{#if data.paymentsEnabled}
-					<form method="POST" action="?/checkout">
-						<input type="hidden" name="plan" value={p.key} />
-						<button class="btn sm" type="submit" style="width:100%">Get {p.name}</button>
-					</form>
-				{:else}
-					<a class="btn ghost sm" href="/portal/billing" style="width:100%;justify-content:center;pointer-events:none;opacity:.6">Contact us to upgrade</a>
-				{/if}
+			{#if p.features?.length}
+				<ul class="plan-feats">
+					{#each p.features as f}
+						<li>
+							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+							<span>{f}</span>
+						</li>
+					{/each}
+				</ul>
 			{/if}
+
+			<div class="plan-foot">
+				{#if p.key === client.plan}
+					<button class="btn ghost plan-cta" type="button" disabled>Current plan</button>
+				{:else if Number(p.price_amount) > 0}
+					{#if data.paymentsEnabled}
+						<form method="POST" action="?/checkout">
+							<input type="hidden" name="plan" value={p.key} />
+							<button class="btn plan-cta" type="submit">Get {p.name}</button>
+						</form>
+					{:else}
+						<span class="btn ghost plan-cta disabled">Contact us to upgrade</span>
+					{/if}
+				{:else}
+					<span class="btn ghost plan-cta disabled">Contact us to switch</span>
+				{/if}
+			</div>
 		</div>
 	{/each}
 </div>
@@ -110,3 +126,87 @@
 {#if data.paymentsEnabled}
 	<p class="hint" style="margin-top:1rem">Secure checkout by <b>Snippe</b>. You’ll be redirected to pay, then returned here — your plan activates automatically once payment confirms.</p>
 {/if}
+
+<style>
+	.plans-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+		gap: 1rem;
+		align-items: stretch;
+	}
+	.plan-card {
+		display: flex;
+		flex-direction: column;
+		padding: 1.35rem;
+	}
+	.plan-card.is-current {
+		border-color: var(--mint);
+		box-shadow: inset 0 0 0 1px rgba(55, 224, 166, 0.5), var(--shadow);
+	}
+	.plan-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.5rem;
+	}
+	.plan-name {
+		font-size: 1.05rem;
+		font-weight: 700;
+		color: var(--strong);
+	}
+	.plan-price {
+		font-size: 1.6rem;
+		font-weight: 800;
+		color: var(--strong);
+		letter-spacing: -0.02em;
+		margin: 0.55rem 0 0.15rem;
+	}
+	.plan-price .per {
+		font-size: 0.82rem;
+		font-weight: 500;
+		color: var(--faint);
+	}
+	.plan-cap {
+		color: var(--muted);
+		font-size: 0.84rem;
+	}
+	.plan-feats {
+		list-style: none;
+		margin: 1.1rem 0 1.3rem;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.plan-feats li {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.55rem;
+		font-size: 0.86rem;
+		color: var(--body);
+		line-height: 1.35;
+	}
+	.plan-feats svg {
+		width: 15px;
+		height: 15px;
+		color: var(--mint);
+		flex-shrink: 0;
+		margin-top: 2px;
+	}
+	.plan-foot {
+		margin-top: auto;
+	}
+	.plan-foot form,
+	.plan-cta {
+		width: 100%;
+	}
+	.plan-cta {
+		justify-content: center;
+	}
+	.plan-cta.disabled,
+	button.plan-cta:disabled {
+		opacity: 0.55;
+		cursor: default;
+		pointer-events: none;
+	}
+</style>

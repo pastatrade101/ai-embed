@@ -17,9 +17,9 @@ update plans set features =
 where key = 'starter';
 
 update plans set features =
-	'["Hosted AI page + QR code","Website chat widget","WhatsApp lead handoff","Email lead alerts","AI-qualified leads","Conversation history & summaries","Structured tours & pricing","Bulk knowledge import (CSV/JSON)","Priority responses","Custom branding & logo","Remove \"Powered by Makutano\" badge","Multiple websites"]'::jsonb
+	'["Hosted AI page + QR code","Website chat widget","WhatsApp lead handoff","Email lead alerts","AI-qualified leads","Conversation history & summaries","Structured tours & pricing","Bulk knowledge import (CSV/JSON)","Remove \"Powered by Makutano\" badge"]'::jsonb
 where key = 'growth';
 
 update plans set features =
-	'["Hosted AI page + QR code","Website chat widget","WhatsApp lead handoff","Email lead alerts","AI-qualified leads","Conversation history & summaries","Structured tours & pricing","Bulk knowledge import (CSV/JSON)","Priority responses","Custom branding & logo","Remove \"Powered by Makutano\" badge","Multiple websites","Advanced (Sonnet) AI model","Dedicated support"]'::jsonb
+	'["Hosted AI page + QR code","Website chat widget","WhatsApp lead handoff","Email lead alerts","AI-qualified leads","Conversation history & summaries","Structured tours & pricing","Bulk knowledge import (CSV/JSON)","Remove \"Powered by Makutano\" badge","Advanced (Sonnet) AI model","Dedicated support"]'::jsonb
 where key = 'pro';
