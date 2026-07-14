@@ -1,18 +1,53 @@
 <script>
+	import { page } from '$app/stores';
+	import { enhance } from '$app/forms';
 	export let data;
+	export let form;
 	$: client = data.client;
 	$: cap = client.monthly_conversation_cap ?? 0;
 	$: usagePct = cap > 0 ? Math.min(100, Math.round((data.usedThisMonth / cap) * 100)) : 0;
 	$: usageClass = usagePct >= 100 ? 'over' : usagePct >= 80 ? 'warn' : '';
 	const statusLabel = { active: 'Active', trialing: 'Trial', past_due: 'Payment due', canceled: 'Canceled' };
+	$: justReturned = $page.url.searchParams.get('upgrade') === 'success';
+	const planName = (key) => data.plans.find((p) => p.key === key)?.name ?? key;
+	let verifying = false;
 </script>
 
 <div class="page-head">
 	<div>
 		<h1>Plan &amp; billing</h1>
-		<div class="sub">Your current plan and usage. To upgrade or change plans, contact us — we'll sort it out with you directly.</div>
+		<div class="sub">
+			{#if data.paymentsEnabled}
+				Upgrade instantly — pay by mobile money or card through Snippe’s secure checkout.
+			{:else}
+				Your current plan and usage. To upgrade or change plans, contact us — we’ll sort it out with you directly.
+			{/if}
+		</div>
 	</div>
 </div>
+
+{#if form?.ok}
+	<div class="notice">{form.message}</div>
+{:else if form?.ok === false}
+	<div class="notice">{form.message}</div>
+{/if}
+{#if form?.error}
+	<div class="notice err">{form.error}</div>
+{/if}
+
+{#if justReturned || data.pendingAttempt}
+	<div class="notice">
+		{#if justReturned}
+			Thanks! Payment can take a moment to confirm.
+		{:else}
+			You have an upgrade to <b>{planName(data.pendingAttempt.plan_key)}</b> in progress.
+		{/if}
+		If your plan hasn’t updated yet, check its status:
+		<form method="POST" action="?/verifyPayment" use:enhance={() => { verifying = true; return async ({ update }) => { verifying = false; await update(); }; }} style="display:inline">
+			<button class="btn sm" type="submit" disabled={verifying} style="margin-left:.4rem">{verifying ? 'Checking…' : 'Check payment status'}</button>
+		</form>
+	</div>
+{/if}
 
 <div class="card">
 	<div class="rowflex" style="justify-content:space-between">
@@ -45,7 +80,7 @@
 </div>
 
 <h2 class="section">All plans</h2>
-<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+<div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(210px,1fr))">
 	{#each data.plans as p}
 		<div class="card" style={p.key === client.plan ? 'border-color:var(--mint)' : ''}>
 			<div class="rowflex" style="justify-content:space-between">
@@ -54,7 +89,22 @@
 			</div>
 			<div style="font-size:1.5rem;font-weight:700;margin:.3rem 0">{p.price_currency} {p.price_amount}<span class="faint" style="font-size:.85rem;font-weight:500"> /mo</span></div>
 			<div class="muted" style="font-size:.85rem">{p.monthly_conversation_cap} conversations / month</div>
-			{#if p.features?.length}<ul style="margin:.7rem 0 0;padding-left:1.1rem;font-size:.84rem;color:var(--body)">{#each p.features as f}<li>{f}</li>{/each}</ul>{/if}
+			{#if p.features?.length}<ul style="margin:.7rem 0 .9rem;padding-left:1.1rem;font-size:.84rem;color:var(--body)">{#each p.features as f}<li>{f}</li>{/each}</ul>{/if}
+
+			{#if p.key !== client.plan}
+				{#if data.paymentsEnabled}
+					<form method="POST" action="?/checkout">
+						<input type="hidden" name="plan" value={p.key} />
+						<button class="btn sm" type="submit" style="width:100%">Get {p.name}</button>
+					</form>
+				{:else}
+					<a class="btn ghost sm" href="/portal/billing" style="width:100%;justify-content:center;pointer-events:none;opacity:.6">Contact us to upgrade</a>
+				{/if}
+			{/if}
 		</div>
 	{/each}
 </div>
+
+{#if data.paymentsEnabled}
+	<p class="hint" style="margin-top:1rem">Secure checkout by <b>Snippe</b>. You’ll be redirected to pay, then returned here — your plan activates automatically once payment confirms.</p>
+{/if}

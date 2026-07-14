@@ -80,6 +80,29 @@ App runs at `http://localhost:3000` (change the host port with `APP_PORT`).
 Without Compose you can also run the built server directly:
 `npm run build && node --env-file=.env build`.
 
+## Payments (Snippe)
+
+Operators upgrade their plan through [Snippe](https://snippe.sh) hosted checkout
+(mobile money / card) — Makutano never touches card details. Same technique as the
+Pastatrade backend.
+
+1. Run `db/007_payments.sql` in Supabase (adds `payment_events` + `payment_attempts`).
+2. Set in `.env`:
+   - `SNIPPE_API_KEY`, `SNIPPE_WEBHOOK_SECRET` (from your Snippe dashboard)
+   - `PUBLIC_APP_URL=https://your-domain` (used to build the webhook URL)
+3. In the Snippe dashboard, point the webhook to
+   `https://your-domain/api/payments/webhook/snippe`.
+
+Flow: operator clicks a plan on **Plan & billing** → server creates a Snippe session
+and redirects to hosted checkout → on success Snippe calls the webhook (HMAC-SHA256
+verified, replay-protected) → the client's plan activates automatically. A
+**self-verify** button covers a missed/late webhook by polling the session status.
+
+Leave `SNIPPE_API_KEY` blank to disable online checkout (upgrades then show a
+"contact us" message). **Note:** Snippe's minimum charge is 500 TZS, so price plans
+in **TZS** (edit them in the admin console) — the seeded USD plans are placeholders
+and will be rejected by Snippe until repriced.
+
 ## Onboarding a client
 
 1. Create the `clients` row (name, slug, business_context, WhatsApp).
