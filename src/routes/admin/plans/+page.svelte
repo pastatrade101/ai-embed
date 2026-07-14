@@ -22,7 +22,11 @@
 		<form class="card grid" method="POST" action="?/save" use:enhance>
 			<input type="hidden" name="key" value={p.key} />
 			<div class="rowflex" style="justify-content:space-between">
-				<h2 class="section" style="margin:0">{p.name} <span class="badge neutral mono">{p.key}</span></h2>
+				<h2 class="section" style="margin:0">
+					{p.name} <span class="badge neutral mono">{p.key}</span>
+					{#if p.is_default}<span class="badge">default</span>{/if}
+					{#if Number(p.price_amount) === 0}<span class="badge neutral">free</span>{/if}
+				</h2>
 				<span class="badge {(data.counts[p.key] ?? 0) > 0 ? '' : 'neutral'}">{data.counts[p.key] ?? 0} client{(data.counts[p.key] ?? 0) === 1 ? '' : 's'}</span>
 			</div>
 			<div class="row">
@@ -38,7 +42,10 @@
 					</select>
 				</div>
 			</div>
-			<div style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" name="is_active" checked={p.is_active} style="width:auto" /><label style="margin:0">Available for new clients</label></div>
+			<div style="display:flex;flex-wrap:wrap;gap:1.2rem">
+				<div style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" name="is_active" checked={p.is_active} style="width:auto" /><label style="margin:0">Available for new clients</label></div>
+				<div style="display:flex;align-items:center;gap:.5rem"><input type="checkbox" name="is_default" checked={p.is_default} style="width:auto" /><label style="margin:0">Default plan for new clients</label></div>
+			</div>
 			<div><label>Features (one per line)</label><textarea name="features" style="min-height:90px">{(p.features ?? []).join('\n')}</textarea></div>
 			<div><button type="submit">Save plan</button></div>
 		</form>

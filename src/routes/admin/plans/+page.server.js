@@ -40,6 +40,12 @@ export const actions = {
 		const { error } = await supabase.from('plans').update(patch).eq('key', key);
 		if (error) return fail(400, { error: error.message });
 		await supabase.from('clients').update({ monthly_conversation_cap: patch.monthly_conversation_cap }).eq('plan', key);
+
+		// Checking "default for new clients" makes THIS plan the sole default.
+		if (form.get('is_default') === 'on') {
+			await supabase.from('plans').update({ is_default: false }).neq('key', key);
+			await supabase.from('plans').update({ is_default: true }).eq('key', key);
+		}
 		return { ok: `Saved ${patch.name}.` };
 	},
 

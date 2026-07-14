@@ -110,7 +110,7 @@
 				<label for="plan">Plan</label>
 				<select id="plan" name="plan">
 					{#each data.plans as p}
-						<option value={p.key} selected={(form?.values?.plan ?? 'starter') === p.key}>{p.name} — {p.price_currency} {p.price_amount}/mo · {p.monthly_conversation_cap} conv</option>
+						<option value={p.key} selected={(form?.values?.plan ?? data.defaultPlan) === p.key}>{p.name} — {p.price_amount > 0 ? `${p.price_currency} ${p.price_amount}/mo` : 'Free'} · {p.monthly_conversation_cap} conv{p.is_default ? ' · default' : ''}</option>
 					{/each}
 				</select>
 			</div>

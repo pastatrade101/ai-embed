@@ -53,7 +53,7 @@
 	<div class="rowflex" style="justify-content:space-between">
 		<div>
 			<h2 class="section" style="margin:0">{data.currentPlan?.name ?? client.plan}</h2>
-			<div class="muted">{data.currentPlan ? `${data.currentPlan.price_currency} ${data.currentPlan.price_amount} / month` : ''}</div>
+			<div class="muted">{data.currentPlan ? (Number(data.currentPlan.price_amount) > 0 ? `${data.currentPlan.price_currency} ${data.currentPlan.price_amount} / month` : 'Free') : ''}</div>
 		</div>
 		<span class="badge {client.subscription_status === 'active' ? '' : 'off'}">{statusLabel[client.subscription_status] ?? client.subscription_status}</span>
 	</div>
@@ -87,11 +87,13 @@
 				<strong>{p.name}</strong>
 				{#if p.key === client.plan}<span class="badge">current</span>{/if}
 			</div>
-			<div style="font-size:1.5rem;font-weight:700;margin:.3rem 0">{p.price_currency} {p.price_amount}<span class="faint" style="font-size:.85rem;font-weight:500"> /mo</span></div>
+			<div style="font-size:1.5rem;font-weight:700;margin:.3rem 0">
+				{#if Number(p.price_amount) > 0}{p.price_currency} {p.price_amount}<span class="faint" style="font-size:.85rem;font-weight:500"> /mo</span>{:else}Free{/if}
+			</div>
 			<div class="muted" style="font-size:.85rem">{p.monthly_conversation_cap} conversations / month</div>
 			{#if p.features?.length}<ul style="margin:.7rem 0 .9rem;padding-left:1.1rem;font-size:.84rem;color:var(--body)">{#each p.features as f}<li>{f}</li>{/each}</ul>{/if}
 
-			{#if p.key !== client.plan}
+			{#if p.key !== client.plan && Number(p.price_amount) > 0}
 				{#if data.paymentsEnabled}
 					<form method="POST" action="?/checkout">
 						<input type="hidden" name="plan" value={p.key} />

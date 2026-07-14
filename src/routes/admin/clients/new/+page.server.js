@@ -8,7 +8,9 @@ function slugify(s) {
 
 export async function load() {
 	const { data: plans } = await supabase.from('plans').select('*').eq('is_active', true).order('sort');
-	return { plans: plans ?? [] };
+	const list = plans ?? [];
+	const defaultPlan = list.find((p) => p.is_default)?.key ?? list[0]?.key ?? 'free';
+	return { plans: list, defaultPlan };
 }
 
 export const actions = {
@@ -20,7 +22,11 @@ export const actions = {
 		const business_context = String(form.get('business_context') ?? '').trim() || null;
 		const whatsapp_number = String(form.get('whatsapp_number') ?? '').trim() || null;
 		const lead_email = String(form.get('lead_email') ?? '').trim() || null;
-		const planKey = String(form.get('plan') ?? 'starter').trim() || 'starter';
+		let planKey = String(form.get('plan') ?? '').trim();
+		if (!planKey) {
+			const { data: def } = await supabase.from('plans').select('key').eq('is_default', true).eq('is_active', true).maybeSingle();
+			planKey = def?.key ?? 'free';
+		}
 
 		// Operator login — now created with every client. The login email is the
 		// username; the password is auto-generated when the admin leaves it blank.
@@ -51,8 +57,8 @@ export const actions = {
 				business_context,
 				whatsapp_number,
 				lead_email,
-				plan: plan?.key ?? 'starter',
-				monthly_conversation_cap: plan?.monthly_conversation_cap ?? 200
+				plan: plan?.key ?? planKey,
+				monthly_conversation_cap: plan?.monthly_conversation_cap ?? 30
 			})
 			.select('id, slug, name')
 			.single();
