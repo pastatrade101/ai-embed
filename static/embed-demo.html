@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Makutano Widget — demo page</title>
+		<style>
+			body {
+				font-family: Georgia, 'Times New Roman', serif;
+				max-width: 720px;
+				margin: 0 auto;
+				padding: 3rem 1.5rem;
+				color: #2a2a2a;
+				line-height: 1.6;
+			}
+			h1 {
+				font-size: 2rem;
+			}
+			.hint {
+				background: #f4f1ea;
+				border-left: 3px solid #b8845f;
+				padding: 0.9rem 1.1rem;
+				border-radius: 6px;
+				font-size: 0.95rem;
+			}
+			code {
+				background: #eee;
+				padding: 0.1rem 0.35rem;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Kilimanjaro Treks</h1>
+		<p>
+			A stand-in operator website. The floating button in the corner is the
+			embedded Makutano assistant — it runs entirely from this one script tag
+			and answers only from the client's verified catalogue.
+		</p>
+		<p class="hint">
+			Change <code>data-client</code> below to a slug you created in the admin
+			panel, seed a few knowledge items, then ask the assistant about them.
+		</p>
+
+		<h2>Sample tours</h2>
+		<p>
+			We run 3–7 day safaris across the northern circuit — Serengeti,
+			Ngorongoro, Tarangire — plus Kilimanjaro climbs. Ask the assistant for
+			prices, group sizes, or whether a route suits your fitness level.
+		</p>
+
+		<!-- The one tag an operator pastes. Served from this same dev server,
+		     so the widget's API base resolves to http://localhost:5173. -->
+		<script src="/widget.js" data-client="emnel-adventures"></script>
+	</body>
+</html>

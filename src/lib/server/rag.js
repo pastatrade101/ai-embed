@@ -1,0 +1,362 @@
+// The RAG flow: retrieve → ground → answer. This is the product's core.
+// It runs on every visitor question and never touches the operator's live site —
+// the assistant answers only from stored, verified data.
+import Anthropic from '@anthropic-ai/sdk';
+import { env } from '$env/dynamic/private';
+import { supabase } from './supabase.js';
+import { embed, embedQuery } from './embeddings.js';
+import { chunkItem } from './knowledge.js';
+import { estimateCost } from './pricing.js';
+import { TOOL_DEFS, runTool } from './tools.js';
+
+const MAX_TOOL_LOOPS = 6;
+
+// Memory: once a conversation passes SUMMARY_THRESHOLD messages, we summarize
+// the earlier ones and send [summary + last KEEP_RECENT] to the model.
+const SUMMARY_THRESHOLD = 12;
+const KEEP_RECENT = 6;
+
+const extractText = (response) =>
+	response.content
+		.filter((b) => b.type === 'text')
+		.map((b) => b.text)
+		.join('')
+		.trim();
+
+/**
+ * Fire-and-forget: summarize a long conversation and store it on the row, so
+ * the next turn can send the summary instead of the full history. Its own
+ * (small) token cost is logged to usage_records.
+ */
+function summarizeConversation(clientId, conversationId, transcript) {
+	if (!conversationId || transcript.length < SUMMARY_THRESHOLD) return;
+	const text = transcript.map((m) => `${m.role}: ${m.content}`).join('\n');
+	anthropic()
+		.messages.create({
+			model: CHAT_MODEL,
+			max_tokens: 300,
+			system:
+				'Summarize this customer chat for the sales team in 3-5 sentences. Capture: what the customer wants, any dates/group size/budget/nationality given, tours or prices discussed, contact details shared, and the next step. Be factual and concise.',
+			messages: [{ role: 'user', content: text }]
+		})
+		.then((resp) => {
+			const summary = extractText(resp);
+			if (summary) {
+				supabase.from('conversations').update({ summary }).eq('id', conversationId).then(() => {});
+			}
+			const u = resp.usage ?? {};
+			supabase
+				.from('usage_records')
+				.insert({
+					client_id: clientId,
+					conversation_id: conversationId,
+					model: CHAT_MODEL,
+					input_tokens: u.input_tokens ?? 0,
+					cached_tokens: u.cache_read_input_tokens ?? 0,
+					output_tokens: u.output_tokens ?? 0,
+					tool_calls: 0,
+					estimated_cost: estimateCost(CHAT_MODEL, u)
+				})
+				.then(() => {});
+		})
+		.catch((e) => console.error('[rag] summarize failed:', e?.message ?? e));
+}
+
+// Claude Haiku 4.5 — fast and cheap per conversation; grounding does the heavy
+// lifting. Swap to claude-sonnet-5 for a Pro tier. (Per build spec §4.)
+const CHAT_MODEL = 'claude-haiku-4-5';
+
+let _anthropic;
+function anthropic() {
+	if (_anthropic) return _anthropic;
+	if (!env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set');
+	_anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+	return _anthropic;
+}
+
+/**
+ * Stable persona + rules + tool guidance for one client. This is the same on
+ * every turn of a conversation, so it's marked cacheable — the retrieved
+ * CONTEXT (which changes per question) is sent as a separate system block.
+ */
+function buildPersona(client) {
+	const persona = client.assistant_name
+		? `You are ${client.assistant_name}, the customer assistant for ${client.name}.`
+		: `You are the customer assistant for ${client.name}.`;
+
+	const profile = [];
+	if (client.business_context) profile.push(`About / instructions: ${client.business_context}`);
+	if (client.tone) profile.push(`Tone: ${client.tone}.`);
+	if (client.business_hours) profile.push(`Business hours: ${client.business_hours}.`);
+	if (client.address) profile.push(`Location: ${client.address}.`);
+
+	const langRule = client.languages
+		? `Reply in the customer's language. Languages you support: ${client.languages}.`
+		: `Match the customer's language (English or Swahili).`;
+
+	const escalationRule = client.escalation
+		? `When you can't help or the customer wants a human: ${client.escalation}`
+		: `If you don't have a detail, say so and offer to connect them to the team.`;
+
+	const leadRule = client.auto_lead_capture === false
+		? "Do not push for contact details unless the customer offers them."
+		: 'On buying intent, invite the customer to share their name and a WhatsApp number and/or email, then call create_lead to save it.';
+
+	return `${persona}
+${profile.join('\n')}
+
+RULES — follow these exactly:
+1. Answer ONLY from the verified catalogue (the CONTEXT below and search_knowledge results). No outside knowledge.
+2. ${escalationRule} Never guess prices or availability.
+3. Never invent products/services/prices. Never recommend a competitor.
+4. Be warm and concise. ${langRule}
+5. ${leadRule}
+
+QUALIFY trip enquiries like a real sales consultant: gather travel month, group size and budget (ask only for what's missing, one or two questions at a time). Then call search_tours to recommend fitting options, get_tour_price for the exact price and a group estimate, and search_knowledge for other details. Once you have interest + a name or WhatsApp number, call create_lead. Never state a price you didn't get from get_tour_price.`;
+}
+
+function contextBlock(chunks) {
+	const body = chunks.length ? chunks.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n') : '(no initial matches — use search_knowledge if you need details)';
+	return `CONTEXT (initial search results for the latest question):\n${body}`;
+}
+
+/**
+ * Answer a visitor question, grounded in one client's verified data.
+ * @param {{ slug: string, messages: {role:'user'|'assistant', content:string}[], conversationId?: string|null }} args
+ * @returns {Promise<{ answer: string, conversationId: string|null, client: { name:string, whatsapp:string|null, brand:string } }>}
+ */
+export async function answerQuestion({ slug, messages, conversationId = null }) {
+	// 1. Resolve the tenant. Reject if inactive or the subscription is canceled.
+	const { data: client, error } = await supabase
+		.from('clients')
+		.select('id, name, business_context, whatsapp_number, lead_email, brand_color, is_active, subscription_status, monthly_conversation_cap, assistant_name, tone, business_hours, address, languages, escalation, auto_lead_capture')
+		.eq('slug', slug)
+		.maybeSingle();
+
+	if (error) throw new Error(`client lookup failed: ${error.message}`);
+	if (!client || !client.is_active || client.subscription_status === 'canceled') {
+		const err = new Error('client not found or inactive');
+		err.status = 404;
+		throw err;
+	}
+
+	// 1b. Resolve the conversation. A known id → we're continuing (append + reuse
+	//     its summary). Unknown/absent → a new conversation.
+	let convoSummary = null;
+	let isNewConversation = true;
+	if (conversationId) {
+		const { data: existing } = await supabase
+			.from('conversations')
+			.select('id, summary')
+			.eq('id', conversationId)
+			.eq('client_id', client.id)
+			.maybeSingle();
+		if (existing) {
+			isNewConversation = false;
+			convoSummary = existing.summary ?? null;
+		} else {
+			conversationId = null; // unknown id → start fresh
+		}
+	}
+
+	// 1c. Enforce the monthly cap on NEW conversations only — a customer already
+	//     mid-chat is never cut off, and the count is distinct conversations this
+	//     month (matching the plan's "N conversations").
+	const cap = client.monthly_conversation_cap ?? 0;
+	if (isNewConversation && cap > 0) {
+		const now = new Date();
+		const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+		const { count } = await supabase
+			.from('conversations')
+			.select('*', { count: 'exact', head: true })
+			.eq('client_id', client.id)
+			.gte('created_at', since);
+		if ((count ?? 0) >= cap) {
+			return {
+				answer:
+					"Thanks for your interest! Our assistant has reached its limit for this month. " +
+					(client.whatsapp_number
+						? 'Please reach us directly on WhatsApp and the team will help you right away.'
+						: 'Please try again soon or contact the team directly.'),
+				conversationId: null,
+				client: { name: client.name, whatsapp: client.whatsapp_number ?? null, brand: client.brand_color ?? '#0f6e56' },
+				capped: true
+			};
+		}
+	}
+
+	// 2. Embed the latest user message.
+	const lastUser = [...messages].reverse().find((m) => m.role === 'user');
+	const question = lastUser?.content?.trim() ?? '';
+
+	let chunks = [];
+	if (question) {
+		const queryEmbedding = await embedQuery(question);
+
+		// 3. Retrieve scoped chunks. Isolation is enforced in SQL (match_chunks).
+		const { data, error: matchErr } = await supabase.rpc('match_chunks', {
+			p_client_id: client.id,
+			p_query_embedding: queryEmbedding,
+			p_match_count: 5
+		});
+		if (matchErr) throw new Error(`match_chunks failed: ${matchErr.message}`);
+		chunks = data ?? [];
+	}
+
+	// 4. Run the agent loop: the model answers, and may call tools
+	//    (search_knowledge, create_lead) which the backend executes tenant-scoped.
+	const system = [
+		{ type: 'text', text: buildPersona(client), cache_control: { type: 'ephemeral' } },
+		{ type: 'text', text: contextBlock(chunks) }
+	];
+	if (convoSummary) {
+		system.push({ type: 'text', text: `EARLIER IN THIS CONVERSATION (summary):\n${convoSummary}` });
+	}
+
+	// With a summary in hand, send only the recent turns (the summary covers the
+	// rest) to keep long conversations cheap. Keep the slice starting on a user turn.
+	let sendMessages = messages;
+	if (convoSummary && messages.length > KEEP_RECENT) {
+		sendMessages = messages.slice(-KEEP_RECENT);
+		while (sendMessages.length && sendMessages[0].role !== 'user') sendMessages = sendMessages.slice(1);
+		if (!sendMessages.length) sendMessages = messages.slice(-1);
+	}
+	const convo = sendMessages.map((m) => ({ role: m.role, content: m.content }));
+
+	const totals = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
+	const addUsage = (u = {}) => {
+		totals.input_tokens += u.input_tokens ?? 0;
+		totals.output_tokens += u.output_tokens ?? 0;
+		totals.cache_read_input_tokens += u.cache_read_input_tokens ?? 0;
+		totals.cache_creation_input_tokens += u.cache_creation_input_tokens ?? 0;
+	};
+	let toolCalls = 0;
+	let answer = '';
+	let lastStop = null;
+
+	for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
+		const response = await anthropic().messages.create({
+			model: CHAT_MODEL,
+			max_tokens: 1024,
+			system,
+			tools: TOOL_DEFS,
+			messages: convo
+		});
+		addUsage(response.usage);
+		lastStop = response.stop_reason;
+
+		// A non-tool turn is the final answer. Preamble text on a tool turn
+		// ("Let me search…") is NOT the answer — ignore it and keep looping.
+		if (response.stop_reason !== 'tool_use') {
+			answer = extractText(response);
+			break;
+		}
+
+		const toolUses = response.content.filter((b) => b.type === 'tool_use');
+		convo.push({ role: 'assistant', content: response.content });
+		const results = [];
+		for (const tu of toolUses) {
+			toolCalls++;
+			const out = await runTool(tu.name, tu.input, { client, transcript: messages });
+			results.push({ type: 'tool_result', tool_use_id: tu.id, content: String(out) });
+		}
+		convo.push({ role: 'user', content: results });
+	}
+
+	// If the loop ran out while still calling tools, force a final wrap-up turn
+	// (no more tools) so the customer always gets a real answer, never a preamble.
+	if (lastStop === 'tool_use') {
+		const finalResp = await anthropic().messages.create({
+			model: CHAT_MODEL,
+			max_tokens: 1024,
+			system,
+			tools: TOOL_DEFS,
+			tool_choice: { type: 'none' },
+			messages: convo
+		});
+		addUsage(finalResp.usage);
+		answer = extractText(finalResp);
+	}
+
+	if (!answer) answer = "Sorry — I couldn't put that together just now. Please try again.";
+
+	// 5. Persist the conversation. New → insert (await so we can return the id);
+	//    continuing → append the full transcript (fire-and-forget).
+	const fullTranscript = [...messages, { role: 'assistant', content: answer }];
+	let convId = conversationId;
+	if (isNewConversation) {
+		const { data, error: insErr } = await supabase
+			.from('conversations')
+			.insert({ client_id: client.id, messages: fullTranscript })
+			.select('id')
+			.single();
+		if (!insErr) convId = data.id;
+		else console.error('[rag] conversation create failed:', insErr.message);
+	} else {
+		supabase
+			.from('conversations')
+			.update({ messages: fullTranscript, updated_at: new Date().toISOString() })
+			.eq('id', convId)
+			.eq('client_id', client.id)
+			.then(({ error: e }) => {
+				if (e) console.error('[rag] conversation update failed:', e.message);
+			});
+	}
+
+	// Usage + rolling summary — both fire-and-forget.
+	if (convId) {
+		supabase
+			.from('usage_records')
+			.insert({
+				client_id: client.id,
+				conversation_id: convId,
+				model: CHAT_MODEL,
+				input_tokens: totals.input_tokens,
+				cached_tokens: totals.cache_read_input_tokens,
+				output_tokens: totals.output_tokens,
+				tool_calls: toolCalls,
+				estimated_cost: estimateCost(CHAT_MODEL, totals)
+			})
+			.then(({ error: uErr }) => {
+				if (uErr) console.error('[rag] usage log failed:', uErr.message);
+			});
+		summarizeConversation(client.id, convId, fullTranscript);
+	}
+
+	return {
+		answer,
+		conversationId: convId,
+		client: {
+			name: client.name,
+			whatsapp: client.whatsapp_number ?? null,
+			brand: client.brand_color ?? '#0f6e56'
+		}
+	};
+}
+
+/**
+ * Ingestion: (re)build the machine side for one knowledge item. Deletes any
+ * existing chunks for the item, renders it into structured facts + body chunks
+ * (so price and metadata reach retrieval), embeds each as a 'document', and
+ * inserts into content_chunks. Called whenever an item is created or edited.
+ * @param {{ id:string, client_id:string, title:string, body?:string, category?:string, price_amount?:number, price_currency?:string, metadata?:object }} item
+ */
+export async function reingestItem(item) {
+	// Clear old chunks so edits don't leave stale vectors behind.
+	await supabase.from('content_chunks').delete().eq('item_id', item.id);
+
+	const texts = chunkItem(item);
+	if (!texts.length) return;
+
+	const vectors = await embed(texts, 'document');
+
+	const rows = texts.map((content, i) => ({
+		client_id: item.client_id,
+		item_id: item.id,
+		content,
+		embedding: vectors[i]
+	}));
+
+	const { error } = await supabase.from('content_chunks').insert(rows);
+	if (error) throw new Error(`chunk insert failed: ${error.message}`);
+}
