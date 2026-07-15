@@ -412,7 +412,6 @@
 			{#if !started}
 				<!-- HERO welcome, living inside the empty thread ------------------>
 				<section class="welcome">
-					<div class="orb"><span class="mono-lg">{initials}</span></div>
 					<p class="eyebrow">{assistantName} · Private travel desk</p>
 					<h1 class="hello">{greeting}</h1>
 					<p class="sub">
@@ -909,7 +908,7 @@
 
 	/* ---- Welcome (hero inside empty thread) ------------------------------ */
 	.welcome {
-		padding: clamp(16px, 3.2vh, 40px) 0 22px;
+		padding: clamp(12px, 2.4vh, 28px) 0 20px;
 		animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 	}
 	.orb {
@@ -946,12 +945,12 @@
 		text-transform: uppercase;
 	}
 	.hello {
-		margin: 0 0 12px;
-		font-size: clamp(1.55rem, 4.4vw, 2.35rem);
-		line-height: 1.06;
+		margin: 0 0 10px;
+		font-size: clamp(1.25rem, 3.1vw, 1.85rem);
+		line-height: 1.14;
 		font-weight: 680;
-		letter-spacing: -0.03em;
-		max-width: 15ch;
+		letter-spacing: -0.025em;
+		max-width: 26ch;
 		background: linear-gradient(180deg, var(--ink), color-mix(in srgb, var(--ink) 72%, var(--muted)));
 		-webkit-background-clip: text;
 		background-clip: text;
