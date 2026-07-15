@@ -756,7 +756,7 @@
 				{#if client.email}<a href={'mailto:' + client.email}>Email</a> ·{/if}
 				{#if mapLink}<a href={mapLink} target="_blank" rel="noopener">Visit</a> ·{/if}
 				<span>Responses are AI-generated · confirm details before booking</span>
-					{#if !client.hideBranding}<span> · <a href="https://makutano.digital" target="_blank" rel="noopener">Powered by Makutano</a></span>{/if}
+					{#if !client.hideBranding}<span> · <a href="https://makutano.co.tz" target="_blank" rel="noopener">Powered by Makutano</a></span>{/if}
 			</p>
 		</div>
 	</footer>

@@ -3,7 +3,7 @@
  * operator's CSS can't break it (and it can't break theirs). Keep it small and
  * framework-free — it must run on any site, however badly built.
  *
- *   <script src="https://app.makutano.digital/widget.js" data-client="slug"></script>
+ *   <script src="https://ai.makutano.co.tz/widget.js" data-client="slug"></script>
  */
 (function () {
 	'use strict';
@@ -224,7 +224,7 @@
 			head +
 			'<div class="mk-log">' + body + '</div>' +
 			footer +
-			(hideBranding ? '' : '<div class="mk-powered">Powered by <a href="https://makutano.digital" target="_blank" rel="noopener">Makutano</a></div>') +
+			(hideBranding ? '' : '<div class="mk-powered">Powered by <a href="https://makutano.co.tz" target="_blank" rel="noopener">Makutano</a></div>') +
 			'</div>'
 		);
 	}

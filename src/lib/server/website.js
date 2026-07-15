@@ -7,7 +7,7 @@ import { env } from '$env/dynamic/private';
 
 /** Where widget.js is served from — this deployment's own public origin. */
 export function widgetHost() {
-	return String(env.PUBLIC_APP_URL || env.ORIGIN || 'https://app.makutano.digital').replace(/\/+$/, '');
+	return String(env.PUBLIC_APP_URL || env.ORIGIN || 'https://ai.makutano.co.tz').replace(/\/+$/, '');
 }
 
 /** The one-line embed snippet for a tenant. */
@@ -32,7 +32,7 @@ export function normalizeUrl(raw) {
 
 async function fetchPage(url) {
 	const res = await fetch(url, {
-		headers: { 'user-agent': 'Mozilla/5.0 (compatible; MakutanoBot/1.0; +https://makutano.digital)' },
+		headers: { 'user-agent': 'Mozilla/5.0 (compatible; MakutanoBot/1.0; +https://makutano.co.tz)' },
 		redirect: 'follow',
 		signal: AbortSignal.timeout(9000)
 	});
