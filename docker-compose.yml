@@ -26,6 +26,11 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 3000
-      # Public origin of this server. Local default below; override per environment,
-      # e.g. ORIGIN=https://app.makutano.digital
+      # Public origin of this server — REQUIRED behind a domain/proxy, or logins and
+      # every form POST fail SvelteKit's CSRF check. Set APP_ORIGIN in .env to your
+      # https domain, e.g. APP_ORIGIN=https://ai.makutano.co.tz
       ORIGIN: ${APP_ORIGIN:-http://localhost:3000}
+      # Behind a TLS-terminating reverse proxy (nginx/Caddy/Traefik), let adapter-node
+      # build correct https redirect URLs from the proxy's forwarded headers.
+      PROTOCOL_HEADER: x-forwarded-proto
+      HOST_HEADER: x-forwarded-host
