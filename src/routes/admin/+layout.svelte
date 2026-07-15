@@ -13,7 +13,7 @@
 <AppShell user={data.user} {initials}>
 	<a class="side-brand" href="/admin" slot="brand">
 		<span class="mark">
-			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 12v8"/><path d="M12 12 6 5"/><path d="M12 12l6-7"/></svg>
+			<img src="/ICON-AI.png" alt="Makutano" />
 		</span>
 		<span><b>Makutano</b><span class="sub">Admin console</span></span>
 	</a>

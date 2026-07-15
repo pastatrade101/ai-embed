@@ -6,7 +6,7 @@
 <div class="auth-wrap">
 	<div class="auth-card">
 		<div class="auth-brand">
-			<svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 12v8"/><path d="M12 12 6 5"/><path d="M12 12l6-7"/></svg>
+			<img class="logo" src="/ICON-AI.png" alt="Makutano" />
 			<b>Makutano Digital</b>
 		</div>
 		<h1>Sign in</h1>
