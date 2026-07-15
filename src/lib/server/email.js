@@ -4,6 +4,13 @@ import { env } from '$env/dynamic/private';
 
 const RESEND_URL = 'https://api.resend.com/emails';
 
+// Resend only accepts a `from` on a domain you've VERIFIED in your account.
+// Set RESEND_FROM to a sender on your verified domain (e.g. "Makutano
+// <notifications@makutano.co.tz>"); the default below matches the platform's.
+function fromAddress() {
+	return env.RESEND_FROM || 'Makutano <notifications@makutano.co.tz>';
+}
+
 /**
  * Generic send. Returns { ok, skipped?, status? }; callers treat failures as
  * non-fatal. `replyTo` lets the operator's own address receive replies.
@@ -18,7 +25,7 @@ export async function sendEmail({ to, subject, text, replyTo }) {
 			authorization: `Bearer ${env.RESEND_API_KEY}`
 		},
 		body: JSON.stringify({
-			from: 'Makutano <hello@makutano.digital>',
+			from: fromAddress(),
 			to: [to],
 			subject,
 			text,
@@ -51,7 +58,7 @@ export async function sendLeadEmail({ to, businessName, lead }) {
 			authorization: `Bearer ${env.RESEND_API_KEY}`
 		},
 		body: JSON.stringify({
-			from: 'Makutano <leads@makutano.digital>',
+			from: fromAddress(),
 			to: [to],
 			subject: `New lead — ${businessName}`,
 			text: lines.join('\n')
