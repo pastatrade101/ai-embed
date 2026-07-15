@@ -230,8 +230,44 @@
 	}
 
 	// --- interaction --------------------------------------------------------
+	// Lock the host page's scroll while the full-screen mobile chat is open, so
+	// scrolling the chat doesn't drag the page behind it. position:fixed is the
+	// iOS-safe method; we save/restore the page's own inline styles + scroll pos.
+	var scrollLock = { active: false, y: 0, prev: null };
+	function isMobileWidget() {
+		try {
+			return window.matchMedia('(max-width:480px)').matches;
+		} catch (e) {
+			return false;
+		}
+	}
+	function lockScroll() {
+		if (scrollLock.active || !isMobileWidget()) return;
+		scrollLock.y = window.scrollY || document.documentElement.scrollTop || 0;
+		var b = document.body;
+		scrollLock.prev = { position: b.style.position, top: b.style.top, width: b.style.width, overflow: b.style.overflow };
+		b.style.position = 'fixed';
+		b.style.top = -scrollLock.y + 'px';
+		b.style.width = '100%';
+		b.style.overflow = 'hidden';
+		scrollLock.active = true;
+	}
+	function unlockScroll() {
+		if (!scrollLock.active) return;
+		var b = document.body,
+			p = scrollLock.prev || {};
+		b.style.position = p.position || '';
+		b.style.top = p.top || '';
+		b.style.width = p.width || '';
+		b.style.overflow = p.overflow || '';
+		window.scrollTo(0, scrollLock.y);
+		scrollLock.active = false;
+	}
+
 	function toggle() {
 		open = !open;
+		if (open) lockScroll();
+		else unlockScroll();
 		render();
 	}
 
