@@ -54,6 +54,13 @@ export const actions = {
 		if (!client) return fail(404, { error: 'Business not found.' });
 		if (client.plan === planKey) return fail(400, { error: `You’re already on ${plan.name}.` });
 
+		// Self-serve checkout is upgrade-only: never let an operator pay for the
+		// tier they already hold or a lower one (a "downgrade" via a fresh charge).
+		const { data: currentPlan } = await supabase.from('plans').select('sort').eq('key', client.plan).maybeSingle();
+		if (currentPlan && Number(plan.sort) <= Number(currentPlan.sort)) {
+			return fail(400, { error: `${plan.name} isn’t an upgrade from your current plan — contact us to change plans.` });
+		}
+
 		const successUrl = `${url.origin}/portal/billing?upgrade=success`;
 		let checkout;
 		try {

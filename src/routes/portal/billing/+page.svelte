@@ -10,6 +10,10 @@
 	const statusLabel = { active: 'Active', trialing: 'Trial', past_due: 'Payment due', canceled: 'Canceled' };
 	$: justReturned = $page.url.searchParams.get('upgrade') === 'success';
 	const planName = (key) => data.plans.find((p) => p.key === key)?.name ?? key;
+	// Where a plan sits relative to the one the operator is on, so we only ever
+	// offer real upgrades — never a "buy again" for the current or a lower tier.
+	$: currentSort = data.currentPlan?.sort ?? -1;
+	const rel = (p) => (p.key === client.plan ? 'current' : p.sort > currentSort ? 'upgrade' : 'downgrade');
 	let verifying = false;
 </script>
 
@@ -85,7 +89,7 @@
 		<div class="card plan-card" class:is-current={p.key === client.plan}>
 			<div class="plan-top">
 				<span class="plan-name">{p.name}</span>
-				{#if p.key === client.plan}<span class="badge">current</span>{:else if p.is_default}<span class="badge neutral">default</span>{/if}
+				{#if rel(p) === 'current'}<span class="badge">current</span>{:else if p.is_default}<span class="badge neutral">default</span>{/if}
 			</div>
 			<div class="plan-price">
 				{#if Number(p.price_amount) > 0}{p.price_currency} {Number(p.price_amount).toLocaleString()}<span class="per"> /mo</span>{:else}Free{/if}
@@ -104,19 +108,19 @@
 			{/if}
 
 			<div class="plan-foot">
-				{#if p.key === client.plan}
+				{#if rel(p) === 'current'}
 					<button class="btn ghost plan-cta" type="button" disabled>Current plan</button>
-				{:else if Number(p.price_amount) > 0}
+				{:else if rel(p) === 'upgrade'}
 					{#if data.paymentsEnabled}
 						<form method="POST" action="?/checkout">
 							<input type="hidden" name="plan" value={p.key} />
-							<button class="btn plan-cta" type="submit">Get {p.name}</button>
+							<button class="btn plan-cta" type="submit">Upgrade to {p.name}</button>
 						</form>
 					{:else}
 						<span class="btn ghost plan-cta disabled">Contact us to upgrade</span>
 					{/if}
 				{:else}
-					<span class="btn ghost plan-cta disabled">Contact us to switch</span>
+					<span class="btn ghost plan-cta disabled">Included · contact us to switch</span>
 				{/if}
 			</div>
 		</div>
