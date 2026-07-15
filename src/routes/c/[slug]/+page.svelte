@@ -462,9 +462,9 @@
 							<div class="feat-head"><span class="label">Featured journeys</span></div>
 							<div class="feat-grid">
 								{#each featured as t}
-									<article class="tour-card">
+									<article class="tour-card feat">
 										<div class="tc-cover">
-											<span class="tc-mono">{monogram(t.title)}</span>
+											{#if t.image}<img class="tc-img" src={t.image} alt={t.title} loading="lazy" />{:else}<span class="tc-mono">{monogram(t.title)}</span>{/if}
 											{#if t.duration}<span class="tc-badge">{t.duration}</span>{/if}
 										</div>
 										<div class="tc-body">
@@ -511,7 +511,7 @@
 												<!-- Inline TOUR CARD ------------------------------->
 												<article class="tour-card inline">
 													<div class="tc-cover">
-														<span class="tc-mono">{monogram(b.tour.title)}</span>
+														{#if b.tour.image}<img class="tc-img" src={b.tour.image} alt={b.tour.title} loading="lazy" />{:else}<span class="tc-mono">{monogram(b.tour.title)}</span>{/if}
 														{#if b.tour.duration}<span class="tc-badge">{b.tour.duration}</span>{/if}
 													</div>
 													<div class="tc-body">
@@ -909,16 +909,16 @@
 
 	/* ---- Welcome (hero inside empty thread) ------------------------------ */
 	.welcome {
-		padding: clamp(40px, 9vh, 96px) 0 40px;
+		padding: clamp(16px, 3.2vh, 40px) 0 22px;
 		animation: rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 	}
 	.orb {
-		width: 66px;
-		height: 66px;
-		border-radius: 20px;
+		width: 54px;
+		height: 54px;
+		border-radius: 17px;
 		display: grid;
 		place-items: center;
-		margin-bottom: 22px;
+		margin-bottom: 14px;
 		color: var(--brand-ink);
 		background: linear-gradient(140deg, var(--brand), color-mix(in srgb, var(--brand) 55%, #000));
 		box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.25);
@@ -938,7 +938,7 @@
 		letter-spacing: -0.02em;
 	}
 	.eyebrow {
-		margin: 0 0 12px;
+		margin: 0 0 9px;
 		font-size: 12.5px;
 		font-weight: 600;
 		letter-spacing: 0.02em;
@@ -946,8 +946,8 @@
 		text-transform: uppercase;
 	}
 	.hello {
-		margin: 0 0 16px;
-		font-size: clamp(1.9rem, 5.4vw, 3rem);
+		margin: 0 0 12px;
+		font-size: clamp(1.55rem, 4.4vw, 2.35rem);
 		line-height: 1.06;
 		font-weight: 680;
 		letter-spacing: -0.03em;
@@ -958,8 +958,8 @@
 		color: transparent;
 	}
 	.sub {
-		margin: 0 0 30px;
-		font-size: 1.02rem;
+		margin: 0 0 18px;
+		font-size: 0.98rem;
 		line-height: 1.6;
 		color: var(--ink-2);
 		max-width: 48ch;
@@ -967,8 +967,8 @@
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 10px;
-		margin-bottom: 46px;
+		gap: 9px;
+		margin-bottom: 18px;
 	}
 	.chip {
 		display: inline-flex;
@@ -1000,7 +1000,7 @@
 
 	/* ---- Featured ---------------------------------------------------------*/
 	.feat-head {
-		margin-bottom: 14px;
+		margin-bottom: 10px;
 	}
 	.label {
 		font-size: 12px;
@@ -1011,8 +1011,8 @@
 	}
 	.feat-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-		gap: 14px;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
 	}
 
 	/* ---- Tour card ------------------------------------------------------- */
@@ -1037,7 +1037,7 @@
 	}
 	.tc-cover {
 		position: relative;
-		height: 96px;
+		height: 116px;
 		display: grid;
 		place-items: center;
 		color: var(--brand-ink);
@@ -1058,6 +1058,21 @@
 		letter-spacing: 0.04em;
 		opacity: 0.92;
 		text-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+	}
+	.tc-img {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		z-index: 0;
+	}
+	.tc-cover:has(.tc-img)::before {
+		background: linear-gradient(180deg, rgba(0, 0, 0, 0) 38%, rgba(0, 0, 0, 0.5));
+		z-index: 1;
+	}
+	.tc-badge {
+		z-index: 2;
 	}
 	.tc-badge {
 		position: absolute;
@@ -1731,6 +1746,21 @@
 			transition-duration: 0.001ms !important;
 			scroll-behavior: auto !important;
 		}
+	}
+
+	/* Featured hero cards: image-forward + compact so the hero never scrolls */
+	.tour-card.feat .tc-sum {
+		display: none;
+	}
+	.tour-card.feat .tc-cover {
+		height: 128px;
+	}
+	.tour-card.feat .tc-body {
+		padding: 11px 14px 4px;
+	}
+	.tour-card.feat .tc-foot {
+		padding: 10px 14px;
+		margin-top: 6px;
 	}
 
 	@media (max-width: 480px) {

@@ -60,6 +60,7 @@ export async function load({ params }) {
 		tours = items.map((t) => ({
 			id: t.id,
 			title: t.title,
+			image: (t.metadata && (t.metadata.image || t.metadata.photo || t.metadata.cover)) || metaGet(t.metadata, 'image', 'photo', 'cover') || null,
 			price: t.price_amount ?? null,
 			currency: t.price_currency ?? 'USD',
 			duration: metaGet(t.metadata, 'duration'),

@@ -27,6 +27,9 @@
 	let newCurrency = 'USD';
 	let newDetails = '';
 	let newBody = '';
+	let newImage = '';
+	let editImageUrl = '';
+	let uploading = false;
 	let addForm;
 
 	$: categories = ['all', ...Array.from(new Set(items.map((i) => (i.category ?? '').trim()).filter(Boolean).map((c) => c.toLowerCase())))];
@@ -63,11 +66,32 @@
 	}
 	const isStale = (iso) => iso && Date.now() - new Date(iso).getTime() > 180 * 86400000;
 
+	const imgOf = (item) => metaVal(item.metadata, 'image', 'photo', 'cover');
+
+	// Upload a chosen image to Supabase Storage; apply(url) stores the result.
+	async function handleUpload(e, apply) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		uploading = true;
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			const r = await fetch('/portal/knowledge/upload', { method: 'POST', body: fd });
+			const d = await r.json();
+			if (d.url) apply(d.url);
+			else alert(d.error || 'Upload failed.');
+		} catch (_) {
+			alert('Upload failed — check your connection and try again.');
+		}
+		uploading = false;
+		e.target.value = ''; // allow re-selecting the same file
+	}
+
 	// Metadata → "Key: value" lines for the edit form.
 	function mdText(md) {
 		if (!md || typeof md !== 'object' || Array.isArray(md)) return '';
 		return Object.entries(md)
-			.filter(([, v]) => v != null && v !== '')
+			.filter(([k, v]) => v != null && v !== '' && !/^(image|photo|cover)$/i.test(k))
 			.map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
 			.join('\n');
 	}
@@ -97,7 +121,7 @@
 		await update({ reset: false });
 		if (result.type === 'success' && !result.data?.error) {
 			adding = false;
-			newTitle = newPrice = newDetails = newBody = newCategory = '';
+			newTitle = newPrice = newDetails = newBody = newCategory = newImage = '';
 			newCurrency = 'USD';
 		}
 	};
@@ -179,6 +203,16 @@
 				<div><label for="new-price">Price (optional)</label><input id="new-price" name="price_amount" bind:value={newPrice} inputmode="decimal" placeholder="1450" /></div>
 				<div><label for="new-cur">Currency</label><input id="new-cur" name="price_currency" bind:value={newCurrency} style="max-width:120px" /></div>
 			</div>
+			<div class="img-field">
+				<span class="lbl">Cover photo <em>— appears on your hosted page card</em></span>
+				<div class="img-row">
+					<div class="img-prev" class:empty={!newImage}>{#if newImage}<img src={newImage} alt="" />{:else}<span>No photo</span>{/if}</div>
+					<div class="img-ctrls">
+						<input name="image" bind:value={newImage} placeholder="Paste an image URL…" />
+						<label class="upl-btn"><input type="file" accept="image/*" hidden on:change={(e) => handleUpload(e, (u) => (newImage = u))} />{uploading ? 'Uploading…' : '⬆ Upload'}</label>
+					</div>
+				</div>
+			</div>
 			<div><label for="new-details">Key details (one per line)</label><textarea id="new-details" name="details" bind:value={newDetails} style="min-height:88px" placeholder={'Duration: 5 days\nGroup size: max 6\nIncludes: park fees, meals, guide\nBest season: Jun–Oct'}></textarea></div>
 			<div><label for="new-body">Description</label><textarea id="new-body" name="body" bind:value={newBody} placeholder="Full itinerary, what's included, fitness level, best months…"></textarea></div>
 			<div><button type="submit">Add to catalogue</button></div>
@@ -219,6 +253,16 @@
 					<div><label for={`p-${item.id}`}>Price</label><input id={`p-${item.id}`} name="price_amount" value={item.price_amount ?? ''} inputmode="decimal" /></div>
 					<div><label for={`cur-${item.id}`}>Currency</label><input id={`cur-${item.id}`} name="price_currency" value={item.price_currency ?? 'USD'} style="max-width:120px" /></div>
 				</div>
+				<div class="img-field">
+					<span class="lbl">Cover photo <em>— appears on your hosted page card</em></span>
+					<div class="img-row">
+						<div class="img-prev" class:empty={!editImageUrl}>{#if editImageUrl}<img src={editImageUrl} alt="" />{:else}<span>No photo</span>{/if}</div>
+						<div class="img-ctrls">
+							<input name="image" bind:value={editImageUrl} placeholder="Paste an image URL…" />
+							<label class="upl-btn"><input type="file" accept="image/*" hidden on:change={(e) => handleUpload(e, (u) => (editImageUrl = u))} />{uploading ? 'Uploading…' : '⬆ Upload'}</label>
+						</div>
+					</div>
+				</div>
 				<div><label for={`d-${item.id}`}>Key details (one per line)</label><textarea id={`d-${item.id}`} name="details" style="min-height:88px">{mdText(item.metadata)}</textarea></div>
 				<div><label for={`b-${item.id}`}>Description</label><textarea id={`b-${item.id}`} name="body">{item.body ?? ''}</textarea></div>
 				<div class="rowflex">
@@ -228,6 +272,7 @@
 			</form>
 		{:else}
 			<div class="item-head">
+				{#if imgOf(item)}<img class="item-thumb" src={imgOf(item)} alt="" />{/if}
 				<div style="min-width:0;flex:1">
 					<div class="item-title-row">
 						<span class="item-title">{item.title}</span>
@@ -251,7 +296,7 @@
 			<div class="item-foot">
 				<span class="faint" style="font-size:.78rem">Updated {ago(item.updated_at)}</span>
 				<div class="item-actions">
-					<button class="ghost sm" type="button" on:click={() => (editing = item.id)}>Edit</button>
+					<button class="ghost sm" type="button" on:click={() => { editing = item.id; editImageUrl = imgOf(item) ?? ''; }}>Edit</button>
 					<form method="POST" action="?/duplicateItem" use:enhance style="display:inline"><input type="hidden" name="id" value={item.id} /><button class="ghost sm" type="submit">Duplicate</button></form>
 					<form method="POST" action="?/deleteItem" use:enhance style="display:inline"><input type="hidden" name="id" value={item.id} /><button class="danger sm" type="submit">Delete</button></form>
 				</div>
@@ -543,5 +588,92 @@
 			bottom: 4.6rem;
 			top: auto;
 		}
+	}
+
+	/* ---- Cover-photo field (add + edit) ---- */
+	.img-field {
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+	.img-field .lbl {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--soft);
+	}
+	.img-field .lbl em {
+		font-style: normal;
+		font-weight: 400;
+		color: var(--muted);
+		font-size: 0.8rem;
+	}
+	.img-row {
+		display: flex;
+		gap: 0.7rem;
+		align-items: stretch;
+	}
+	.img-prev {
+		flex: none;
+		width: 104px;
+		height: 74px;
+		border-radius: 10px;
+		overflow: hidden;
+		border: 1px solid var(--edge);
+		background: var(--panel-2);
+		display: grid;
+		place-items: center;
+	}
+	.img-prev img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+	.img-prev.empty span {
+		font-size: 0.7rem;
+		color: var(--muted);
+	}
+	.img-ctrls {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		min-width: 0;
+	}
+	.img-ctrls input {
+		width: 100%;
+	}
+	.upl-btn {
+		align-self: flex-start;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.82rem;
+		font-weight: 600;
+		padding: 0.45rem 0.85rem;
+		border-radius: 9px;
+		border: 1px solid var(--edge);
+		background: var(--panel-2);
+		color: var(--soft);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s;
+	}
+	.upl-btn:hover {
+		border-color: rgba(55, 224, 166, 0.4);
+		color: var(--mint);
+	}
+
+	/* ---- Item card thumbnail ---- */
+	.item-head {
+		display: flex;
+		gap: 0.85rem;
+		align-items: flex-start;
+	}
+	.item-thumb {
+		flex: none;
+		width: 76px;
+		height: 76px;
+		border-radius: 12px;
+		object-fit: cover;
+		border: 1px solid var(--edge);
 	}
 </style>

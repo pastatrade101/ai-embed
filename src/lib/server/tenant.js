@@ -97,6 +97,8 @@ export async function addKnowledge(clientId, form) {
 	const category = String(form.get('category') ?? '').trim() || null;
 	const price_currency = String(form.get('price_currency') ?? '').trim().toUpperCase() || 'USD';
 	const metadata = parseDetails(form.get('details'));
+	const image = String(form.get('image') ?? '').trim();
+	if (image) metadata.image = image; // photo shown on the hosted-page tour cards
 	const priceRaw = String(form.get('price_amount') ?? '').trim();
 	const price_amount = priceRaw ? Number(priceRaw) : null;
 
@@ -154,6 +156,8 @@ export async function updateKnowledge(clientId, form) {
 	const category = String(form.get('category') ?? '').trim() || null;
 	const price_currency = String(form.get('price_currency') ?? '').trim().toUpperCase() || 'USD';
 	const metadata = parseDetails(form.get('details'));
+	const image = String(form.get('image') ?? '').trim();
+	if (image) metadata.image = image; // photo shown on the hosted-page tour cards
 	const priceRaw = String(form.get('price_amount') ?? '').trim();
 	const price_amount = priceRaw ? Number(priceRaw) : null;
 
