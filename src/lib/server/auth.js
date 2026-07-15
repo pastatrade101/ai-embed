@@ -75,11 +75,14 @@ export async function authenticate(email, password) {
 
 	if (!user || !verifyPassword(password, user.password_hash)) return null;
 
+	// Fire-and-forget "last seen" stamp. MUST swallow rejections: supabase-js
+	// rejects on a network blip, and an unhandled rejection crashes the Node
+	// process (Node 22 default) — which behind a proxy looks like a login 500.
 	supabase
 		.from('users')
 		.update({ last_login_at: new Date().toISOString() })
 		.eq('id', user.id)
-		.then(() => {});
+		.then(() => {}, () => {});
 
 	const { password_hash, ...safe } = user;
 	return safe;
