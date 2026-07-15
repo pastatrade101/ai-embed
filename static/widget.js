@@ -224,7 +224,7 @@
 			head +
 			'<div class="mk-log">' + body + '</div>' +
 			footer +
-			(hideBranding ? '' : '<div class="mk-powered">Powered by <a href="https://makutano.co.tz" target="_blank" rel="noopener">Makutano</a></div>') +
+			(hideBranding ? '' : '<div class="mk-powered">Powered by <a href="https://ai.makutano.co.tz" target="_blank" rel="noopener">Makutano</a></div>') +
 			'</div>'
 		);
 	}
