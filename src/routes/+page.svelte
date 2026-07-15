@@ -1,6 +1,8 @@
 <script>
 	// Public marketing landing page. Self-contained forest/gold/cream theme so it
 	// doesn't inherit the dark admin app.css. All CTAs lead to the existing /login.
+	import Icon from '$lib/Icon.svelte';
+
 	const LOGIN = '/login';
 	const ONBOARD = '/onboarding';
 
@@ -44,12 +46,23 @@
 		'Saves hours each week',
 		'Converts more enquiries'
 	];
-	const plans = [
-		{ name: 'Free', tag: 'Try it out', price: '$0', features: ['1 AI assistant', 'Hosted AI page', 'QR code', 'WhatsApp handoff'] },
-		{ name: 'Starter', tag: 'Solo operator', price: '$29', features: ['More conversations', 'Website chat widget', 'Email lead alerts', 'Structured tours'] },
-		{ name: 'Professional', tag: 'Most popular', price: '$79', features: ['AI lead qualification', 'Advanced AI model', 'Chat file attachments', 'Priority responses'], highlight: true },
-		{ name: 'Enterprise', tag: 'Scale', price: 'Custom', features: ['Unlimited volume', 'Multiple brands', 'Dedicated support', 'Custom branding'] }
-	];
+	// Live pricing from the plans catalogue (see +page.server.js). Prices come
+	// through in the plan's own currency (TZS for the paid tiers).
+	export let data;
+	const nf = new Intl.NumberFormat('en-US');
+	$: plans = (data.plans ?? []).map((p, i, arr) => {
+		const amount = Number(p.price_amount) || 0;
+		return {
+			name: p.name,
+			// A free (zero) plan just reads "Free"; paid tiers show "TZS 55,000".
+			price: amount === 0 ? 'Free' : `${p.price_currency} ${nf.format(amount)}`,
+			paid: amount > 0,
+			tag: `${nf.format(p.monthly_conversation_cap)} conversations / mo`,
+			features: p.features ?? [],
+			// Spotlight the middle tier as the recommended one.
+			highlight: arr.length > 1 && i === Math.floor(arr.length / 2)
+		};
+	});
 	const faqs = [
 		{ q: 'Do I need a website?', a: 'No. Makutano AI creates a hosted AI page automatically — just share the link or QR code.' },
 		{ q: 'Can customers still reach me on WhatsApp?', a: 'Yes. The AI hands booking-ready customers directly to your WhatsApp.' },
@@ -69,39 +82,52 @@
 	<!-- NAV -->
 	<header class="nav">
 		<div class="wrap nav-in">
-			<a class="brand" href="/">
+			<a class="brand" href="#top">
 				<img src="/ICON-AI.png" alt="" />
 				<span>Makutano&nbsp;AI</span>
 			</a>
-			<nav class="nav-links">
-				<a href="#features">Features</a>
-				<a href="#how">How it works</a>
-				<a href="#pricing">Pricing</a>
-				<a href="#faq">FAQ</a>
+			<nav class="nav-pill">
+				<a class="nav-link active" href="#top">Home</a>
+				<a class="nav-link" href="#features">Features</a>
+				<a class="nav-link" href="#how">How it works</a>
+				<a class="nav-link" href="#pricing">Pricing</a>
+				<a class="nav-link" href="#faq">FAQ</a>
 			</nav>
-			<a class="btn gold sm" href={LOGIN}>Sign in</a>
+			<a class="btn gold sm nav-cta" href={LOGIN}>Sign in <Icon name="arrow-right" size={15} /></a>
 		</div>
 	</header>
 
 	<!-- HERO -->
-	<section class="hero">
+	<section id="top" class="hero">
 		<div class="hero-bg"></div>
 		<div class="wrap hero-in">
-			<span class="pill"><i></i> Built for tour operators</span>
-			<h1>Your best salesperson <em>never sleeps.</em></h1>
-			<p class="lead">
-				Turn every website visitor, WhatsApp enquiry, Instagram bio click, Google Business visitor or QR scan into a
-				qualified booking conversation — 24/7.
-			</p>
-			<p class="sub">
-				Makutano AI instantly answers customer questions, recommends the perfect safari, qualifies leads, and hands
-				booking-ready customers directly to your WhatsApp.
-			</p>
-			<div class="cta-row">
-				<a class="btn gold" href={ONBOARD}>Get started free</a>
-				<a class="btn ghost" href="#how">See how it works</a>
+			<div class="hero-copy">
+				<span class="pill"><Icon name="sparkles" size={14} /> Built for tour operators</span>
+				<h1>Your best salesperson<br /><em>never sleeps.</em></h1>
+				<p class="lead">
+					Turn every website visitor, WhatsApp enquiry, Instagram bio click, Google Business visitor or QR scan into a
+					qualified booking conversation — 24/7.
+				</p>
+				<p class="sub">
+					Makutano AI instantly answers customer questions, recommends the perfect safari, qualifies leads, and hands
+					booking-ready customers directly to your WhatsApp.
+				</p>
+				<div class="cta-row">
+					<a class="btn gold" href={ONBOARD}>Get started free <Icon name="arrow-right" size={18} /></a>
+					<a class="btn ghost" href="#how"><Icon name="play" size={17} /> See how it works</a>
+				</div>
+				<p class="trust">Trusted by modern tour operators to capture more bookings with AI</p>
 			</div>
-			<p class="trust">Trusted by modern tour operators to capture more bookings with AI</p>
+			<div class="hero-art">
+				<span class="hero-art-glow"></span>
+				<img
+					src="/hero-device.png"
+					alt="The Makutano AI assistant live on a tour operator's website, shown on a laptop and phone"
+					width="1600"
+					height="986"
+					loading="eager"
+				/>
+			</div>
 		</div>
 	</section>
 
@@ -180,7 +206,7 @@
 			</div>
 			<div class="bento">
 				<div class="b b-hero">
-					<div class="b-emoji">🤖</div>
+					<div class="b-ico"><Icon name="bot" size={26} /></div>
 					<h3>AI Booking Assistant</h3>
 					<p>Answers customer questions instantly using your own business information — not random internet knowledge.</p>
 					<div class="b-chat">
@@ -188,13 +214,13 @@
 						<div class="bc ai">Our 7-day Northern Circuit is $3,240 pp in August. Includes 3 nights Serengeti, 2 nights Ngorongoro, all game drives, park fees & meals. Want me to check availability?</div>
 					</div>
 				</div>
-				<div class="b b-card"><div class="b-emoji">📚</div><h3>AI Knowledge</h3><p>Upload once. The AI learns tours, prices, destinations, policies, FAQs, accommodation, transfers & travel tips.</p></div>
-				<div class="b b-card"><div class="b-emoji">📅</div><h3>Departure Management</h3><p>"Do you have departures next month?" The AI checks your real schedule before answering.</p></div>
-				<div class="b b-gold"><div class="b-emoji">💬</div><h3>WhatsApp Handoff</h3><p>Booking-ready customers land directly in your WhatsApp. No copying. No exporting. No CRM headaches.</p></div>
-				<div class="b b-card b-wide"><div class="b-emoji">📈</div><h3>AI Lead Qualification</h3><p>Know the budget, dates, group size, destination, interests & buying intent — before you reply.</p></div>
-				<div class="b b-card"><div class="b-emoji">📊</div><h3>Lead Dashboard</h3><p>Track new enquiries, qualified leads, potential bookings, follow-ups & interests in one place.</p></div>
-				<div class="b b-card"><div class="b-emoji">🌐</div><h3>Hosted AI Page</h3><p>No website? We create a professional AI booking page for your business. Just share the link.</p></div>
-				<div class="b b-card"><div class="b-emoji">📷</div><h3>QR Code Booking</h3><p>Print your QR on safari vehicles, hotels, flyers & cards. Visitors scan and start chatting.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="book-open" size={22} /></div><h3>AI Knowledge</h3><p>Upload once. The AI learns tours, prices, destinations, policies, FAQs, accommodation, transfers & travel tips.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="calendar" size={22} /></div><h3>Departure Management</h3><p>"Do you have departures next month?" The AI checks your real schedule before answering.</p></div>
+				<div class="b b-gold"><div class="b-ico b-ico-ink"><Icon name="message-circle" size={26} /></div><h3>WhatsApp Handoff</h3><p>Booking-ready customers land directly in your WhatsApp. No copying. No exporting. No CRM headaches.</p></div>
+				<div class="b b-card b-wide"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>AI Lead Qualification</h3><p>Know the budget, dates, group size, destination, interests & buying intent — before you reply.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>Lead Dashboard</h3><p>Track new enquiries, qualified leads, potential bookings, follow-ups & interests in one place.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="globe" size={22} /></div><h3>Hosted AI Page</h3><p>No website? We create a professional AI booking page for your business. Just share the link.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="qr" size={22} /></div><h3>QR Code Booking</h3><p>Print your QR on safari vehicles, hotels, flyers & cards. Visitors scan and start chatting.</p></div>
 			</div>
 		</div>
 	</section>
@@ -210,7 +236,7 @@
 			</div>
 			<ul class="built-list">
 				{#each builtWith as b}
-					<li><span class="tick">✓</span>{b}</li>
+					<li><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{b}</li>
 				{/each}
 			</ul>
 		</div>
@@ -235,7 +261,7 @@
 				<h2 class="dark">Ten reasons tour operators switch to Makutano AI.</h2>
 			</div>
 			<div class="reasons">
-				{#each reasons as r}<div class="reason"><span class="tick">✓</span>{r}</div>{/each}
+				{#each reasons as r}<div class="reason"><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{r}</div>{/each}
 			</div>
 		</div>
 	</section>
@@ -251,13 +277,14 @@
 			<div class="plans">
 				{#each plans as p}
 					<div class="plan" class:hot={p.highlight}>
+						{#if p.highlight}<div class="plan-pop">Most popular</div>{/if}
 						<div class="plan-tag">{p.tag}</div>
 						<div class="plan-name">{p.name}</div>
-						<div class="plan-price">{p.price}{#if p.price !== 'Custom'}<span>/mo</span>{/if}</div>
+						<div class="plan-price">{p.price}{#if p.paid}<span>/mo</span>{/if}</div>
 						<ul>
-							{#each p.features as f}<li><span class="tick">✓</span>{f}</li>{/each}
+							{#each p.features as f}<li><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{f}</li>{/each}
 						</ul>
-						<a class="btn {p.highlight ? 'gold' : 'outline'} full" href={p.name === 'Enterprise' ? LOGIN : ONBOARD}>{p.name === 'Enterprise' ? 'Contact sales' : 'Get started'}</a>
+						<a class="btn {p.highlight ? 'gold' : 'outline'} full" href={ONBOARD}>Get started</a>
 					</div>
 				{/each}
 			</div>
@@ -301,15 +328,45 @@
 
 	<!-- FOOTER -->
 	<footer class="foot">
-		<div class="wrap foot-in">
-			<div class="brand">
-				<img src="/ICON-AI.png" alt="" />
-				<div>
-					<div class="foot-name">Makutano AI</div>
-					<div class="foot-tag">The AI booking assistant built for tour operators.</div>
-				</div>
+		<div class="wrap foot-grid">
+			<div class="foot-brand">
+				<a class="brand" href="#top">
+					<img src="/ICON-AI.png" alt="" />
+					<span class="foot-name">Makutano&nbsp;AI</span>
+				</a>
+				<p class="foot-tag">The AI booking assistant built for tour operators — turn every website visitor, WhatsApp enquiry and QR scan into a booking, 24/7.</p>
+				<a class="foot-chip" href="https://wa.me/255752093014" target="_blank" rel="noopener noreferrer">
+					<Icon name="message-circle" size={15} /> Chat with us on WhatsApp
+				</a>
 			</div>
-			<div class="foot-copy">© {new Date().getFullYear()} Makutano AI · <a href={LOGIN}>Sign in</a></div>
+
+			<nav class="foot-col">
+				<div class="foot-h">Product</div>
+				<a href="#features">Features</a>
+				<a href="#how">How it works</a>
+				<a href="#pricing">Pricing</a>
+				<a href="#faq">FAQ</a>
+			</nav>
+
+			<nav class="foot-col">
+				<div class="foot-h">Get started</div>
+				<a href={ONBOARD}>Create free account</a>
+				<a href={LOGIN}>Sign in</a>
+				<a href="#top">Back to top</a>
+			</nav>
+
+			<div class="foot-col">
+				<div class="foot-h">Contact</div>
+				<a class="foot-contact" href="tel:+255752093014"><Icon name="phone" size={15} /> +255 752 093 014</a>
+				<a class="foot-contact" href="https://wa.me/255752093014" target="_blank" rel="noopener noreferrer"><Icon name="message-circle" size={15} /> WhatsApp</a>
+				<span class="foot-contact"><Icon name="map-pin" size={15} /> Tanzania · East Africa</span>
+				<span class="foot-contact"><Icon name="globe" size={15} /> Mon–Sat, 8am–8pm EAT</span>
+			</div>
+		</div>
+
+		<div class="wrap foot-bar">
+			<div class="foot-copy">© {new Date().getFullYear()} Makutano&nbsp;AI. All rights reserved.</div>
+			<a class="foot-top" href="#top">Back to top <Icon name="arrow-up" size={14} /></a>
 		</div>
 	</footer>
 </div>
@@ -369,16 +426,23 @@
 	h2 {
 		font-size: clamp(1.9rem, 3.6vw, 3rem);
 		font-weight: 640;
-		line-height: 1.08;
+		line-height: 1.1;
 		letter-spacing: -0.02em;
 		margin: 0;
+		/* Even out multi-line headings instead of cramped, lopsided wraps. */
+		text-wrap: balance;
+	}
+	h3 {
+		text-wrap: balance;
 	}
 	h2.dark {
 		color: var(--ink);
 	}
-	h2.narrow,
 	.head-narrow {
-		max-width: 44ch;
+		max-width: 40rem;
+	}
+	h2.narrow {
+		max-width: 46rem;
 	}
 	h2.big {
 		font-size: clamp(2.2rem, 5vw, 3.8rem);
@@ -435,18 +499,39 @@
 		color: var(--cream);
 	}
 
-	/* Nav */
+	/* Nav — sticky bar with a centred pill of links */
 	.nav {
-		position: absolute;
-		inset: 0 0 auto 0;
-		z-index: 30;
+		position: fixed;
+		top: 0;
+		left: 0;
+		right: 0;
+		z-index: 50;
+		background: rgba(11, 42, 32, 0.72);
+		backdrop-filter: blur(14px);
+		-webkit-backdrop-filter: blur(14px);
+		border-bottom: 1px solid rgba(247, 242, 232, 0.08);
 	}
 	.nav-in {
-		display: flex;
+		display: grid;
+		grid-template-columns: 1fr auto 1fr;
 		align-items: center;
-		justify-content: space-between;
-		padding-top: 1.5rem;
-		padding-bottom: 1.5rem;
+		gap: 1rem;
+		padding-top: 0.75rem;
+		padding-bottom: 0.75rem;
+	}
+	.nav-in .brand {
+		justify-self: start;
+	}
+	.nav-in .nav-cta {
+		justify-self: end;
+	}
+	/* Below the pill breakpoint the centre track is hidden — fall back to a
+	   simple brand-left / button-right bar so the button stays flush right. */
+	@media (max-width: 899px) {
+		.nav-in {
+			display: flex;
+			justify-content: space-between;
+		}
 	}
 	.brand {
 		display: inline-flex;
@@ -463,19 +548,48 @@
 		border-radius: 10px;
 		object-fit: cover;
 	}
-	.nav-links {
+	.nav-pill {
 		display: none;
-		gap: 2rem;
-		font-size: 0.9rem;
-		color: rgba(247, 242, 232, 0.8);
+		flex-direction: row;
+		align-items: center;
+		gap: 0.15rem;
+		padding: 0.3rem;
+		border-radius: 999px;
+		background: rgba(247, 242, 232, 0.06);
+		border: 1px solid rgba(247, 242, 232, 0.1);
 	}
-	.nav-links a:hover {
-		color: var(--gold);
-	}
-	@media (min-width: 860px) {
-		.nav-links {
-			display: flex;
+	@media (min-width: 900px) {
+		.nav-pill {
+			display: inline-flex;
 		}
+	}
+	.nav-link {
+		padding: 0.5rem 0.95rem;
+		border-radius: 999px;
+		font-size: 0.86rem;
+		font-weight: 500;
+		color: rgba(247, 242, 232, 0.72);
+		white-space: nowrap;
+		transition: color 0.15s, background 0.15s;
+	}
+	.nav-link:hover {
+		color: var(--cream);
+	}
+	.nav-link.active {
+		background: var(--cream);
+		color: var(--forest);
+		font-weight: 600;
+	}
+
+	/* Anchored sections clear the fixed nav; smooth-scroll the pill links */
+	:global(html) {
+		scroll-behavior: smooth;
+	}
+	#features,
+	#how,
+	#pricing,
+	#faq {
+		scroll-margin-top: 82px;
 	}
 
 	/* Hero */
@@ -484,6 +598,10 @@
 		isolation: isolate;
 		overflow: hidden;
 		color: var(--cream);
+		display: flex;
+		align-items: center;
+		min-height: 100vh;
+		min-height: 100svh;
 	}
 	.hero-bg {
 		position: absolute;
@@ -504,11 +622,114 @@
 		mask-image: linear-gradient(180deg, transparent, #000 40%, transparent);
 	}
 	.hero-in {
-		padding: 10rem 24px 7rem;
+		width: 100%;
+		padding: 7.5rem 24px 3.5rem;
 		max-width: 1180px;
+		display: grid;
+		gap: 2.75rem;
+		align-items: center;
 	}
-	.hero-in > * {
-		max-width: 780px;
+	@media (min-width: 960px) {
+		.hero-in {
+			grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+			gap: 3rem;
+			padding: 6.5rem 24px 4.5rem;
+		}
+	}
+	.hero-copy {
+		max-width: 640px;
+	}
+
+	/* Entrance animation — plays once on load, staggered down the hero */
+	@keyframes heroRise {
+		from {
+			opacity: 0;
+			transform: translateY(26px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	@keyframes heroArtIn {
+		from {
+			opacity: 0;
+			transform: translateX(48px) scale(0.94);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0) scale(1);
+		}
+	}
+	.hero-copy > * {
+		animation: heroRise 0.7s cubic-bezier(0.22, 0.7, 0.2, 1) both;
+	}
+	.hero-copy > *:nth-child(1) {
+		animation-delay: 0.05s;
+	}
+	.hero-copy > *:nth-child(2) {
+		animation-delay: 0.14s;
+	}
+	.hero-copy > *:nth-child(3) {
+		animation-delay: 0.23s;
+	}
+	.hero-copy > *:nth-child(4) {
+		animation-delay: 0.32s;
+	}
+	.hero-copy > *:nth-child(5) {
+		animation-delay: 0.41s;
+	}
+	.hero-copy > *:nth-child(6) {
+		animation-delay: 0.5s;
+	}
+
+	/* Product shot */
+	.hero-art {
+		position: relative;
+		display: flex;
+		justify-content: center;
+		animation: heroArtIn 0.9s cubic-bezier(0.22, 0.7, 0.2, 1) 0.3s both;
+	}
+	.hero-art-glow {
+		position: absolute;
+		inset: -14% -10%;
+		z-index: 0;
+		background: radial-gradient(58% 52% at 55% 42%, rgba(224, 178, 76, 0.32), transparent 68%);
+		filter: blur(26px);
+		pointer-events: none;
+	}
+	.hero-art img {
+		position: relative;
+		z-index: 1;
+		width: 100%;
+		height: auto;
+		filter: drop-shadow(0 34px 55px rgba(0, 0, 0, 0.45));
+		animation: heroFloat 7s ease-in-out infinite;
+	}
+	@media (min-width: 960px) {
+		.hero-art img {
+			width: 108%;
+			max-width: none;
+			margin-right: -8%;
+		}
+	}
+	@keyframes heroFloat {
+		0%,
+		100% {
+			transform: translateY(0);
+		}
+		50% {
+			transform: translateY(-10px);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hero-art,
+		.hero-art img,
+		.hero-copy > * {
+			animation: none;
+			opacity: 1;
+			transform: none;
+		}
 	}
 	.pill {
 		display: inline-flex;
@@ -532,11 +753,18 @@
 	}
 	.hero h1 {
 		margin: 1.5rem 0 0;
-		font-size: clamp(2.6rem, 6.5vw, 4.6rem);
+		font-size: clamp(2.4rem, 4vw, 3.1rem);
 		font-weight: 660;
-		line-height: 1.03;
+		line-height: 1.06;
 		letter-spacing: -0.03em;
 		color: var(--cream);
+	}
+	/* Keep the headline to exactly two lines on desktop (the <br> splits it);
+	   mobile is free to wrap the first line so it never overflows a phone. */
+	@media (min-width: 960px) {
+		.hero h1 {
+			white-space: nowrap;
+		}
 	}
 	.lead {
 		margin: 1.5rem 0 0;
@@ -604,6 +832,12 @@
 			grid-template-columns: 1fr 1.15fr;
 		}
 		.grid-2.aligned {
+			align-items: center;
+		}
+		/* The Why section leads with a long statement — give it the wider column
+		   so it lands as a tidy few lines instead of a cramped stack. */
+		.why .grid-2 {
+			grid-template-columns: 1.35fr 1fr;
 			align-items: center;
 		}
 	}
@@ -805,8 +1039,26 @@
 		padding: 1.6rem;
 		grid-column: span 6;
 	}
-	.b-emoji {
-		font-size: 1.6rem;
+	.b-ico {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 48px;
+		height: 48px;
+		border-radius: 14px;
+		background: rgba(224, 178, 76, 0.14);
+		color: var(--gold);
+		border: 1px solid rgba(224, 178, 76, 0.28);
+	}
+	.b-hero .b-ico {
+		width: 54px;
+		height: 54px;
+		background: rgba(224, 178, 76, 0.16);
+	}
+	.b-ico-ink {
+		background: rgba(35, 24, 10, 0.14);
+		color: var(--gold-ink);
+		border-color: rgba(35, 24, 10, 0.28);
 	}
 	.b h3 {
 		margin: 1rem 0 0;
@@ -930,8 +1182,11 @@
 		font-size: 0.9rem;
 	}
 	.tick {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		flex: none;
 		color: var(--gold);
-		font-weight: 700;
 	}
 
 	/* No website */
@@ -1017,6 +1272,7 @@
 		}
 	}
 	.plan {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		border: 1px solid var(--line);
@@ -1030,6 +1286,19 @@
 		color: var(--cream);
 		border-color: var(--gold);
 		box-shadow: 0 24px 50px -22px rgba(16, 54, 42, 0.5);
+	}
+	.plan-pop {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		background: var(--gold);
+		color: var(--gold-ink);
+		font-size: 0.62rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		padding: 0.3rem 0.65rem;
+		border-radius: 999px;
 	}
 	.plan-tag {
 		font-size: 0.7rem;
@@ -1048,9 +1317,10 @@
 	}
 	.plan-price {
 		margin-top: 1rem;
-		font-size: 2.4rem;
+		font-size: 1.85rem;
 		font-weight: 680;
 		letter-spacing: -0.02em;
+		white-space: nowrap;
 	}
 	.plan-price span {
 		font-size: 1rem;
@@ -1146,34 +1416,118 @@
 		border-top: 1px solid rgba(247, 242, 232, 0.1);
 		color: rgba(247, 242, 232, 0.6);
 	}
-	.foot-in {
-		display: flex;
-		flex-direction: column;
-		gap: 1.4rem;
-		padding-top: 2.5rem;
+	.foot-grid {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 2.5rem;
+		padding-top: 3.5rem;
 		padding-bottom: 2.5rem;
 	}
-	@media (min-width: 700px) {
-		.foot-in {
+	@media (min-width: 560px) {
+		.foot-grid {
+			grid-template-columns: 1fr 1fr;
+		}
+	}
+	@media (min-width: 900px) {
+		.foot-grid {
+			grid-template-columns: 1.7fr 1fr 1fr 1.2fr;
+			gap: 3rem;
+		}
+	}
+	.foot-brand {
+		max-width: 24rem;
+	}
+	.foot .brand {
+		color: var(--cream);
+		font-size: 1.05rem;
+	}
+	.foot-name {
+		font-weight: 680;
+		color: var(--cream);
+	}
+	.foot-tag {
+		margin: 0.9rem 0 0;
+		font-size: 0.85rem;
+		line-height: 1.6;
+		color: rgba(247, 242, 232, 0.55);
+	}
+	.foot-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.45rem;
+		margin-top: 1.2rem;
+		border: 1px solid rgba(247, 242, 232, 0.18);
+		border-radius: 999px;
+		padding: 0.55rem 0.95rem;
+		font-size: 0.82rem;
+		font-weight: 550;
+		color: var(--cream);
+		transition: border-color 0.15s, background 0.15s;
+	}
+	.foot-chip:hover {
+		border-color: var(--gold);
+		background: rgba(224, 178, 76, 0.1);
+	}
+	.foot-col {
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+	.foot-h {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--gold);
+		margin-bottom: 0.25rem;
+	}
+	.foot-col a,
+	.foot-contact {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-size: 0.88rem;
+		color: rgba(247, 242, 232, 0.68);
+		transition: color 0.15s;
+	}
+	.foot-col a:hover {
+		color: var(--cream);
+	}
+	.foot-contact :global(svg) {
+		color: var(--gold);
+		flex: none;
+	}
+	.foot-bar {
+		display: flex;
+		flex-direction: column;
+		gap: 0.8rem;
+		align-items: flex-start;
+		padding-top: 1.5rem;
+		padding-bottom: 2.5rem;
+		border-top: 1px solid rgba(247, 242, 232, 0.08);
+		font-size: 0.82rem;
+	}
+	@media (min-width: 560px) {
+		.foot-bar {
 			flex-direction: row;
 			align-items: center;
 			justify-content: space-between;
 		}
 	}
-	.foot .brand {
-		color: var(--cream);
-		font-size: 1rem;
-	}
-	.foot-name {
-		font-weight: 650;
-		color: var(--cream);
-		font-size: 0.95rem;
-	}
-	.foot-tag {
-		font-size: 0.8rem;
-		color: rgba(247, 242, 232, 0.55);
+	.foot-copy {
+		color: rgba(247, 242, 232, 0.5);
 	}
 	.foot-copy a {
+		color: var(--gold);
+	}
+	.foot-top {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		color: rgba(247, 242, 232, 0.68);
+		transition: color 0.15s;
+	}
+	.foot-top:hover {
 		color: var(--gold);
 	}
 
