@@ -93,10 +93,22 @@
 			</div>
 		</div>
 		<div class="hero-chips">
-			<div class="chip"><span class="cv">{t.convToday}</span><span class="cl">Conversations today</span>{#if t.convToday - t.convYest !== 0}<span class="delta {t.convToday >= t.convYest ? 'up' : 'down'}">{t.convToday >= t.convYest ? '▲' : '▼'} {Math.abs(t.convToday - t.convYest)}</span>{/if}</div>
-			<div class="chip"><span class="cv">{t.leadsToday}</span><span class="cl">Leads today</span>{#if t.leadsToday - t.leadsYest !== 0}<span class="delta {t.leadsToday >= t.leadsYest ? 'up' : 'down'}">{t.leadsToday >= t.leadsYest ? '▲' : '▼'} {Math.abs(t.leadsToday - t.leadsYest)}</span>{/if}</div>
-			<div class="chip"><span class="cv">{t.newThisMonth}</span><span class="cl">New clients / mo</span></div>
-			<div class="chip" class:warn={attention.length}><span class="cv">{attention.length}</span><span class="cl">Need attention</span></div>
+			<div class="chip">
+				<div class="chip-top"><span class="cv">{t.convToday}</span>{#if t.convToday - t.convYest !== 0}<span class="delta {t.convToday >= t.convYest ? 'up' : 'down'}">{t.convToday >= t.convYest ? '▲' : '▼'} {Math.abs(t.convToday - t.convYest)}</span>{/if}</div>
+				<span class="cl">Conversations today</span>
+			</div>
+			<div class="chip">
+				<div class="chip-top"><span class="cv">{t.leadsToday}</span>{#if t.leadsToday - t.leadsYest !== 0}<span class="delta {t.leadsToday >= t.leadsYest ? 'up' : 'down'}">{t.leadsToday >= t.leadsYest ? '▲' : '▼'} {Math.abs(t.leadsToday - t.leadsYest)}</span>{/if}</div>
+				<span class="cl">Leads today</span>
+			</div>
+			<div class="chip">
+				<div class="chip-top"><span class="cv">{t.newThisMonth}</span></div>
+				<span class="cl">New clients / mo</span>
+			</div>
+			<div class="chip" class:warn={attention.length}>
+				<div class="chip-top"><span class="cv">{attention.length}</span></div>
+				<span class="cl">Need attention</span>
+			</div>
 		</div>
 	</section>
 
@@ -459,21 +471,28 @@
 		align-content: center;
 	}
 	.chip {
+		display: block;
 		background: rgba(var(--well-rgb), 0.5);
 		border: 1px solid var(--edge);
 		border-radius: 12px;
 		padding: 0.6rem 0.9rem;
-		min-width: 120px;
-		position: relative;
+		min-width: 0;
+	}
+	.chip-top {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 0.4rem;
 	}
 	.chip .cv {
-		display: block;
 		font-size: 1.35rem;
 		font-weight: 700;
 		color: var(--strong);
 		line-height: 1;
 	}
 	.chip .cl {
+		display: block;
+		margin-top: 0.25rem;
 		font-size: 0.7rem;
 		color: var(--muted);
 		text-transform: uppercase;
@@ -483,11 +502,10 @@
 		color: var(--warn);
 	}
 	.chip .delta {
-		position: absolute;
-		top: 0.55rem;
-		right: 0.7rem;
+		flex: none;
 		font-size: 0.7rem;
 		font-weight: 700;
+		white-space: nowrap;
 	}
 	.delta.up {
 		color: var(--mint);
@@ -507,6 +525,11 @@
 	@media (max-width: 720px) {
 		.stat-grid.five {
 			grid-template-columns: repeat(2, 1fr);
+		}
+	}
+	@media (max-width: 600px) {
+		.stat-grid.five {
+			grid-template-columns: 1fr;
 		}
 	}
 
@@ -690,11 +713,11 @@
 		height: 14px;
 		border-radius: 50%;
 		background: var(--warn);
-		box-shadow: 0 0 12px var(--warn);
+		box-shadow: none;
 	}
 	.health-overall.ok .big-dot {
 		background: var(--mint);
-		box-shadow: 0 0 12px var(--mint);
+		box-shadow: none;
 	}
 	.ho-word {
 		font-weight: 700;

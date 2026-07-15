@@ -3,14 +3,16 @@
 	// a glass topbar. Adapted from the Pastatrade dashboard layout.
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { afterNavigate } from '$app/navigation';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	export let user = null; // { name, email }
 	export let initials = '?';
 	export let avatarColor = null; // override the user-card avatar gradient
 
-	// Collapse the sidebar to an icon rail. Persisted so it survives navigation
-	// and reloads. Desktop-only — on mobile the sidebar is a horizontal bar.
+	// Collapse the sidebar to an icon rail (desktop). Persisted across reloads.
 	let collapsed = false;
+	// On phones the sidebar is an off-canvas drawer opened by the hamburger.
+	let mobileNavOpen = false;
 	onMount(() => {
 		try {
 			collapsed = localStorage.getItem('mk_nav_collapsed') === '1';
@@ -22,19 +24,40 @@
 			localStorage.setItem('mk_nav_collapsed', collapsed ? '1' : '0');
 		} catch (e) {}
 	}
+	// Any navigation closes the mobile drawer.
+	afterNavigate(() => {
+		mobileNavOpen = false;
+	});
 </script>
 
 <div class="app-shell" class:collapsed>
-	<aside class="sidebar">
+	<aside class="sidebar" class:open={mobileNavOpen}>
 		<slot name="brand" />
 
 		<nav class="side-nav">
 			<slot name="nav" />
 		</nav>
 	</aside>
+	<button
+		class="nav-backdrop"
+		class:show={mobileNavOpen}
+		type="button"
+		on:click={() => (mobileNavOpen = false)}
+		aria-label="Close menu"
+		tabindex="-1"
+	></button>
 
 	<div class="main">
 		<div class="topbar">
+			<button
+				class="hamburger"
+				type="button"
+				on:click={() => (mobileNavOpen = !mobileNavOpen)}
+				aria-label="Menu"
+				aria-expanded={mobileNavOpen}
+			>
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+			</button>
 			<button
 				class="nav-toggle"
 				type="button"

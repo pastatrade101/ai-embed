@@ -82,7 +82,7 @@
 		width: 40%;
 		border-radius: 0 3px 3px 0;
 		background: linear-gradient(90deg, transparent, var(--mint, #e0b24c), transparent);
-		box-shadow: 0 0 10px rgba(var(--gold-rgb), 0.6);
+		box-shadow: none;
 		animation: nav-slide 1s ease-in-out infinite;
 	}
 	@keyframes nav-slide {

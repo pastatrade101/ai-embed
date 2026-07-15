@@ -41,9 +41,9 @@
 
 	<span slot="topbar" class="badge neutral">super admin</span>
 
-	<a slot="actions" class="btn sm ghost" href="/admin/clients/new">
+	<a slot="actions" class="btn sm ghost topbar-cta" href="/admin/clients/new" title="New client" aria-label="New client">
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-		New client
+		<span class="cta-lbl">New client</span>
 	</a>
 
 	<slot />

@@ -177,7 +177,7 @@
 		background: #fff;
 		border-radius: 14px;
 		padding: 8px;
-		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+		box-shadow: none;
 	}
 	.qr-img {
 		width: 140px;

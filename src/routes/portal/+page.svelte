@@ -379,12 +379,12 @@
 		height: 9px;
 		border-radius: 50%;
 		background: var(--mint);
-		box-shadow: 0 0 10px var(--mint);
+		box-shadow: none;
 		animation: pulse 2s ease-in-out infinite;
 	}
 	.live-dot.warn {
 		background: var(--warn);
-		box-shadow: 0 0 10px var(--warn);
+		box-shadow: none;
 	}
 	.live-dot.off {
 		background: var(--danger);
