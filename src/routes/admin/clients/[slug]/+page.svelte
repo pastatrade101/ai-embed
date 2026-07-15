@@ -5,6 +5,7 @@
 	import LeadsTable from '$lib/components/LeadsTable.svelte';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import { readableInk } from '$lib/luminance.js';
+	import { page } from '$app/stores';
 
 	export let data;
 	export let form;
@@ -15,7 +16,7 @@
 	const fmtDate = (s) => (s ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(s)) : '—');
 	const initials = (n) => (n ?? '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
-	const embedSnippet = () => `<!-- operator pastes this once -->\n<script src="https://app.makutano.digital/widget.js"\n        data-client="${client.slug}"><\/script>`;
+	const embedSnippet = () => `<!-- operator pastes this once -->\n<script src="${$page.url.origin}/widget.js"\n        data-client="${client.slug}"><\/script>`;
 	let copied = false;
 	async function copyEmbed() {
 		try { await navigator.clipboard.writeText(embedSnippet()); copied = true; setTimeout(() => (copied = false), 1500); } catch { copied = false; }

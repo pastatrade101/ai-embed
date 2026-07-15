@@ -3,11 +3,16 @@
 // network calls are best-effort with a short timeout; a failure returns a
 // friendly result rather than throwing.
 
-const WIDGET_HOST = 'https://app.makutano.digital';
+import { env } from '$env/dynamic/private';
+
+/** Where widget.js is served from — this deployment's own public origin. */
+export function widgetHost() {
+	return String(env.PUBLIC_APP_URL || env.ORIGIN || 'https://app.makutano.digital').replace(/\/+$/, '');
+}
 
 /** The one-line embed snippet for a tenant. */
 export function buildSnippet(slug) {
-	return `<script src="${WIDGET_HOST}/widget.js" data-client="${slug}"><\/script>`;
+	return `<script src="${widgetHost()}/widget.js" data-client="${slug}"><\/script>`;
 }
 
 /** Add a scheme if missing, validate, and return a clean origin URL (or null). */
@@ -117,12 +122,12 @@ export const PLATFORM_GUIDES = {
 		name: 'Wix',
 		time: '3 min',
 		steps: [
-			'Open your Wix dashboard and go to Settings → Custom Code (under “Advanced”).',
-			'Click + Add Custom Code.',
-			'Paste your code into the box, and set “Place Code in” to Body – end.',
-			'Under “Add Code to Pages”, choose All pages, then click Apply.'
+			'In your Wix dashboard, go to Settings → Custom Code (under “Advanced”).',
+			'Click + Add Custom Code and paste your snippet into the box.',
+			'Set “Place Code in” to Body – end, and “Add Code to Pages” to All pages.',
+			'Click Apply, then Publish your site (top-right) — custom code only runs on the published live site, not the editor preview.'
 		],
-		note: 'Custom Code requires a Wix Premium plan with a connected domain.'
+		note: 'Two common gotchas: (1) Use Settings → Custom Code, NOT an “Embed HTML / iframe” element dropped on a page — that traps the chat inside a small box. (2) Custom Code needs a Wix Premium plan with a connected domain; free Wix sites can’t add it. After publishing, open your live URL in a private window to bypass cache.'
 	},
 	squarespace: {
 		name: 'Squarespace',

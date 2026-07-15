@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { page } from '$app/stores';
 	import ShareCard from '$lib/components/ShareCard.svelte';
 	import OnboardingChecklist from '$lib/components/OnboardingChecklist.svelte';
 	export let data;
@@ -70,7 +71,7 @@
 	}
 
 	// Website embed (kept, secondary).
-	const embedSnippet = () => `<script src="https://app.makutano.digital/widget.js" data-client="${client.slug}"><\/script>`;
+	const embedSnippet = () => `<script src="${$page.url.origin}/widget.js" data-client="${client.slug}"><\/script>`;
 	let showEmbed = false;
 	let copied = false;
 	async function copyEmbed() {

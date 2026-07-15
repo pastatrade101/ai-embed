@@ -9,20 +9,29 @@
 	'use strict';
 
 	// --- resolve config -----------------------------------------------------
-	var script =
-		document.currentScript ||
-		(function () {
-			var s = document.getElementsByTagName('script');
-			return s[s.length - 1];
-		})();
+	// Find our own <script> tag robustly. document.currentScript is null when the
+	// tag is injected asynchronously (Wix Custom Code, Google Tag Manager, etc.),
+	// and a naive "last script on the page" fallback then grabs an unrelated tag —
+	// so also look it up by its data-client attribute and by src.
+	function findSelf() {
+		var cur = document.currentScript;
+		if (cur && cur.getAttribute && cur.getAttribute('data-client')) return cur;
+		var byAttr = document.querySelectorAll('script[data-client]');
+		if (byAttr.length) return byAttr[byAttr.length - 1];
+		var bySrc = document.querySelectorAll('script[src*="widget.js"]');
+		if (bySrc.length) return bySrc[bySrc.length - 1];
+		return cur || null;
+	}
+	var script = findSelf();
+	var cfg = window.makutanoWidget || {}; // optional global fallback: {client, api}
 
-	var CLIENT = script && script.getAttribute('data-client');
+	var CLIENT = (script && script.getAttribute && script.getAttribute('data-client')) || cfg.client;
 	if (!CLIENT) {
 		console.error('[makutano] missing data-client on the widget script tag');
 		return;
 	}
 	// API base = the origin the widget was served from.
-	var API = new URL(script.src, location.href).origin;
+	var API = (script && script.src && new URL(script.src, location.href).origin) || cfg.api || location.origin;
 
 	// --- state --------------------------------------------------------------
 	var messages = []; // {role:'user'|'assistant', content}
@@ -69,7 +78,7 @@
 	// --- shadow DOM host ----------------------------------------------------
 	var host = document.createElement('div');
 	host.setAttribute('data-makutano', '');
-	document.body.appendChild(host);
+	(document.body || document.documentElement).appendChild(host);
 	var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
 
 	var style = document.createElement('style');

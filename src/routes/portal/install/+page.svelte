@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { page } from '$app/stores';
 	export let data; // data.client (layout) + data.guides (page load)
 	$: client = data.client;
 
@@ -23,7 +24,7 @@
 
 	$: guide = data.guides[selectedPlatform] ?? data.guides.other;
 	// `<\/script>` so this literal doesn't close the Svelte <script> block.
-	$: snippet = `<script src="https://app.makutano.digital/widget.js" data-client="${client.slug}"><\/script>`;
+	$: snippet = `<script src="${$page.url.origin}/widget.js" data-client="${client.slug}"><\/script>`;
 
 	async function copySnippet() {
 		try {
