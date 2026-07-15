@@ -5,6 +5,7 @@ import {
 	deleteKnowledge,
 	duplicateKnowledge,
 	importKnowledge,
+	resyncEmbeddings,
 	addDeparture,
 	deleteDeparture
 } from '$lib/server/tenant.js';
@@ -30,6 +31,7 @@ export const actions = {
 	deleteItem: async ({ request, locals }) => deleteKnowledge(locals.user.client_id, await request.formData()),
 	duplicateItem: async ({ request, locals }) => duplicateKnowledge(locals.user.client_id, await request.formData()),
 	bulkImport: async ({ request, locals }) => importKnowledge(locals.user.client_id, await request.formData()),
+	resync: async ({ locals }) => resyncEmbeddings(locals.user.client_id),
 	addDeparture: async ({ request, locals }) => addDeparture(locals.user.client_id, await request.formData()),
 	deleteDeparture: async ({ request, locals }) => deleteDeparture(locals.user.client_id, await request.formData())
 };

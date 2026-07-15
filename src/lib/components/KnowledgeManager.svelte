@@ -138,6 +138,9 @@
 	</div>
 	<div class="kb-actions">
 		{#if slug}<a class="btn ghost sm" href={`/c/${slug}`} target="_blank" rel="noopener">Test your AI</a>{/if}
+			<form method="POST" action="?/resync" use:enhance style="display:inline">
+				<button class="btn ghost sm" type="submit" title="Re-embed any tours that failed to sync (e.g. after a rate-limited import). Safe to click — it never duplicates.">Re-sync AI</button>
+			</form>
 		<div class="add-wrap">
 			<button class="sm add-btn" on:click={() => (addMenuOpen = !addMenuOpen)} aria-expanded={addMenuOpen}>
 				<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14" /></svg>
@@ -165,7 +168,7 @@
 {/if}
 
 <!-- Notices ---------------------------------------------------------------->
-{#if form?.section === 'item' || form?.section === 'departure' || form?.section === 'import'}
+{#if form?.section === 'item' || form?.section === 'departure' || form?.section === 'import' || form?.section === 'resync'}
 	{#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}
 		<div class="notice">{form.ok}{#if form?.failed?.length}<ul style="margin:.4rem 0 0;padding-left:1.1rem">{#each form.failed as f}<li>{f}</li>{/each}</ul>{/if}</div>
 	{/if}

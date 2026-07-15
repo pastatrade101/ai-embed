@@ -230,6 +230,38 @@ export async function importKnowledge(clientId, form) {
 	};
 }
 
+/**
+ * Re-embed items that have no vectors yet (e.g. a bulk import that hit the
+ * embedding provider's rate limit). Skips already-embedded items, so it never
+ * creates duplicates — safe to click repeatedly.
+ */
+export async function resyncEmbeddings(clientId) {
+	const [{ data: items }, { data: chunks }] = await Promise.all([
+		supabase.from('knowledge_items').select(ITEM_COLS).eq('client_id', clientId),
+		supabase.from('content_chunks').select('item_id').eq('client_id', clientId)
+	]);
+	const embedded = new Set((chunks ?? []).map((c) => c.item_id));
+	const missing = (items ?? []).filter((i) => !embedded.has(i.id));
+	if (!missing.length) return { section: 'resync', ok: 'Everything is already in sync — the AI can search all your knowledge.' };
+
+	let done = 0;
+	const failed = [];
+	for (const item of missing) {
+		try {
+			await reingestItem(item);
+			done++;
+		} catch (e) {
+			failed.push(`"${item.title}": ${e.message}`);
+		}
+	}
+	const remaining = missing.length - done;
+	return {
+		section: 'resync',
+		ok: `Re-synced ${done} of ${missing.length} item${missing.length === 1 ? '' : 's'}.${remaining ? ` ${remaining} still pending — likely the embedding rate limit; add a Voyage payment method and try again.` : ' Your AI can now search them all.'}`,
+		failed
+	};
+}
+
 export async function deleteKnowledge(clientId, form) {
 	const id = String(form.get('id') ?? '');
 	if (!id) return fail(400, { section: 'item', error: 'Missing item id.' });
