@@ -4,7 +4,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { afterNavigate } from '$app/navigation';
-	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+	import ProfileMenu from '$lib/components/ProfileMenu.svelte';
 	export let user = null; // { name, email }
 	export let initials = '?';
 	export let avatarColor = null; // override the user-card avatar gradient
@@ -72,19 +72,7 @@
 			<div class="spacer"></div>
 			<div class="top-right">
 				<slot name="actions" />
-				<ThemeToggle />
-				<div class="top-user">
-					<span class="u-avatar" style={avatarColor ? `background:${avatarColor}` : ''}>{initials}</span>
-					<div class="u-meta">
-						<div class="u-name">{user?.name ?? 'Account'}</div>
-						<div class="u-email">{user?.email ?? ''}</div>
-					</div>
-					<form method="POST" action="/logout">
-						<button class="ghost sm" type="submit" title="Sign out" aria-label="Sign out">
-							<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-						</button>
-					</form>
-				</div>
+				<ProfileMenu {user} {initials} {avatarColor} />
 			</div>
 		</div>
 		{#key $page.url.pathname}
