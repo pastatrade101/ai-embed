@@ -88,6 +88,22 @@
 		<div class="track"><div class="fill" style="width:{progress}%"></div></div>
 	</header>
 
+	{#if form?.sent}
+		<div class="sent-wrap">
+			<div class="sent-card">
+				<div class="sent-mark">✉️</div>
+				<div class="eyebrow">Almost there</div>
+				<h1>Check your inbox</h1>
+				<p class="desc">We sent a confirmation link to <b>{form.email}</b>. Click it to activate your workspace and go straight to your dashboard.</p>
+				<ul class="sent-tips">
+					<li>The link expires in 24&nbsp;hours.</li>
+					<li>Can't find it? Check spam or promotions.</li>
+					<li>Your account isn't created until you confirm.</li>
+				</ul>
+				<p class="sent-foot">Wrong email? <a href="/onboarding">Start over</a> · Already confirmed? <a href="/login">Sign in</a></p>
+			</div>
+		</div>
+	{:else}
 	<div class="ob-grid">
 		<!-- Stepper -->
 		<ol class="stepper">
@@ -173,13 +189,13 @@
 				</div>
 			{:else if stage.key === 'account'}
 				<div class="eyebrow">Step 4 · Create account</div>
-				<h1>One last thing — create your account</h1>
-				<p class="desc">We'll save your setup and take you straight to your dashboard.</p>
+				<h1>One last thing — confirm your email</h1>
+				<p class="desc">We'll email you a one-click link to activate your workspace. No credit card required.</p>
 				<div class="fields">
 					<label>Your full name<input bind:value={fullName} placeholder="Amina Njoroge" autocomplete="name" /></label>
 					<label>Work email<input type="email" bind:value={email} placeholder="you@yourcompany.com" autocomplete="username" /></label>
 					<label>Password<input type="password" bind:value={password} placeholder="At least 8 characters" autocomplete="new-password" /></label>
-					<p class="terms">By creating an account you agree to our terms & privacy policy. No credit card required.</p>
+					<p class="terms">By creating an account you agree to our terms & privacy policy.</p>
 				</div>
 			{/if}
 
@@ -187,7 +203,7 @@
 				<button type="button" class="back" on:click={back} disabled={stageIdx === 0 || submitting}>← Back</button>
 				{#if stage.key === 'account'}
 					<button type="submit" class="go" disabled={!canContinue || submitting}>
-						{submitting ? 'Creating your account…' : 'Create account & finish'}
+						{submitting ? 'Sending link…' : 'Send confirmation link'}
 					</button>
 				{:else}
 					<button type="button" class="go" on:click={nextStep} disabled={!canContinue}>Continue →</button>
@@ -195,6 +211,7 @@
 			</div>
 		</form>
 	</div>
+	{/if}
 
 	<p class="signin-foot">Already have an account? <a href="/login">Sign in</a></p>
 </div>
@@ -584,6 +601,77 @@
 		opacity: 0.4;
 		cursor: not-allowed;
 	}
+	.sent-wrap {
+		max-width: 1060px;
+		margin: 0 auto;
+		padding: 3rem 1.5rem 1.5rem;
+		display: grid;
+		place-items: center;
+	}
+	@media (min-width: 820px) {
+		.sent-wrap {
+			padding: 5rem 1.5rem 2rem;
+		}
+	}
+	.sent-card {
+		width: 100%;
+		max-width: 520px;
+		border: 1px solid rgba(247, 242, 232, 0.1);
+		background: rgba(247, 242, 232, 0.03);
+		border-radius: 24px;
+		padding: 2.5rem;
+		text-align: center;
+	}
+	.sent-mark {
+		font-size: 2.6rem;
+		line-height: 1;
+		margin-bottom: 1.25rem;
+	}
+	.sent-card .eyebrow {
+		text-align: center;
+	}
+	.sent-card h1 {
+		margin: 0.6rem 0 0;
+		font-size: clamp(1.5rem, 3vw, 2.1rem);
+		font-weight: 640;
+	}
+	.sent-card .desc {
+		margin-top: 0.75rem;
+		color: rgba(247, 242, 232, 0.7);
+	}
+	.sent-tips {
+		margin: 1.75rem 0 0;
+		padding: 1.1rem 1.25rem;
+		list-style: none;
+		text-align: left;
+		display: grid;
+		gap: 0.5rem;
+		border: 1px dashed rgba(247, 242, 232, 0.2);
+		background: rgba(247, 242, 232, 0.04);
+		border-radius: 14px;
+		font-size: 0.88rem;
+		color: rgba(247, 242, 232, 0.7);
+	}
+	.sent-tips li {
+		padding-left: 1.4rem;
+		position: relative;
+	}
+	.sent-tips li::before {
+		content: '›';
+		position: absolute;
+		left: 0.4rem;
+		color: var(--gold);
+	}
+	.sent-foot {
+		margin: 1.75rem 0 0;
+		font-size: 0.85rem;
+		color: rgba(247, 242, 232, 0.55);
+	}
+	.sent-foot a {
+		color: var(--gold);
+		font-weight: 600;
+	}
+
 	.signin-foot {
 		text-align: center;
 		padding: 1rem 1.5rem 2.5rem;
