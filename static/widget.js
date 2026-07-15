@@ -377,7 +377,7 @@
 
 	function css() {
 		return (
-			'.mk{position:fixed;bottom:20px;right:20px;z-index:2147483000;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}' +
+			'.mk{position:fixed;bottom:20px;right:20px;z-index:2147483000;color-scheme:light;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}' +
 			'.mk-fab{width:58px;height:58px;border-radius:50%;border:0;background:var(--mk-brand);color:#fff;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;margin-left:auto;transition:transform .15s ease}' +
 			'.mk-fab:hover{transform:scale(1.06)}' +
 			'.mk-panel{position:absolute;bottom:70px;right:0;width:392px;max-width:calc(100vw - 24px);height:620px;max-height:calc(100vh - 96px);background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden}' +
@@ -418,12 +418,25 @@
 			'.mk-lead-open{flex:1;border:1px solid var(--mk-brand);background:#fff;color:var(--mk-brand);border-radius:8px;padding:.5rem;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}' +
 			'.mk-lead-open:hover{background:#f4f8f6}' +
 			'.mk-wa-sm{flex:1;text-align:center;background:#25d366;color:#fff;text-decoration:none;border-radius:8px;padding:.5rem;font-size:.82rem;font-weight:600}' +
-			'.mk-input{flex:1;padding:.55rem .65rem;border:1px solid #e2e8e4;border-radius:8px;font:inherit;font-size:.9rem;outline:none}' +
+			'.mk-input{flex:1;padding:.55rem .65rem;border:1px solid #e2e8e4;border-radius:8px;font:inherit;font-size:.9rem;outline:none;background:#fff;color:#1c2b26}' +
+			'.mk-input::placeholder{color:#9aa8a2}' +
 			'.mk-input:focus{border-color:var(--mk-brand)}' +
 			'.mk-send{border:0;background:var(--mk-brand);color:#fff;border-radius:8px;padding:0 .8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font:inherit;font-weight:600}' +
 			'.mk-send:disabled{opacity:.5;cursor:default}' +
 			'.mk-wa{display:block;text-align:center;background:#25d366;color:#fff;text-decoration:none;padding:.5rem;border-radius:8px;font-size:.88rem;font-weight:600}' +
-			'.mk-wa-inline{margin:.6rem;margin-top:0}'
+			'.mk-wa-inline{margin:.6rem;margin-top:0}' +
+			// Mobile: a full-screen native sheet. dvh dodges the URL-bar resize,
+			// safe-area insets clear the notch/home indicator, 16px input stops
+			// iOS zoom-on-focus.
+			'@media (max-width:480px){' +
+			'.mk{bottom:16px;right:16px}' +
+			'.mk-panel{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;max-width:none;max-height:none;border-radius:0;padding-bottom:env(safe-area-inset-bottom)}' +
+			'.mk-head{padding-top:calc(.7rem + env(safe-area-inset-top))}' +
+			'.mk-log{padding:1rem}' +
+			'.mk-msg{max-width:88%;font-size:.95rem}' +
+			'.mk-input{font-size:16px}' +
+			'.mk-fab{width:54px;height:54px}' +
+			'}'
 		);
 	}
 })();
