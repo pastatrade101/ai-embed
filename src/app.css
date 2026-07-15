@@ -1532,6 +1532,18 @@ button.sm,
 	object-fit: cover;
 	border-radius: 7px;
 }
+.auth-logo {
+	display: flex;
+	justify-content: center;
+	margin-bottom: 1.5rem;
+}
+.auth-logo img {
+	width: 220px;
+	max-width: 78%;
+	height: auto;
+	border-radius: 18px;
+	box-shadow: 0 10px 30px -12px rgba(0, 0, 0, 0.5);
+}
 .auth-card h1 {
 	font-size: 1.35rem;
 	margin: 0 0 0.15rem;

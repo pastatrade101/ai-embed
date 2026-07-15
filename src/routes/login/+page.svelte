@@ -5,9 +5,8 @@
 
 <div class="auth-wrap">
 	<div class="auth-card">
-		<div class="auth-brand">
-			<img class="logo" src="/ICON-AI.png" alt="Makutano" />
-			<b>Makutano Digital</b>
+		<div class="auth-logo">
+			<img src="/Makutano_AI_Logo.png" alt="Makutano AI" />
 		</div>
 		<h1>Sign in</h1>
 		<p class="muted" style="margin-top:-.4rem">Operators and admins use the same login.</p>
