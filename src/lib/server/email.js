@@ -22,7 +22,8 @@ export async function sendEmail({ to, subject, text, replyTo }) {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
-			authorization: `Bearer ${env.RESEND_API_KEY}`
+			authorization: `Bearer ${env.RESEND_API_KEY}`,
+			'user-agent': 'Makutano/1.0'
 		},
 		body: JSON.stringify({
 			from: fromAddress(),
@@ -55,7 +56,8 @@ export async function sendLeadEmail({ to, businessName, lead }) {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
-			authorization: `Bearer ${env.RESEND_API_KEY}`
+			authorization: `Bearer ${env.RESEND_API_KEY}`,
+			'user-agent': 'Makutano/1.0'
 		},
 		body: JSON.stringify({
 			from: fromAddress(),
