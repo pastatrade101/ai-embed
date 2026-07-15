@@ -341,8 +341,8 @@
 		padding: 0.75rem 1rem;
 		margin-bottom: 1rem;
 		border-radius: 14px;
-		background: linear-gradient(90deg, rgba(55, 224, 166, 0.16), rgba(91, 140, 255, 0.08));
-		border: 1px solid rgba(55, 224, 166, 0.3);
+		background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.16), rgba(var(--accent-rgb), 0.08));
+		border: 1px solid rgba(var(--gold-rgb), 0.3);
 	}
 	.celebrate-emoji {
 		font-size: 1.35rem;
@@ -356,7 +356,7 @@
 		border-radius: 7px;
 	}
 	.celebrate-x:hover {
-		background: rgba(255, 255, 255, 0.06);
+		background: rgba(var(--fg-rgb), 0.06);
 		color: var(--strong);
 	}
 
@@ -505,8 +505,8 @@
 		margin-top: 1rem;
 		padding: 0.7rem 0.85rem;
 		border-radius: 11px;
-		background: rgba(55, 224, 166, 0.08);
-		border: 1px solid rgba(55, 224, 166, 0.2);
+		background: rgba(var(--gold-rgb), 0.08);
+		border: 1px solid rgba(var(--gold-rgb), 0.2);
 		font-size: 0.86rem;
 		color: var(--soft);
 		line-height: 1.4;
@@ -597,14 +597,14 @@
 		white-space: nowrap;
 	}
 	.tier.hot {
-		background: rgba(55, 224, 166, 0.16);
+		background: rgba(var(--gold-rgb), 0.16);
 		color: var(--mint);
-		border: 1px solid rgba(55, 224, 166, 0.3);
+		border: 1px solid rgba(var(--gold-rgb), 0.3);
 	}
 	.tier.warm {
-		background: rgba(91, 140, 255, 0.16);
+		background: rgba(var(--accent-rgb), 0.16);
 		color: #8fb0ff;
-		border: 1px solid rgba(91, 140, 255, 0.3);
+		border: 1px solid rgba(var(--accent-rgb), 0.3);
 	}
 	.tier.cool {
 		background: rgba(255, 181, 71, 0.14);
@@ -612,7 +612,7 @@
 		border: 1px solid rgba(255, 181, 71, 0.28);
 	}
 	.tier.cold {
-		background: rgba(255, 255, 255, 0.05);
+		background: rgba(var(--fg-rgb), 0.05);
 		color: var(--muted);
 		border: 1px solid var(--edge);
 	}
@@ -713,7 +713,7 @@
 		border-bottom: 0;
 	}
 	.convo-row:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(var(--fg-rgb), 0.02);
 	}
 	.convo-q {
 		font-size: 0.88rem;

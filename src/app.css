@@ -4,34 +4,73 @@
    active rail, and Inter typography. */
 
 :root {
-	--ink: #0b0e14;
-	--panel: #11161f;
-	--panel-2: #161d28;
-	--edge: #222b39;
-	--line-2: #1a2130;
-	--muted: #8b97a8;
-	--faint: #8593a6;
-	--soft: #cbd5e1;
-	--body: #e2e8f0;
-	--strong: #ffffff;
-	--ink-text: #06110d;
+	/* Forest/gold theme. Surfaces, foreground and accents are RGB *triplets* so
+	   every alpha tint flips cleanly between the dark (default) and the
+	   white-dominant light mode below. DARK = deep-forest surfaces, cream text. */
+	--panel-rgb: 16, 51, 40; /* card surface */
+	--panel-2-rgb: 22, 65, 47; /* elevated / nested */
+	--well-rgb: 9, 30, 22; /* recessed inset */
+	--fg-rgb: 247, 242, 232; /* foreground: text, borders, hover overlays */
+	--gold-rgb: 224, 178, 76; /* gold accent tints */
+	--accent-rgb: 63, 145, 111; /* secondary sage accent */
 
-	--mint: #37e0a6;
-	--mint-2: #2bc790;
-	--brand: #37e0a6;
+	--ink: #0a231b;
+	--panel: rgb(var(--panel-rgb));
+	--panel-2: rgb(var(--panel-2-rgb));
+	--edge: rgba(var(--fg-rgb), 0.12);
+	--line-2: rgba(var(--fg-rgb), 0.08);
+	--muted: rgba(var(--fg-rgb), 0.56);
+	--faint: rgba(var(--fg-rgb), 0.46);
+	--soft: rgba(var(--fg-rgb), 0.8);
+	--body: #f2ecdd;
+	--strong: #ffffff;
+	--ink-text: #23180a;
+
+	--mint: #e0b24c;
+	--mint-2: #cf9f39;
+	--brand: #e0b24c;
 	--danger: #ff5d6c;
 	--danger-bg: rgba(255, 93, 108, 0.12);
 	--warn: #ffb547;
-	--accent: #5b8cff;
+	--accent: #3f916f;
 
 	--radius: 16px;
-	--shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
+	--shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
 	--app-bg:
-		radial-gradient(circle at 0% 0%, rgba(55, 224, 166, 0.16), transparent 44%),
-		radial-gradient(circle at 100% 0%, rgba(91, 140, 255, 0.12), transparent 46%),
-		linear-gradient(180deg, rgba(10, 13, 19, 0.9) 0%, rgba(8, 11, 17, 0.95) 100%),
-		url('/mesh.jpg');
+		radial-gradient(circle at 0% 0%, rgba(var(--gold-rgb), 0.16), transparent 46%),
+		radial-gradient(circle at 100% 2%, rgba(var(--accent-rgb), 0.45), transparent 50%),
+		linear-gradient(180deg, #0c2c22 0%, #0a231b 55%, #081d16 100%);
 	color-scheme: dark;
+}
+
+/* LIGHT MODE — white-dominant. Cards go white, the page a whisper of warm grey,
+   text deep forest, and gold/forest survive only as accents (buttons, tints,
+   thin rules) — no heavy solid colour fills. */
+:root[data-theme='light'] {
+	--panel-rgb: 255, 255, 255; /* white cards */
+	--panel-2-rgb: 244, 246, 243; /* faint grey nested */
+	--well-rgb: 236, 239, 235; /* light recessed */
+	--fg-rgb: 16, 54, 42; /* forest foreground: text + borders */
+	--gold-rgb: 224, 178, 76; /* gold washes stay warm on white */
+	--accent-rgb: 44, 107, 82;
+
+	--ink: #f6f7f4;
+	--body: #16342a;
+	--strong: #0a231b;
+	--ink-text: #23180a;
+
+	--mint: #b8860b; /* deep gold — legible as text/icons on white */
+	--mint-2: #a5780a;
+	--brand: #b8860b;
+	--danger: #d83a4a;
+	--warn: #b7820f;
+
+	--shadow: 0 10px 26px rgba(16, 54, 42, 0.1);
+	--app-bg:
+		radial-gradient(circle at 0% 0%, rgba(var(--gold-rgb), 0.07), transparent 42%),
+		radial-gradient(circle at 100% 2%, rgba(var(--accent-rgb), 0.06), transparent 46%),
+		linear-gradient(180deg, #ffffff 0%, #f6f7f4 100%);
+	color-scheme: light;
 }
 
 * {
@@ -121,20 +160,9 @@ code {
 	display: none;
 }
 .app-shell.collapsed .nav-item.active {
-	box-shadow: 0 0 0 1px rgba(55, 224, 166, 0.22);
+	box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.22);
 }
 .app-shell.collapsed .nav-item.active::before {
-	display: none;
-}
-.app-shell.collapsed .side-user {
-	padding: 0.55rem;
-}
-.app-shell.collapsed .side-user .u-card {
-	justify-content: center;
-	padding: 0.4rem;
-	gap: 0;
-}
-.app-shell.collapsed .side-user .u-meta {
 	display: none;
 }
 
@@ -144,7 +172,7 @@ code {
 	height: 100vh;
 	display: flex;
 	flex-direction: column;
-	background: rgba(17, 22, 31, 0.92);
+	background: rgba(var(--panel-rgb), 0.92);
 	border-right: 1px solid var(--edge);
 	backdrop-filter: blur(18px) saturate(160%);
 	-webkit-backdrop-filter: blur(18px) saturate(160%);
@@ -165,8 +193,8 @@ code {
 	width: 40px;
 	height: 40px;
 	border-radius: 11px;
-	border: 1px solid rgba(55, 224, 166, 0.28);
-	background: rgba(55, 224, 166, 0.1);
+	border: 1px solid rgba(var(--gold-rgb), 0.28);
+	background: rgba(var(--gold-rgb), 0.1);
 	color: var(--mint);
 	flex-shrink: 0;
 }
@@ -239,7 +267,7 @@ code {
 		color 0.14s;
 }
 .nav-item:hover {
-	background: rgba(255, 255, 255, 0.035);
+	background: rgba(var(--fg-rgb), 0.035);
 	color: var(--strong);
 }
 .nav-ico {
@@ -249,7 +277,7 @@ code {
 	height: 32px;
 	flex-shrink: 0;
 	border-radius: 9px;
-	border: 1px solid rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(var(--fg-rgb), 0.06);
 	background: var(--panel-2);
 	color: var(--muted);
 	transition:
@@ -262,8 +290,8 @@ code {
 	height: 16px;
 }
 .nav-item:hover .nav-ico {
-	border-color: rgba(55, 224, 166, 0.22);
-	background: rgba(55, 224, 166, 0.1);
+	border-color: rgba(var(--gold-rgb), 0.22);
+	background: rgba(var(--gold-rgb), 0.1);
 	color: var(--mint);
 }
 .nav-label {
@@ -274,9 +302,9 @@ code {
 	white-space: nowrap;
 }
 .nav-item.active {
-	background: linear-gradient(90deg, rgba(55, 224, 166, 0.16), rgba(91, 140, 255, 0.06) 60%, rgba(255, 255, 255, 0.02));
+	background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.16), rgba(var(--accent-rgb), 0.06) 60%, rgba(var(--fg-rgb), 0.02));
 	color: var(--strong);
-	box-shadow: 0 0 0 1px rgba(55, 224, 166, 0.14);
+	box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.14);
 }
 .nav-item.active::before {
 	content: '';
@@ -288,11 +316,11 @@ code {
 	height: 22px;
 	border-radius: 0 99px 99px 0;
 	background: var(--mint);
-	box-shadow: 0 0 16px rgba(55, 224, 166, 0.7);
+	box-shadow: 0 0 16px rgba(var(--gold-rgb), 0.7);
 }
 .nav-item.active .nav-ico {
-	border-color: rgba(55, 224, 166, 0.35);
-	background: rgba(55, 224, 166, 0.16);
+	border-color: rgba(var(--gold-rgb), 0.35);
+	background: rgba(var(--gold-rgb), 0.16);
 	color: var(--mint);
 }
 .nav-badge {
@@ -307,49 +335,64 @@ code {
 	color: var(--ink-text);
 }
 
-.side-user {
-	padding: 0.8rem;
-	border-top: 1px solid var(--edge);
-}
-.side-user .u-card {
+/* Top-bar right cluster: page actions, the theme toggle and the profile — all
+   vertically centred. The profile avatar/sign-out used to live in the sidebar. */
+.top-right {
 	display: flex;
 	align-items: center;
 	gap: 0.6rem;
-	padding: 0.6rem;
-	border-radius: 12px;
+}
+.top-user {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.25rem 0.4rem 0.25rem 0.5rem;
+	border-radius: 999px;
 	border: 1px solid var(--edge);
 	background: var(--panel-2);
 }
-.side-user .u-avatar {
+.top-user .u-avatar {
 	display: grid;
 	place-items: center;
-	width: 38px;
-	height: 38px;
+	width: 32px;
+	height: 32px;
 	flex-shrink: 0;
-	border-radius: 10px;
+	border-radius: 50%;
 	background: linear-gradient(135deg, var(--mint), var(--accent));
 	color: var(--ink-text);
 	font-weight: 800;
-	font-size: 0.85rem;
+	font-size: 0.8rem;
 }
-.side-user .u-meta {
+.top-user .u-meta {
 	min-width: 0;
-	flex: 1;
+	max-width: 160px;
+	line-height: 1.2;
 }
-.side-user .u-name {
-	font-size: 0.82rem;
+.top-user .u-name {
+	font-size: 0.8rem;
 	font-weight: 600;
 	color: var(--strong);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.side-user .u-email {
-	font-size: 0.72rem;
+.top-user .u-email {
+	font-size: 0.7rem;
 	color: var(--muted);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+@media (max-width: 640px) {
+	.top-user .u-meta {
+		display: none;
+	}
+	.top-user {
+		border: 0;
+		background: transparent;
+		padding: 0.15rem;
+		gap: 0.25rem;
+	}
 }
 
 .main {
@@ -362,7 +405,7 @@ code {
 	align-items: center;
 	gap: 1rem;
 	padding: 0.7rem 1.6rem;
-	background: rgba(17, 22, 31, 0.55);
+	background: rgba(var(--panel-rgb), 0.55);
 	border-bottom: 1px solid var(--edge);
 	backdrop-filter: blur(18px) saturate(170%);
 	-webkit-backdrop-filter: blur(18px) saturate(170%);
@@ -403,7 +446,7 @@ code {
 	height: 36px;
 	padding: 0;
 	border-radius: 10px;
-	background: rgba(255, 255, 255, 0.02);
+	background: rgba(var(--fg-rgb), 0.02);
 	border: 1px solid var(--edge);
 	color: var(--muted);
 	transition:
@@ -413,7 +456,7 @@ code {
 }
 .nav-toggle:hover {
 	background: var(--panel-2);
-	border-color: rgba(55, 224, 166, 0.3);
+	border-color: rgba(var(--gold-rgb), 0.3);
 	color: var(--mint);
 }
 .nav-toggle svg {
@@ -486,23 +529,6 @@ code {
 	.nav-item.active::before {
 		display: none;
 	}
-	/* Keep a compact sign-out visible — it's the only logout control. */
-	.side-user {
-		border-top: 0;
-		padding: 0.3rem;
-		margin-left: auto;
-		flex-shrink: 0;
-	}
-	.side-user .u-card {
-		border: 0;
-		background: transparent;
-		padding: 0.15rem;
-		gap: 0;
-	}
-	.side-user .u-avatar,
-	.side-user .u-meta {
-		display: none;
-	}
 	.content {
 		padding: 1.25rem 1rem 3rem;
 	}
@@ -552,8 +578,8 @@ h2.section:first-child {
 
 /* ---- Cards & tiles ---------------------------------------------------- */
 .card {
-	background: rgba(17, 22, 31, 0.72);
-	border: 1px solid rgba(34, 43, 57, 0.75);
+	background: rgba(var(--panel-rgb), 0.72);
+	border: 1px solid rgba(var(--fg-rgb), 0.1);
 	border-radius: var(--radius);
 	padding: 1.15rem 1.3rem;
 	box-shadow: var(--shadow);
@@ -579,10 +605,10 @@ h2.section:first-child {
 	position: relative;
 	overflow: hidden;
 	border-radius: var(--radius);
-	border: 1px solid rgba(255, 255, 255, 0.06);
+	border: 1px solid rgba(var(--fg-rgb), 0.06);
 	background:
-		radial-gradient(130% 130% at 0% 0%, rgba(55, 224, 166, 0.1), transparent 42%),
-		rgba(17, 22, 31, 0.72);
+		radial-gradient(130% 130% at 0% 0%, rgba(var(--gold-rgb), 0.1), transparent 42%),
+		rgba(var(--panel-rgb), 0.72);
 	box-shadow: 0 6px 22px rgba(0, 0, 0, 0.22);
 	backdrop-filter: blur(16px) saturate(160%);
 	-webkit-backdrop-filter: blur(16px) saturate(160%);
@@ -596,7 +622,7 @@ h2.section:first-child {
 	content: '';
 	position: absolute;
 	inset: 0;
-	background-image: radial-gradient(rgba(127, 140, 160, 0.14) 1px, transparent 1.4px);
+	background-image: radial-gradient(rgba(var(--fg-rgb), 0.06) 1px, transparent 1.4px);
 	background-size: 16px 16px;
 	-webkit-mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 75%);
 	mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 75%);
@@ -607,7 +633,7 @@ h2.section:first-child {
 	position: absolute;
 	inset: 0 0 auto 0;
 	height: 1px;
-	background: linear-gradient(90deg, transparent, rgba(55, 224, 166, 0.45), transparent);
+	background: linear-gradient(90deg, transparent, rgba(var(--gold-rgb), 0.45), transparent);
 	opacity: 0.6;
 	pointer-events: none;
 }
@@ -617,7 +643,7 @@ h2.section:first-child {
 }
 .tile:hover {
 	transform: translateY(-2px);
-	border-color: rgba(55, 224, 166, 0.35);
+	border-color: rgba(var(--gold-rgb), 0.35);
 	box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
 }
 .tile .k {
@@ -661,7 +687,7 @@ h2.section:first-child {
 	height: 100%;
 	background: var(--mint);
 	border-radius: 99px;
-	box-shadow: 0 0 12px rgba(55, 224, 166, 0.5);
+	box-shadow: 0 0 12px rgba(var(--gold-rgb), 0.5);
 }
 .usage.warn > span {
 	background: var(--warn);
@@ -677,8 +703,8 @@ h2.section:first-child {
 	display: block;
 	text-decoration: none;
 	color: inherit;
-	background: rgba(17, 22, 31, 0.72);
-	border: 1px solid rgba(34, 43, 57, 0.75);
+	background: rgba(var(--panel-rgb), 0.72);
+	border: 1px solid rgba(var(--fg-rgb), 0.1);
 	border-radius: var(--radius);
 	padding: 1.05rem 1.2rem;
 	box-shadow: var(--shadow);
@@ -690,7 +716,7 @@ h2.section:first-child {
 		box-shadow 0.15s;
 }
 .client-card:hover {
-	border-color: rgba(55, 224, 166, 0.4);
+	border-color: rgba(var(--gold-rgb), 0.4);
 	transform: translateY(-2px);
 	box-shadow: 0 14px 34px rgba(0, 0, 0, 0.32);
 }
@@ -785,8 +811,8 @@ input:focus,
 textarea:focus,
 select:focus {
 	outline: none;
-	border-color: rgba(55, 224, 166, 0.55);
-	box-shadow: 0 0 0 3px rgba(55, 224, 166, 0.14);
+	border-color: rgba(var(--gold-rgb), 0.55);
+	box-shadow: 0 0 0 3px rgba(var(--gold-rgb), 0.14);
 }
 select {
 	appearance: none;
@@ -865,14 +891,14 @@ button svg,
 }
 button.ghost,
 .btn.ghost {
-	background: rgba(255, 255, 255, 0.02);
+	background: rgba(var(--fg-rgb), 0.02);
 	color: var(--body);
 	border-color: var(--edge);
 }
 button.ghost:hover,
 .btn.ghost:hover {
 	background: var(--panel-2);
-	border-color: rgba(55, 224, 166, 0.3);
+	border-color: rgba(var(--gold-rgb), 0.3);
 	color: var(--strong);
 }
 button.danger {
@@ -898,9 +924,9 @@ button.sm,
 	font-weight: 700;
 	padding: 0.16rem 0.55rem;
 	border-radius: 99px;
-	background: rgba(55, 224, 166, 0.14);
+	background: rgba(var(--gold-rgb), 0.14);
 	color: var(--mint);
-	border: 1px solid rgba(55, 224, 166, 0.24);
+	border: 1px solid rgba(var(--gold-rgb), 0.24);
 	text-transform: capitalize;
 }
 .badge.dot::before {
@@ -917,9 +943,9 @@ button.sm,
 	border-color: rgba(255, 93, 108, 0.28);
 }
 .badge.neutral {
-	background: rgba(255, 255, 255, 0.05);
+	background: rgba(var(--fg-rgb), 0.05);
 	color: var(--muted);
-	border-color: rgba(255, 255, 255, 0.08);
+	border-color: rgba(var(--fg-rgb), 0.08);
 }
 
 /* ---- Tabs ------------------------------------------------------------- */
@@ -1030,11 +1056,11 @@ button.sm,
 .notice {
 	padding: 0.65rem 0.9rem;
 	border-radius: 10px;
-	background: rgba(55, 224, 166, 0.1);
+	background: rgba(var(--gold-rgb), 0.1);
 	color: var(--mint);
 	font-size: 0.88rem;
 	margin-bottom: 0.9rem;
-	border: 1px solid rgba(55, 224, 166, 0.24);
+	border: 1px solid rgba(var(--gold-rgb), 0.24);
 }
 .notice a {
 	color: inherit;
@@ -1048,7 +1074,7 @@ button.sm,
 
 .code-block {
 	white-space: pre-wrap;
-	background: #06090e;
+	background: #07130d;
 	color: var(--soft);
 	padding: 0.9rem 1rem;
 	border-radius: 12px;
@@ -1101,7 +1127,7 @@ button.sm,
 	margin: 0.12rem 0;
 }
 .chat-msg code {
-	background: rgba(255, 255, 255, 0.08);
+	background: rgba(var(--fg-rgb), 0.08);
 	padding: 0.05rem 0.3rem;
 	border-radius: 4px;
 	font-size: 0.85em;
@@ -1119,8 +1145,8 @@ button.sm,
 	max-width: 100%;
 	overflow: hidden;
 	border-radius: var(--radius);
-	background: rgba(17, 22, 31, 0.72);
-	border: 1px solid rgba(34, 43, 57, 0.75);
+	background: rgba(var(--panel-rgb), 0.72);
+	border: 1px solid rgba(var(--fg-rgb), 0.1);
 	box-shadow: var(--shadow);
 	backdrop-filter: blur(16px) saturate(150%);
 	-webkit-backdrop-filter: blur(16px) saturate(150%);
@@ -1148,7 +1174,7 @@ button.sm,
 	flex-shrink: 0;
 	padding: 0.7rem 0.75rem;
 	border-bottom: 1px solid var(--edge);
-	background: rgba(11, 14, 20, 0.4);
+	background: rgba(var(--well-rgb), 0.5);
 }
 .inbox-search {
 	position: relative;
@@ -1207,7 +1233,7 @@ button.sm,
 	padding: 0.34rem 0.6rem;
 	border: 1px solid var(--edge);
 	border-radius: 99px;
-	background: rgba(255, 255, 255, 0.02);
+	background: rgba(var(--fg-rgb), 0.02);
 	color: var(--muted);
 	font-size: 0.78rem;
 	font-weight: 600;
@@ -1219,25 +1245,25 @@ button.sm,
 }
 .chip:hover {
 	color: var(--soft);
-	border-color: rgba(55, 224, 166, 0.3);
-	background: rgba(255, 255, 255, 0.02);
+	border-color: rgba(var(--gold-rgb), 0.3);
+	background: rgba(var(--fg-rgb), 0.02);
 }
 .chip.on,
 .chip[aria-pressed='true'] {
-	background: rgba(55, 224, 166, 0.14);
-	border-color: rgba(55, 224, 166, 0.4);
+	background: rgba(var(--gold-rgb), 0.14);
+	border-color: rgba(var(--gold-rgb), 0.4);
 	color: var(--mint);
 }
 /* Keep the active chip mint when hovered (generic .chip:hover would strip it). */
 .chip.on:hover,
 .chip[aria-pressed='true']:hover {
-	background: rgba(55, 224, 166, 0.14);
-	border-color: rgba(55, 224, 166, 0.4);
+	background: rgba(var(--gold-rgb), 0.14);
+	border-color: rgba(var(--gold-rgb), 0.4);
 	color: var(--mint);
 }
 .chip:focus-visible {
 	outline: none;
-	box-shadow: 0 0 0 3px rgba(55, 224, 166, 0.16);
+	box-shadow: 0 0 0 3px rgba(var(--gold-rgb), 0.16);
 }
 .chip-n {
 	font-variant-numeric: tabular-nums;
@@ -1283,18 +1309,18 @@ button.sm,
 	transition: background 0.12s;
 }
 .conv-row:hover {
-	background: rgba(255, 255, 255, 0.03);
+	background: rgba(var(--fg-rgb), 0.03);
 }
 .conv-row:active {
 	transform: none;
 }
 .conv-row:focus-visible {
 	outline: none;
-	background: rgba(55, 224, 166, 0.07);
-	box-shadow: inset 0 0 0 1px rgba(55, 224, 166, 0.45);
+	background: rgba(var(--gold-rgb), 0.07);
+	box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.45);
 }
 .conv-row.active {
-	background: linear-gradient(90deg, rgba(55, 224, 166, 0.13), rgba(55, 224, 166, 0.03) 70%);
+	background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.13), rgba(var(--gold-rgb), 0.03) 70%);
 }
 .conv-row.active::before {
 	content: '';
@@ -1304,7 +1330,7 @@ button.sm,
 	bottom: 0;
 	width: 3px;
 	background: var(--mint);
-	box-shadow: 0 0 12px rgba(55, 224, 166, 0.6);
+	box-shadow: 0 0 12px rgba(var(--gold-rgb), 0.6);
 }
 .cr-top {
 	display: flex;
@@ -1353,9 +1379,9 @@ button.sm,
 	text-transform: uppercase;
 	padding: 0.06rem 0.4rem;
 	border-radius: 99px;
-	background: rgba(55, 224, 166, 0.14);
+	background: rgba(var(--gold-rgb), 0.14);
 	color: var(--mint);
-	border: 1px solid rgba(55, 224, 166, 0.24);
+	border: 1px solid rgba(var(--gold-rgb), 0.24);
 }
 
 /* detail pane */
@@ -1366,7 +1392,7 @@ button.sm,
 	gap: 0.7rem;
 	padding: 0.8rem 1.15rem;
 	border-bottom: 1px solid var(--edge);
-	background: rgba(11, 14, 20, 0.4);
+	background: rgba(var(--well-rgb), 0.5);
 }
 .dh-main {
 	min-width: 0;
@@ -1395,15 +1421,15 @@ button.sm,
 	padding: 1.1rem 1.25rem 1.5rem;
 }
 .summary-card {
-	border: 1px solid rgba(55, 224, 166, 0.28);
+	border: 1px solid rgba(var(--gold-rgb), 0.28);
 	border-radius: 14px;
 	padding: 0.85rem 1rem 0.95rem;
 	margin-bottom: 1.15rem;
-	background: radial-gradient(130% 130% at 0% 0%, rgba(55, 224, 166, 0.13), transparent 55%), rgba(55, 224, 166, 0.05);
+	background: radial-gradient(130% 130% at 0% 0%, rgba(var(--gold-rgb), 0.13), transparent 55%), rgba(var(--gold-rgb), 0.05);
 }
 .summary-card.muted-summary {
 	border-color: var(--edge);
-	background: rgba(255, 255, 255, 0.02);
+	background: rgba(var(--fg-rgb), 0.02);
 }
 .sc-head {
 	display: flex;
@@ -1509,7 +1535,7 @@ button.sm,
 .auth-card {
 	width: 100%;
 	max-width: 384px;
-	background: rgba(17, 22, 31, 0.75);
+	background: rgba(var(--panel-rgb), 0.75);
 	border: 1px solid var(--edge);
 	border-radius: 20px;
 	padding: 1.85rem;
@@ -1595,8 +1621,8 @@ a.btn:active {
 	height: 15px;
 	margin: -8px 0 0 -8px;
 	border-radius: 50%;
-	border: 2px solid rgba(130, 130, 130, 0.35);
-	border-top-color: rgba(190, 190, 190, 0.95);
+	border: 2px solid rgba(var(--fg-rgb), 0.18);
+	border-top-color: rgba(var(--gold-rgb), 0.95);
 	animation: mk-spin 0.55s linear infinite;
 }
 @keyframes mk-spin {

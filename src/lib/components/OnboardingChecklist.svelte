@@ -212,8 +212,8 @@
 		border-radius: 50%;
 		display: grid;
 		place-items: center;
-		background: rgba(55, 224, 166, 0.16);
-		border: 1px solid rgba(55, 224, 166, 0.35);
+		background: rgba(var(--gold-rgb), 0.16);
+		border: 1px solid rgba(var(--gold-rgb), 0.35);
 		color: var(--mint);
 	}
 	.onb-done-ico svg {

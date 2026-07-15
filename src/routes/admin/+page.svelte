@@ -21,7 +21,9 @@
 	$: trends = data.trends ?? { conversations: [], leads: [], growth: [] };
 	$: name = (data.superName ?? 'there').split(/\s+/)[0];
 
-	const PALETTE = ['#37e0a6', '#5b8cff', '#a78bfa', '#ffb547', '#f472b6', '#34d399', '#22d3ee'];
+	// Earthy categorical palette that sits in the forest/gold theme: gold, sage,
+	// terracotta, soft lilac, light gold, teal, clay — distinct but on-brand.
+	const PALETTE = ['#e0b24c', '#4b9e83', '#d9784c', '#b79ce0', '#ecca7d', '#6ea8a0', '#cf8f8f'];
 
 	const money = (n, cur = rev?.currency ?? 'USD') =>
 		n == null ? '—' : new Intl.NumberFormat('en', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n);
@@ -284,7 +286,7 @@
 			{#each clients as c}
 				<div class="pcard">
 					<div class="pc-top">
-						<div class="avatar" style="background:{c.brand_color ?? '#37e0a6'};color:{readableInk(c.brand_color ?? '#37e0a6')}">{initials(c.name)}</div>
+						<div class="avatar" style="background:{c.brand_color ?? '#e0b24c'};color:{readableInk(c.brand_color ?? '#e0b24c')}">{initials(c.name)}</div>
 						<div class="pc-id">
 							<div class="pc-name">{c.name}</div>
 							<div class="pc-meta">{c.plan} · <span class="st {c.subscription_status}">{c.is_active ? c.subscription_status : 'paused'}</span></div>
@@ -398,7 +400,7 @@
 		gap: 1.2rem;
 		align-items: stretch;
 		justify-content: space-between;
-		background: linear-gradient(120deg, rgba(55, 224, 166, 0.1), transparent 55%), rgba(17, 22, 31, 0.75);
+		background: linear-gradient(120deg, rgba(var(--gold-rgb), 0.1), transparent 55%), rgba(var(--panel-rgb), 0.75);
 		border: 1px solid var(--edge);
 		border-radius: var(--radius);
 		padding: 1.4rem 1.5rem;
@@ -446,9 +448,9 @@
 		animation: pulse 2s infinite;
 	}
 	@keyframes pulse {
-		0% { box-shadow: 0 0 0 0 rgba(55, 224, 166, 0.5); }
-		70% { box-shadow: 0 0 0 7px rgba(55, 224, 166, 0); }
-		100% { box-shadow: 0 0 0 0 rgba(55, 224, 166, 0); }
+		0% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0.5); }
+		70% { box-shadow: 0 0 0 7px rgba(var(--gold-rgb), 0); }
+		100% { box-shadow: 0 0 0 0 rgba(var(--gold-rgb), 0); }
 	}
 	.hero-chips {
 		display: grid;
@@ -457,7 +459,7 @@
 		align-content: center;
 	}
 	.chip {
-		background: rgba(11, 14, 20, 0.5);
+		background: rgba(var(--well-rgb), 0.5);
 		border: 1px solid var(--edge);
 		border-radius: 12px;
 		padding: 0.6rem 0.9rem;
@@ -783,7 +785,7 @@
 		gap: 0.6rem;
 	}
 	.mini-tile {
-		background: rgba(17, 22, 31, 0.72);
+		background: rgba(var(--panel-rgb), 0.72);
 		border: 1px solid var(--edge);
 		border-radius: 12px;
 		padding: 0.75rem 0.9rem;
@@ -843,7 +845,7 @@
 		gap: 0.85rem;
 	}
 	.pcard {
-		background: rgba(17, 22, 31, 0.72);
+		background: rgba(var(--panel-rgb), 0.72);
 		border: 1px solid var(--edge);
 		border-radius: var(--radius);
 		padding: 1.1rem;
@@ -853,7 +855,7 @@
 		transition: border-color 0.16s, transform 0.16s;
 	}
 	.pcard:hover {
-		border-color: rgba(55, 224, 166, 0.35);
+		border-color: rgba(var(--gold-rgb), 0.35);
 		transform: translateY(-2px);
 	}
 	.pc-top {
@@ -1045,7 +1047,7 @@
 		gap: 0.8rem;
 		align-items: flex-start;
 		margin-top: 0.85rem;
-		background: linear-gradient(120deg, rgba(55, 224, 166, 0.08), transparent 60%), rgba(17, 22, 31, 0.72);
+		background: linear-gradient(120deg, rgba(var(--gold-rgb), 0.08), transparent 60%), rgba(var(--panel-rgb), 0.72);
 	}
 	.insight .spark {
 		color: var(--mint);
@@ -1127,11 +1129,11 @@
 		flex: none;
 	}
 	.opp-kind.upsell {
-		background: rgba(55, 224, 166, 0.16);
+		background: rgba(var(--gold-rgb), 0.16);
 		color: var(--mint);
 	}
 	.opp-kind.activate {
-		background: rgba(91, 140, 255, 0.16);
+		background: rgba(var(--accent-rgb), 0.16);
 		color: var(--accent);
 	}
 	.opp-t {
@@ -1154,7 +1156,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.5rem;
-		background: rgba(17, 22, 31, 0.72);
+		background: rgba(var(--panel-rgb), 0.72);
 		border: 1px solid var(--edge);
 		border-radius: 12px;
 		padding: 0.7rem 1.1rem;

@@ -267,11 +267,11 @@
 		transition: border-color 0.14s, background 0.14s;
 	}
 	.wz-channel:hover {
-		border-color: rgba(55, 224, 166, 0.35);
+		border-color: rgba(var(--gold-rgb), 0.35);
 	}
 	.wz-channel.sel {
 		border-color: var(--mint);
-		background: rgba(55, 224, 166, 0.1);
+		background: rgba(var(--gold-rgb), 0.1);
 	}
 	.wz-channel input {
 		width: auto;
@@ -315,8 +315,8 @@
 		width: 52px;
 		height: 52px;
 		border-radius: 50%;
-		background: rgba(55, 224, 166, 0.16);
-		border: 1px solid rgba(55, 224, 166, 0.4);
+		background: rgba(var(--gold-rgb), 0.16);
+		border: 1px solid rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 	.wz-badge svg {

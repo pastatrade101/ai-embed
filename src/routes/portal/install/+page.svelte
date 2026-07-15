@@ -189,8 +189,8 @@
 		margin-top: 0.9rem;
 		padding: 0.7rem 0.9rem;
 		border-radius: 12px;
-		background: rgba(55, 224, 166, 0.08);
-		border: 1px solid rgba(55, 224, 166, 0.22);
+		background: rgba(var(--gold-rgb), 0.08);
+		border: 1px solid rgba(var(--gold-rgb), 0.22);
 		font-size: 0.9rem;
 		color: var(--soft);
 	}
@@ -207,7 +207,7 @@
 		margin-bottom: 1rem;
 	}
 	.inst-tab {
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(var(--fg-rgb), 0.02);
 		border: 1px solid var(--edge);
 		color: var(--muted);
 		font-size: 0.85rem;
@@ -218,12 +218,12 @@
 	}
 	.inst-tab:hover {
 		color: var(--strong);
-		border-color: rgba(55, 224, 166, 0.3);
-		background: rgba(255, 255, 255, 0.02);
+		border-color: rgba(var(--gold-rgb), 0.3);
+		background: rgba(var(--fg-rgb), 0.02);
 	}
 	.inst-tab.active {
-		background: rgba(55, 224, 166, 0.14);
-		border-color: rgba(55, 224, 166, 0.4);
+		background: rgba(var(--gold-rgb), 0.14);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 	.inst-guide {
@@ -273,8 +273,8 @@
 		flex-shrink: 0;
 	}
 	.inst-result.ok {
-		background: rgba(55, 224, 166, 0.1);
-		border: 1px solid rgba(55, 224, 166, 0.3);
+		background: rgba(var(--gold-rgb), 0.1);
+		border: 1px solid rgba(var(--gold-rgb), 0.3);
 	}
 	.inst-result.ok svg {
 		color: var(--mint);

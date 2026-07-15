@@ -9,5 +9,5 @@ export function readableInk(hex) {
 	const b = parseInt(full.slice(4, 6), 16);
 	// YIQ perceived brightness — >150 is a "light" background → use dark ink.
 	const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-	return yiq > 150 ? '#0b0e14' : '#ffffff';
+	return yiq > 150 ? '#0a231b' : '#ffffff';
 }

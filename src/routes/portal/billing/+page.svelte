@@ -141,7 +141,7 @@
 	}
 	.plan-card.is-current {
 		border-color: var(--mint);
-		box-shadow: inset 0 0 0 1px rgba(55, 224, 166, 0.5), var(--shadow);
+		box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.5), var(--shadow);
 	}
 	.plan-top {
 		display: flex;

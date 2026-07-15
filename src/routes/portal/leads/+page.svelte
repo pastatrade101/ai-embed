@@ -353,7 +353,7 @@
 	/* AI brief */
 	.ai-brief {
 		border: 1px solid var(--edge);
-		background: linear-gradient(180deg, rgba(55, 224, 166, 0.06), transparent 60%), var(--panel);
+		background: linear-gradient(180deg, rgba(var(--gold-rgb), 0.06), transparent 60%), var(--panel);
 		margin-bottom: 14px;
 	}
 	.brief-head {
@@ -391,8 +391,8 @@
 		margin-top: 12px;
 		padding: 12px;
 		border-radius: 12px;
-		background: rgba(55, 224, 166, 0.08);
-		border: 1px solid rgba(55, 224, 166, 0.22);
+		background: rgba(var(--gold-rgb), 0.08);
+		border: 1px solid rgba(var(--gold-rgb), 0.22);
 	}
 	.pri-tag {
 		flex: none;
@@ -561,13 +561,13 @@
 		border: 1px solid var(--edge);
 	}
 	.avatar.hot {
-		background: rgba(55, 224, 166, 0.16);
-		border-color: rgba(55, 224, 166, 0.4);
+		background: rgba(var(--gold-rgb), 0.16);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 	.avatar.warm {
-		background: rgba(91, 140, 255, 0.16);
-		border-color: rgba(91, 140, 255, 0.4);
+		background: rgba(var(--accent-rgb), 0.16);
+		border-color: rgba(var(--accent-rgb), 0.4);
 		color: #93b4ff;
 	}
 	.avatar.cool {
@@ -588,7 +588,7 @@
 		text-transform: uppercase;
 		letter-spacing: 0.04em;
 		color: var(--mint);
-		border: 1px solid rgba(55, 224, 166, 0.4);
+		border: 1px solid rgba(var(--gold-rgb), 0.4);
 		border-radius: 5px;
 		padding: 1px 5px;
 	}
@@ -618,15 +618,15 @@
 		color: var(--muted);
 	}
 	.score.hot {
-		background: rgba(55, 224, 166, 0.14);
-		border-color: rgba(55, 224, 166, 0.4);
+		background: rgba(var(--gold-rgb), 0.14);
+		border-color: rgba(var(--gold-rgb), 0.4);
 	}
 	.score.hot b {
 		color: var(--mint);
 	}
 	.score.warm {
-		background: rgba(91, 140, 255, 0.14);
-		border-color: rgba(91, 140, 255, 0.4);
+		background: rgba(var(--accent-rgb), 0.14);
+		border-color: rgba(var(--accent-rgb), 0.4);
 	}
 	.score.warm b {
 		color: #93b4ff;
@@ -654,7 +654,7 @@
 	}
 	.fact.val {
 		color: var(--mint);
-		border-color: rgba(55, 224, 166, 0.3);
+		border-color: rgba(var(--gold-rgb), 0.3);
 	}
 	.quote {
 		margin: 0;
@@ -714,7 +714,7 @@
 		border-color: var(--muted);
 	}
 	.btn.ghost.on {
-		border-color: rgba(55, 224, 166, 0.4);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 	.btn.link {
@@ -832,7 +832,7 @@
 		border-radius: 16px;
 		display: grid;
 		place-items: center;
-		background: rgba(55, 224, 166, 0.12);
+		background: rgba(var(--gold-rgb), 0.12);
 		color: var(--mint);
 	}
 	.empty-ic svg {

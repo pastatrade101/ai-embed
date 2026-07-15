@@ -15,7 +15,7 @@
 
 <AppShell user={data.user} initials={userInitials}>
 	<a class="side-brand" href="/portal" slot="brand">
-		<span class="mark" style={`background:${client.brand_color ?? '#37e0a6'};border-color:transparent;color:${readableInk(client.brand_color ?? '#37e0a6')}`}>{initials(client.name)}</span>
+		<span class="mark" style={`background:${client.brand_color ?? '#e0b24c'};border-color:transparent;color:${readableInk(client.brand_color ?? '#e0b24c')}`}>{initials(client.name)}</span>
 		<span><b>{client.name}</b><span class="sub">Operator portal</span></span>
 	</a>
 

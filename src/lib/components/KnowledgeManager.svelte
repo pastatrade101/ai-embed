@@ -452,7 +452,7 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 0.35rem;
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(var(--fg-rgb), 0.02);
 		border: 1px solid var(--edge);
 		color: var(--muted);
 		font-size: 0.82rem;
@@ -463,11 +463,11 @@
 	}
 	.kb-chip:hover {
 		color: var(--soft);
-		border-color: rgba(55, 224, 166, 0.3);
+		border-color: rgba(var(--gold-rgb), 0.3);
 	}
 	.kb-chip.on {
-		background: rgba(55, 224, 166, 0.14);
-		border-color: rgba(55, 224, 166, 0.4);
+		background: rgba(var(--gold-rgb), 0.14);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 	.chip-n {
@@ -509,7 +509,7 @@
 	}
 
 	.add-card {
-		border-color: rgba(55, 224, 166, 0.35);
+		border-color: rgba(var(--gold-rgb), 0.35);
 	}
 
 	.item-title-row {
@@ -661,7 +661,7 @@
 		transition: border-color 0.15s, color 0.15s;
 	}
 	.upl-btn:hover {
-		border-color: rgba(55, 224, 166, 0.4);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 

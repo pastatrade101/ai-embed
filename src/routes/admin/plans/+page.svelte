@@ -145,7 +145,7 @@
 		transition: background 0.12s;
 	}
 	.plan-head:hover {
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(var(--fg-rgb), 0.02);
 	}
 	.plan-id {
 		display: flex;

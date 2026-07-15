@@ -195,7 +195,7 @@
 		transition: border-color 0.15s, color 0.15s;
 	}
 	.upl-btn:hover {
-		border-color: rgba(55, 224, 166, 0.4);
+		border-color: rgba(var(--gold-rgb), 0.4);
 		color: var(--mint);
 	}
 </style>

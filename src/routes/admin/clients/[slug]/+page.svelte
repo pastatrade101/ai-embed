@@ -25,7 +25,7 @@
 
 <div class="page-head">
 	<div class="rowflex" style="gap:.75rem">
-		<div class="avatar" style={`width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:${readableInk(client.brand_color ?? '#37e0a6')};font-weight:700;background:${client.brand_color ?? '#37e0a6'}`}>{initials(client.name)}</div>
+		<div class="avatar" style={`width:44px;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:${readableInk(client.brand_color ?? '#e0b24c')};font-weight:700;background:${client.brand_color ?? '#e0b24c'}`}>{initials(client.name)}</div>
 		<div>
 			<h1 style="display:flex;align-items:center;gap:.55rem">{client.name}
 				<span class="badge dot {client.is_active ? '' : 'off'}">{client.is_active ? 'active' : 'paused'}</span>

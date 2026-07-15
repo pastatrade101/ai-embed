@@ -146,7 +146,7 @@
 		padding: 0.4rem 0.7rem;
 		border-radius: 99px;
 		border: 1px solid var(--edge);
-		background: rgba(255, 255, 255, 0.02);
+		background: rgba(var(--fg-rgb), 0.02);
 		color: var(--soft);
 		font-size: 0.82rem;
 		font-weight: 600;
@@ -154,7 +154,7 @@
 		cursor: pointer;
 	}
 	.share-b:hover {
-		border-color: rgba(55, 224, 166, 0.35);
+		border-color: rgba(var(--gold-rgb), 0.35);
 		color: var(--strong);
 		background: var(--panel-2);
 	}
