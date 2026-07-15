@@ -6,6 +6,27 @@
 
 	const TONES = ['Friendly', 'Professional', 'Warm', 'Playful', 'Concise'];
 	$: suggestedText = (Array.isArray(client.suggested_questions) ? client.suggested_questions : []).join('\n');
+
+	// Logo: pick a file from the computer (uploads to storage) or paste a URL.
+	let logoUrl = data.client?.logo_url ?? '';
+	let uploadingLogo = false;
+	async function uploadLogo(e) {
+		const file = e.target.files?.[0];
+		if (!file) return;
+		uploadingLogo = true;
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			const r = await fetch('/portal/upload', { method: 'POST', body: fd });
+			const d = await r.json();
+			if (d.url) logoUrl = d.url;
+			else alert(d.error || 'Upload failed.');
+		} catch (_) {
+			alert('Upload failed — check your connection.');
+		}
+		uploadingLogo = false;
+		e.target.value = '';
+	}
 </script>
 
 <div class="page-head">
@@ -26,7 +47,20 @@
 			<div><label for="business_type">Business type</label><input id="business_type" name="business_type" value={client.business_type ?? ''} placeholder="tour operator" /></div>
 		</div>
 		<div class="row">
-			<div><label for="logo_url">Logo URL</label><input id="logo_url" name="logo_url" value={client.logo_url ?? ''} placeholder="https://…/logo.png" /><div class="hint">Link to your logo image (used on the chat widget).</div></div>
+			<div>
+				<label for="logo_url">Logo</label>
+				<div class="logo-field">
+					<div class="logo-prev" class:empty={!logoUrl}>{#if logoUrl}<img src={logoUrl} alt="logo" />{:else}<span>No logo</span>{/if}</div>
+					<div class="logo-ctrls">
+						<input id="logo_url" name="logo_url" bind:value={logoUrl} placeholder="Upload → or paste an image URL" />
+						<label class="upl-btn">
+							<input type="file" accept="image/*" hidden on:change={uploadLogo} />
+							{uploadingLogo ? 'Uploading…' : '⬆ Upload from computer'}
+						</label>
+					</div>
+				</div>
+				<div class="hint">Choose a file from your computer or paste a URL — shown on your chat widget &amp; hosted page.</div>
+			</div>
 			<div><label for="brand_color">Brand color</label><input id="brand_color" name="brand_color" type="color" value={client.brand_color ?? '#0f6e56'} style="height:44px;padding:.25rem" /></div>
 		</div>
 	</div>
@@ -107,3 +141,61 @@
 
 	<div style="margin-top:1.2rem"><button type="submit">Save all settings</button></div>
 </form>
+
+<style>
+	.logo-field {
+		display: flex;
+		gap: 0.7rem;
+		align-items: stretch;
+	}
+	.logo-prev {
+		flex: none;
+		width: 84px;
+		height: 60px;
+		border-radius: 10px;
+		overflow: hidden;
+		border: 1px solid var(--edge);
+		background: var(--panel-2);
+		display: grid;
+		place-items: center;
+	}
+	.logo-prev img {
+		width: 100%;
+		height: 100%;
+		object-fit: contain;
+		padding: 4px;
+	}
+	.logo-prev.empty span {
+		font-size: 0.68rem;
+		color: var(--muted);
+	}
+	.logo-ctrls {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		min-width: 0;
+	}
+	.logo-ctrls input {
+		width: 100%;
+	}
+	.upl-btn {
+		align-self: flex-start;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.82rem;
+		font-weight: 600;
+		padding: 0.4rem 0.8rem;
+		border-radius: 9px;
+		border: 1px solid var(--edge);
+		background: var(--panel-2);
+		color: var(--soft);
+		cursor: pointer;
+		transition: border-color 0.15s, color 0.15s;
+	}
+	.upl-btn:hover {
+		border-color: rgba(55, 224, 166, 0.4);
+		color: var(--mint);
+	}
+</style>

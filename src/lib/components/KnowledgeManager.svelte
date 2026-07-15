@@ -76,7 +76,7 @@
 		try {
 			const fd = new FormData();
 			fd.append('file', file);
-			const r = await fetch('/portal/knowledge/upload', { method: 'POST', body: fd });
+			const r = await fetch('/portal/upload', { method: 'POST', body: fd });
 			const d = await r.json();
 			if (d.url) apply(d.url);
 			else alert(d.error || 'Upload failed.');

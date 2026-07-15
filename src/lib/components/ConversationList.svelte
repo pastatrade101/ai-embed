@@ -19,6 +19,11 @@
 	let rowEls = {}; // id -> row button element, for arrow-key focus
 	let copied = false;
 
+	// Translate-to-English (operator reads foreign-language chats)
+	let showEnglish = false;
+	let translations = {}; // conversationId -> string[] (per message)
+	let translating = false;
+
 	/* ---- helpers ---- */
 	const asMsgs = (c) => (Array.isArray(c?.messages) ? c.messages : []);
 	const messageCount = (c) => asMsgs(c).length;
@@ -90,6 +95,39 @@
 	function selectConversation(c) {
 		selectedId = c.id;
 		copied = false;
+		showEnglish = false;
+	}
+
+	async function toggleTranslate() {
+		if (!selected) return;
+		if (showEnglish) {
+			showEnglish = false;
+			return;
+		}
+		if (!translations[selected.id]) {
+			translating = true;
+			try {
+				const texts = asMsgs(selected).map((m) => m.content);
+				const r = await fetch('/portal/conversations/translate', {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({ texts })
+				});
+				const d = await r.json();
+				if (Array.isArray(d.translations)) translations = { ...translations, [selected.id]: d.translations };
+				else {
+					alert(d.error || 'Translation failed.');
+					translating = false;
+					return;
+				}
+			} catch (_) {
+				alert('Translation failed — check your connection.');
+				translating = false;
+				return;
+			}
+			translating = false;
+		}
+		showEnglish = true;
 	}
 	function clearSelection() {
 		selectedId = null;
@@ -110,6 +148,7 @@
 		if (!c) return;
 		selectedId = c.id;
 		copied = false;
+		showEnglish = false;
 		const el = rowEls[c.id];
 		if (el) el.focus();
 	}
@@ -273,11 +312,17 @@
 					{/if}
 
 					<div class="transcript">
-						<div class="tr-label">Full transcript</div>
+						<div class="tr-label-row">
+							<div class="tr-label">Full transcript{#if showEnglish}<span class="tr-en"> · English</span>{/if}</div>
+							<button class="ghost sm" on:click={toggleTranslate} disabled={translating} title="Translate foreign-language messages to English">
+								{#if translating}Translating…{:else if showEnglish}Show original{:else}🌐 Translate to English{/if}
+							</button>
+						</div>
 						<div class="chat-log">
-							{#each asMsgs(selected) as m}
+							{#each asMsgs(selected) as m, i}
+								{@const t = showEnglish ? translations[selected.id]?.[i] : null}
 								<div class="chat-msg {m.role}">
-									{#if m.role === 'assistant'}{@html renderMarkdown(m.content)}{:else}{m.content}{/if}
+									{#if m.role === 'assistant'}{@html renderMarkdown(t ?? m.content)}{:else}{t ?? m.content}{/if}
 								</div>
 							{/each}
 						</div>

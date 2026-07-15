@@ -1432,13 +1432,22 @@ button.sm,
 .transcript {
 	margin-top: 0.25rem;
 }
+.tr-label-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.6rem;
+	margin-bottom: 0.35rem;
+}
 .tr-label {
 	font-size: 0.68rem;
 	font-weight: 700;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
 	color: var(--faint);
-	margin-bottom: 0.35rem;
+}
+.tr-en {
+	color: var(--mint);
 }
 /* Widen bubbles in the reading pane without touching global .chat-msg (78%). */
 .inbox-detail .chat-msg {

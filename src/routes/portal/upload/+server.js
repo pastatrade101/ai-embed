@@ -1,5 +1,5 @@
-// Operator image upload (tour photos). Auth is enforced by hooks.server.js for
-// /portal/*, so locals.user.client_id scopes the upload. Returns { url }.
+// Generic operator image upload (tour photos, logos). Auth enforced by
+// hooks.server.js for /portal/*; locals.user.client_id scopes the file.
 import { json } from '@sveltejs/kit';
 import { uploadImage } from '$lib/server/storage.js';
 

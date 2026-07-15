@@ -69,6 +69,30 @@ function summarizeConversation(clientId, conversationId, transcript) {
 // lifting. Swap to claude-sonnet-5 for a Pro tier. (Per build spec §4.)
 const CHAT_MODEL = 'claude-haiku-4-5';
 
+/**
+ * Translate an array of message texts into English (for the operator's inbox).
+ * Returns a same-length array; already-English text passes through.
+ */
+export async function translateToEnglish(texts) {
+	const list = (Array.isArray(texts) ? texts : [texts]).map((t) => String(t ?? ''));
+	if (!list.length) return [];
+	const resp = await anthropic().messages.create({
+		model: CHAT_MODEL,
+		max_tokens: 2000,
+		system:
+			'You are a translator for a tour operator reading their chat inbox. Translate each input message into natural English. If a message is already English, return it unchanged. Preserve meaning, names, places, dates and numbers exactly. Return ONLY a JSON array of strings — one per input, in the same order — and nothing else.',
+		messages: [{ role: 'user', content: JSON.stringify(list) }]
+	});
+	let text = extractText(resp).replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
+	try {
+		const arr = JSON.parse(text);
+		if (Array.isArray(arr) && arr.length === list.length) return arr.map((x) => String(x ?? ''));
+	} catch (_) {
+		/* fall through */
+	}
+	return list; // on any parse issue, show originals rather than break the view
+}
+
 let _anthropic;
 function anthropic() {
 	if (_anthropic) return _anthropic;
@@ -93,9 +117,10 @@ function buildPersona(client) {
 	if (client.business_hours) profile.push(`Business hours: ${client.business_hours}.`);
 	if (client.address) profile.push(`Location: ${client.address}.`);
 
-	const langRule = client.languages
-		? `Reply in the customer's language. Languages you support: ${client.languages}.`
-		: `Match the customer's language (English or Swahili).`;
+	const fallbackLang = client.languages ? client.languages.split(/[,/]/)[0].trim() : 'English';
+	const langRule =
+		`Detect the language of the customer's latest message and reply ENTIRELY in that language — match it naturally (e.g. German→German, French→French, Italian→Italian, Spanish→Spanish, Dutch→Dutch, Portuguese→Portuguese, Swahili→Swahili, Arabic→Arabic, Chinese→Chinese). Keep tour names, place names and exact prices as given. If a message is too short to tell, reply in ${fallbackLang}.` +
+		(client.languages ? ` This business primarily serves: ${client.languages}.` : '');
 
 	const escalationRule = client.escalation
 		? `When you can't help or the customer wants a human: ${client.escalation}`
