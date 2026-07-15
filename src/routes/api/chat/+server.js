@@ -15,9 +15,19 @@ export async function POST({ request }) {
 		return jsonCors({ error: 'invalid JSON' }, 400);
 	}
 
-	const { clientSlug, messages, conversationId, source } = payload ?? {};
+	const { clientSlug, messages, conversationId, source, attachment } = payload ?? {};
 	if (!clientSlug || !Array.isArray(messages) || messages.length === 0) {
 		return jsonCors({ error: 'clientSlug and messages[] are required' }, 400);
+	}
+
+	// Optional file attachment (gated to the plan server-side, in answerQuestion).
+	// Accept one image or PDF as base64. ~7M base64 chars ≈ 5 MB — reject larger.
+	let att = null;
+	if (attachment && typeof attachment.data === 'string' && attachment.data.length < 7_500_000) {
+		const mediaType = String(attachment.mediaType || '');
+		const isPdf = mediaType === 'application/pdf';
+		const isImg = /^image\/(png|jpe?g|gif|webp)$/.test(mediaType);
+		if (isPdf || isImg) att = { kind: isPdf ? 'pdf' : 'image', mediaType, data: attachment.data };
 	}
 
 	// A conversation id, if present, must be a plain string (a UUID from the DB).
@@ -33,7 +43,7 @@ export async function POST({ request }) {
 	if (!clean.length) return jsonCors({ error: 'no valid messages' }, 400);
 
 	try {
-		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId, source: src });
+		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId, source: src, attachment: att });
 		return jsonCors(result);
 	} catch (err) {
 		const status = err?.status ?? 500;

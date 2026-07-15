@@ -153,7 +153,7 @@ function contextBlock(chunks) {
  * @param {{ slug: string, messages: {role:'user'|'assistant', content:string}[], conversationId?: string|null }} args
  * @returns {Promise<{ answer: string, conversationId: string|null, client: { name:string, whatsapp:string|null, brand:string } }>}
  */
-export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget' }) {
+export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget', attachment = null }) {
 	// 1. Resolve the tenant. Reject if inactive or the subscription is canceled.
 	const { data: client, error } = await supabase
 		.from('clients')
@@ -176,7 +176,9 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 		throw err;
 	}
 	// Model tier + which tools are offered follow the plan.
-	const model = (await planUnlocks(client.plan, FEATURE.SONNET)) ? SONNET_MODEL : CHAT_MODEL;
+	let model = (await planUnlocks(client.plan, FEATURE.SONNET)) ? SONNET_MODEL : CHAT_MODEL;
+	// File attachments (photos/PDFs) are a gated, top-tier capability.
+	const attachmentAllowed = attachment && (await planUnlocks(client.plan, FEATURE.ATTACHMENTS));
 	const toursAllowed = await planAllows(client.plan, FEATURE.TOURS);
 	const summariesAllowed = await planAllows(client.plan, FEATURE.SUMMARIES);
 	const tools = toursAllowed ? TOOL_DEFS : TOOL_DEFS.filter((t) => t.name !== 'search_tours' && t.name !== 'get_tour_price');
@@ -263,6 +265,23 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 		if (!sendMessages.length) sendMessages = messages.slice(-1);
 	}
 	const convo = sendMessages.map((m) => ({ role: m.role, content: m.content }));
+
+	// Attach the file (if the plan allows) to the latest user turn as a vision /
+	// document content block, and use a vision-capable model to read it.
+	if (attachmentAllowed && attachment.data) {
+		const block =
+			attachment.kind === 'pdf'
+				? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: attachment.data } }
+				: { type: 'image', source: { type: 'base64', media_type: attachment.mediaType || 'image/jpeg', data: attachment.data } };
+		for (let j = convo.length - 1; j >= 0; j--) {
+			if (convo[j].role === 'user') {
+				const text = typeof convo[j].content === 'string' ? convo[j].content : '';
+				convo[j] = { role: 'user', content: [...(text ? [{ type: 'text', text }] : []), block] };
+				break;
+			}
+		}
+		model = SONNET_MODEL; // best vision + PDF understanding
+	}
 
 	const totals = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };
 	const addUsage = (u = {}) => {

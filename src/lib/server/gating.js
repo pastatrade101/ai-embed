@@ -22,6 +22,7 @@ export const FEATURE = {
 	BULK_IMPORT: 'Bulk knowledge import (CSV/JSON)',
 	PRIORITY: 'Priority responses',
 	SONNET: 'Advanced (Sonnet) AI model',
+	ATTACHMENTS: 'Chat file attachments (photos & PDFs)',
 	BRANDING: 'Custom branding & logo',
 	NO_BADGE: 'Remove "Powered by Makutano" badge',
 	MULTI_SITE: 'Multiple websites',

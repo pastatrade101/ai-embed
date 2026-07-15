@@ -97,7 +97,8 @@ export async function load({ params }) {
 			assistantName: client.assistant_name ?? null,
 			welcome: client.welcome_message ?? null,
 			suggestions: Array.isArray(client.suggested_questions) ? client.suggested_questions.slice(0, 6) : [],
-			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
+			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
+			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
 		},
 		tours
 	};

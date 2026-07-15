@@ -18,6 +18,7 @@
 	$: brand = client.brand || '#0f6e56';
 	$: brandInk = readableInk(brand);
 	$: assistantName = client.assistantName || 'Concierge';
+	$: allowAttachments = !!client.allowAttachments;
 	$: waLink = client.whatsapp ? 'https://wa.me/' + String(client.whatsapp).replace(/[^0-9]/g, '') : null;
 	$: telLink = client.phone ? 'tel:' + String(client.phone).replace(/[^0-9+]/g, '') : null;
 	$: mapLink = client.address ? 'https://maps.google.com/?q=' + encodeURIComponent(client.address) : null;
@@ -70,6 +71,37 @@
 	let taEl;
 	let pinned = true; // autoscroll only when the user is at the bottom
 	let uid = 0;
+	let attachment = null; // { name, kind:'image'|'pdf', mediaType, data(base64), previewUrl }
+	let fileEl;
+	const MAX_ATT = 5 * 1024 * 1024; // 5 MB
+
+	function openFilePicker() {
+		fileEl?.click();
+	}
+	function onPickFile(e) {
+		const file = e.target.files?.[0];
+		e.target.value = ''; // allow re-picking the same file
+		if (!file) return;
+		const isPdf = file.type === 'application/pdf';
+		const isImg = /^image\/(png|jpe?g|gif|webp)$/.test(file.type);
+		if (!isPdf && !isImg) return alert('Please attach a photo (JPG, PNG, WebP) or a PDF.');
+		if (file.size > MAX_ATT) return alert('That file is too large — keep it under 5 MB.');
+		const reader = new FileReader();
+		reader.onload = () => {
+			const dataUrl = String(reader.result || '');
+			attachment = {
+				name: file.name,
+				kind: isPdf ? 'pdf' : 'image',
+				mediaType: file.type,
+				data: dataUrl.split(',')[1] || '',
+				previewUrl: isImg ? dataUrl : null
+			};
+		};
+		reader.readAsDataURL(file);
+	}
+	function clearAttachment() {
+		attachment = null;
+	}
 
 	const STORE = 'concierge_' + (data?.client?.slug ?? 'x');
 
@@ -94,7 +126,9 @@
 
 	function persist() {
 		try {
-			localStorage.setItem(STORE, JSON.stringify({ messages, conversationId, ts: Date.now() }));
+			// Drop heavy inline attachment previews before saving (localStorage quota).
+			const light = messages.map(({ attPreview, ...m }) => m);
+			localStorage.setItem(STORE, JSON.stringify({ messages: light, conversationId, ts: Date.now() }));
 		} catch (_) {}
 	}
 
@@ -139,9 +173,12 @@
 	// ---- Send ----------------------------------------------------------------
 	async function send(text) {
 		const q = (text ?? input).trim();
-		if (!q || busy) return;
-		messages = [...messages, { role: 'user', content: q, id: ++uid }];
+		const att = attachment;
+		if ((!q && !att) || busy) return;
+		const shown = q || (att ? `📎 ${att.name}` : '');
+		messages = [...messages, { role: 'user', content: shown, id: ++uid, attPreview: att?.previewUrl ?? null, attName: att?.name ?? null }];
 		input = '';
+		attachment = null;
 		if (taEl) taEl.style.height = 'auto';
 		busy = true;
 		started = true;
@@ -156,7 +193,8 @@
 					clientSlug: client.slug,
 					messages: messages.map((m) => ({ role: m.role, content: m.content })),
 					conversationId,
-					source: 'hosted'
+					source: 'hosted',
+					attachment: att ? { kind: att.kind, mediaType: att.mediaType, data: att.data } : undefined
 				})
 			});
 			const d = await r.json();
@@ -615,7 +653,10 @@
 										{/each}
 									</div>
 								{:else}
-									<div class="bubble user">{m.content}</div>
+									<div class="bubble user">
+						{#if m.attPreview}<img class="msg-att" src={m.attPreview} alt={m.attName || 'attachment'} />{/if}
+						{m.content}
+					</div>
 								{/if}
 							</div>
 						</li>
@@ -647,19 +688,29 @@
 	<!-- Composer (sticky, centered) ------------------------------------------->
 	<footer class="composer">
 		<div class="column">
+			{#if attachment}
+				<div class="att-chip">
+					{#if attachment.previewUrl}<img src={attachment.previewUrl} alt="" />{:else}<span class="att-doc">PDF</span>{/if}
+					<span class="att-name">{attachment.name}</span>
+					<button type="button" class="att-x" on:click={clearAttachment} aria-label="Remove attachment">✕</button>
+				</div>
+			{/if}
 			<form class="bar" on:submit={onSubmit} data-no-busy>
-				<button type="button" class="ic-btn" aria-label="Attach" title="Attach a photo or PDF">
-					<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
-						><path
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M21.4 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.41-1.41l7.78-7.78"
-						/></svg
-					>
-				</button>
+				{#if allowAttachments}
+					<input type="file" bind:this={fileEl} accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" on:change={onPickFile} hidden />
+					<button type="button" class="ic-btn" on:click={openFilePicker} aria-label="Attach" title="Attach a photo or PDF">
+						<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+							><path
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M21.4 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.41-1.41l7.78-7.78"
+							/></svg
+						>
+					</button>
+				{/if}
 
 				<textarea
 					bind:this={taEl}
@@ -694,7 +745,7 @@
 					</button>
 				{/if}
 
-				<button type="submit" class="send" class:ready={input.trim() && !busy} disabled={!input.trim() || busy} aria-label="Send">
+				<button type="submit" class="send" class:ready={(input.trim() || attachment) && !busy} disabled={(!input.trim() && !attachment) || busy} aria-label="Send">
 					<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
 						><path fill="currentColor" d="M3.4 20.4l17.45-8.3a1 1 0 000-1.8L3.4 2A.98.98 0 002 2.9L2 9.12c0 .5.37.93.87 1L15 12 2.87 13.88c-.5.08-.87.5-.87 1V21c0 .68.7 1.15 1.4.4z" /></svg
 					>
@@ -1686,6 +1737,69 @@
 	}
 	.fineprint a:hover {
 		color: var(--brand);
+	}
+
+	/* ---- Attachment (gated, top tier) ------------------------------------- */
+	.att-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		max-width: 100%;
+		margin: 0 0 8px;
+		padding: 6px 8px 6px 6px;
+		border: 1px solid var(--hair);
+		border-radius: 12px;
+		background: var(--surface);
+		box-shadow: var(--shadow);
+	}
+	.att-chip img {
+		width: 34px;
+		height: 34px;
+		border-radius: 8px;
+		object-fit: cover;
+		flex: none;
+	}
+	.att-doc {
+		width: 34px;
+		height: 34px;
+		border-radius: 8px;
+		display: grid;
+		place-items: center;
+		font-size: 10px;
+		font-weight: 700;
+		color: var(--brand-ink);
+		background: var(--brand);
+		flex: none;
+	}
+	.att-name {
+		font-size: 13px;
+		color: var(--ink-2);
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		max-width: 220px;
+	}
+	.att-x {
+		flex: none;
+		width: 22px;
+		height: 22px;
+		border-radius: 7px;
+		border: 0;
+		background: var(--bg-2);
+		color: var(--muted);
+		font-size: 12px;
+		line-height: 1;
+	}
+	.att-x:hover {
+		color: var(--ink);
+	}
+	.msg-att {
+		display: block;
+		max-width: 200px;
+		max-height: 200px;
+		border-radius: 12px;
+		margin-bottom: 8px;
+		border: 1px solid var(--hair);
 	}
 
 	/* ---- Floating booking action ----------------------------------------- */
