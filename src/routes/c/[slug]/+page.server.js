@@ -39,11 +39,11 @@ function firstPara(body) {
 	return p.length > 220 ? p.slice(0, 217).trimEnd() + '…' : p;
 }
 
-export async function load({ params }) {
+export async function load({ params, url }) {
 	const { data: client } = await supabase
 		.from('clients')
 		.select(
-			'id, slug, name, plan, logo_url, brand_color, whatsapp_number, contact_email, phone, address, business_hours, languages, assistant_name, welcome_message, suggested_questions, is_active, subscription_status'
+			'id, slug, name, plan, logo_url, brand_color, whatsapp_number, contact_email, phone, address, business_hours, languages, assistant_name, welcome_message, suggested_questions, business_context, is_active, subscription_status'
 		)
 		.eq('slug', params.slug)
 		.maybeSingle();
@@ -100,6 +100,9 @@ export async function load({ params }) {
 			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
 			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
 		},
-		tours
+		tours,
+		// SEO: the operator's own description + absolute origin for canonical/OG.
+		description: (client.business_context ?? '').trim() || null,
+		origin: url.origin
 	};
 }

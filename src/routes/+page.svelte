@@ -70,12 +70,79 @@
 		{ q: 'Does the AI use my own prices?', a: 'Yes. It answers from your verified catalogue — not generic internet knowledge.' },
 		{ q: 'How long does setup take?', a: 'Most operators are live in less than 10 minutes.' }
 	];
+
+	// ---- SEO / social share ----
+	const SITE = 'Makutano AI';
+	const SEO_TITLE = 'Makutano AI — AI Booking Assistant for Tour Operators';
+	const SEO_DESC =
+		'AI booking assistant for tour operators: instantly answer customer questions, recommend tours, qualify leads and hand booking-ready customers to your WhatsApp — 24/7, no website needed.';
+	$: seoOrigin = data.origin ?? 'https://ai.makutano.co.tz';
+	$: canonicalUrl = `${seoOrigin}/`;
+	$: ogImage = `${seoOrigin}/og-image.png`;
+	// Structured data: the product + its live plans, and an FAQ block for rich results.
+	$: jsonLd = JSON.stringify([
+		{
+			'@context': 'https://schema.org',
+			'@type': 'SoftwareApplication',
+			name: SITE,
+			applicationCategory: 'BusinessApplication',
+			operatingSystem: 'Web',
+			url: canonicalUrl,
+			description: SEO_DESC,
+			image: ogImage,
+			offers: (data.plans ?? []).map((p) => ({
+				'@type': 'Offer',
+				name: p.name,
+				price: String(Number(p.price_amount) || 0),
+				priceCurrency: p.price_currency || 'USD'
+			})),
+			publisher: {
+				'@type': 'Organization',
+				name: SITE,
+				url: canonicalUrl,
+				logo: `${seoOrigin}/ICON-AI.png`
+			}
+		},
+		{
+			'@context': 'https://schema.org',
+			'@type': 'FAQPage',
+			mainEntity: faqs.map((f) => ({
+				'@type': 'Question',
+				name: f.q,
+				acceptedAnswer: { '@type': 'Answer', text: f.a }
+			}))
+		}
+	]);
 </script>
 
 <svelte:head>
-	<title>Makutano AI — the AI booking assistant for tour operators</title>
-	<meta name="description" content="Turn every website visitor, WhatsApp enquiry, Instagram click or QR scan into a qualified booking conversation — 24/7." />
-	<meta name="robots" content="index,follow" />
+	<title>{SEO_TITLE}</title>
+	<meta name="description" content={SEO_DESC} />
+	<link rel="canonical" href={canonicalUrl} />
+	<meta name="robots" content="index, follow, max-image-preview:large" />
+	<meta name="theme-color" content="#10362a" />
+	<meta name="author" content={SITE} />
+
+	<!-- Open Graph -->
+	<meta property="og:type" content="website" />
+	<meta property="og:site_name" content={SITE} />
+	<meta property="og:title" content={SEO_TITLE} />
+	<meta property="og:description" content={SEO_DESC} />
+	<meta property="og:url" content={canonicalUrl} />
+	<meta property="og:image" content={ogImage} />
+	<meta property="og:image:width" content="1200" />
+	<meta property="og:image:height" content="630" />
+	<meta property="og:image:alt" content="Makutano AI — AI booking assistant for tour operators" />
+	<meta property="og:locale" content="en_US" />
+
+	<!-- Twitter -->
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={SEO_TITLE} />
+	<meta name="twitter:description" content={SEO_DESC} />
+	<meta name="twitter:image" content={ogImage} />
+
+	<!-- Structured data -->
+	{@html `<script type="application/ld+json">${jsonLd}<\/script>`}
 </svelte:head>
 
 <div class="landing">

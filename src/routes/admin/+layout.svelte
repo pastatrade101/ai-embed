@@ -10,6 +10,10 @@
 	$: initials = (data.user?.name ?? data.user?.email ?? 'A').trim().charAt(0).toUpperCase();
 </script>
 
+<svelte:head>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <AppShell user={data.user} {initials}>
 	<a class="side-brand" href="/admin" slot="brand">
 		<span class="mark">

@@ -38,6 +38,39 @@
 	// Feature up to 3 tours proactively beneath the hero.
 	$: featured = tours.slice(0, 3);
 
+	// ---- SEO / social share (each operator's page is indexable on its own) ----
+	const clip = (s, n = 158) => (s && s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s || '');
+	$: seoOrigin = data?.origin ?? '';
+	$: canonicalUrl = client.slug ? `${seoOrigin}/c/${client.slug}` : '';
+	$: seoTitle = client.name ? `${client.name} — Tours & bookings` : 'Tours & bookings';
+	$: seoDesc = clip(
+		data?.description ||
+			(client.name
+				? `Explore ${client.name}'s tours and plan your trip — ask about prices, itineraries, departures and availability, 24/7.`
+				: 'Explore tours and plan your trip with our AI travel assistant, 24/7.')
+	);
+	$: ogImage = client.logo || (seoOrigin ? `${seoOrigin}/og-image.png` : '');
+	$: jsonLd = JSON.stringify({
+		'@context': 'https://schema.org',
+		'@type': 'TravelAgency',
+		name: client.name,
+		url: canonicalUrl,
+		description: seoDesc,
+		...(ogImage ? { image: ogImage } : {}),
+		...(client.phone || client.whatsapp ? { telephone: client.phone || client.whatsapp } : {}),
+		...(client.email ? { email: client.email } : {}),
+		...(client.address ? { address: client.address } : {}),
+		...(featured.length || tours.length
+			? {
+					makesOffer: tours.slice(0, 20).map((t) => ({
+						'@type': 'Offer',
+						name: t.title,
+						...(t.price != null ? { price: String(t.price), priceCurrency: t.currency || 'USD' } : {})
+					}))
+				}
+			: {})
+	});
+
 	const DEFAULT_SUGGESTIONS = [
 		'Design a 7-day safari for two',
 		'Best time for the Great Migration',
@@ -389,6 +422,27 @@
 		openSet = { ...openSet, [k]: !openSet[k] };
 	}
 </script>
+
+<svelte:head>
+	<title>{seoTitle}</title>
+	<meta name="description" content={seoDesc} />
+	{#if canonicalUrl}<link rel="canonical" href={canonicalUrl} />{/if}
+	<meta name="robots" content="index, follow, max-image-preview:large" />
+
+	<meta property="og:type" content="website" />
+	{#if client.name}<meta property="og:site_name" content={client.name} />{/if}
+	<meta property="og:title" content={seoTitle} />
+	<meta property="og:description" content={seoDesc} />
+	{#if canonicalUrl}<meta property="og:url" content={canonicalUrl} />{/if}
+	{#if ogImage}<meta property="og:image" content={ogImage} />{/if}
+
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:title" content={seoTitle} />
+	<meta name="twitter:description" content={seoDesc} />
+	{#if ogImage}<meta name="twitter:image" content={ogImage} />{/if}
+
+	{@html `<script type="application/ld+json">${jsonLd}<\/script>`}
+</svelte:head>
 
 <div
 	class="concierge"

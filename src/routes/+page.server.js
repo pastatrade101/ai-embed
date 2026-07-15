@@ -4,7 +4,7 @@
 import { redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 
-export async function load({ locals }) {
+export async function load({ locals, url }) {
 	if (locals.user) throw redirect(303, locals.user.role === 'super_admin' ? '/admin' : '/portal');
 
 	const { data: plans } = await supabase
@@ -13,5 +13,6 @@ export async function load({ locals }) {
 		.eq('is_active', true)
 		.order('sort', { ascending: true });
 
-	return { plans: plans ?? [] };
+	// Absolute origin for canonical + Open Graph URLs (works on any deploy host).
+	return { plans: plans ?? [], origin: url.origin };
 }

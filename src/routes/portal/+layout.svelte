@@ -13,6 +13,10 @@
 	$: userInitials = (data.user?.name ?? data.user?.email ?? 'O').trim().charAt(0).toUpperCase();
 </script>
 
+<svelte:head>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <AppShell user={data.user} initials={userInitials}>
 	<a class="side-brand" href="/portal" slot="brand">
 		<span class="mark" style={`background:${client.brand_color ?? '#e0b24c'};border-color:transparent;color:${readableInk(client.brand_color ?? '#e0b24c')}`}>{initials(client.name)}</span>

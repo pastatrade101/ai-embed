@@ -6,6 +6,11 @@
 	let showPw = false;
 </script>
 
+<svelte:head>
+	<title>Sign in — Makutano AI</title>
+	<meta name="robots" content="noindex, nofollow" />
+</svelte:head>
+
 <div class="auth-wrap">
 	<div class="auth-card">
 		<div class="auth-logo">
