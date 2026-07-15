@@ -2,6 +2,7 @@
 	// Public marketing landing page. Self-contained forest/gold/cream theme so it
 	// doesn't inherit the dark admin app.css. All CTAs lead to the existing /login.
 	const LOGIN = '/login';
+	const ONBOARD = '/onboarding';
 
 	const unanswered = [
 		'How much is a 5-day Serengeti safari?',
@@ -97,7 +98,7 @@
 				booking-ready customers directly to your WhatsApp.
 			</p>
 			<div class="cta-row">
-				<a class="btn gold" href={LOGIN}>Get started</a>
+				<a class="btn gold" href={ONBOARD}>Get started free</a>
 				<a class="btn ghost" href="#how">See how it works</a>
 			</div>
 			<p class="trust">Trusted by modern tour operators to capture more bookings with AI</p>
@@ -256,7 +257,7 @@
 						<ul>
 							{#each p.features as f}<li><span class="tick">✓</span>{f}</li>{/each}
 						</ul>
-						<a class="btn {p.highlight ? 'gold' : 'outline'} full" href={LOGIN}>{p.name === 'Enterprise' ? 'Contact sales' : 'Get started'}</a>
+						<a class="btn {p.highlight ? 'gold' : 'outline'} full" href={p.name === 'Enterprise' ? LOGIN : ONBOARD}>{p.name === 'Enterprise' ? 'Contact sales' : 'Get started'}</a>
 					</div>
 				{/each}
 			</div>
@@ -291,7 +292,7 @@
 				AI become your smartest employee.
 			</p>
 			<div class="cta-row center-row">
-				<a class="btn gold" href={LOGIN}>Get started today</a>
+				<a class="btn gold" href={ONBOARD}>Get started free</a>
 				<a class="btn ghost" href="#features">Explore features</a>
 			</div>
 			<p class="fineprint-cta">Setup in under 10 minutes · No technical skills needed</p>
