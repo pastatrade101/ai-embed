@@ -88,7 +88,7 @@ export async function runTool(name, input, ctx) {
 	if (name === 'search_knowledge') {
 		const q = String(input?.query ?? '').trim();
 		if (!q) return 'No query provided.';
-		const emb = await embedQuery(q);
+		const emb = await embedQuery(q, { clientId: ctx.client.id, feature: 'embedding' });
 		const { data, error } = await supabase.rpc('match_chunks', {
 			p_client_id: ctx.client.id,
 			p_query_embedding: emb,

@@ -9,6 +9,7 @@ import { chunkItem } from './knowledge.js';
 import { estimateCost } from './pricing.js';
 import { TOOL_DEFS, runTool } from './tools.js';
 import { FEATURE, planAllows, planUnlocks } from './gating.js';
+import { budgetStatus } from './credits.js';
 
 const MAX_TOOL_LOOPS = 6;
 // Premium model tier unlocked by the "Advanced (Sonnet) AI model" plan feature.
@@ -58,9 +59,14 @@ function summarizeConversation(clientId, conversationId, transcript) {
 					cached_tokens: u.cache_read_input_tokens ?? 0,
 					output_tokens: u.output_tokens ?? 0,
 					tool_calls: 0,
-					estimated_cost: estimateCost(CHAT_MODEL, u)
+					estimated_cost: estimateCost(CHAT_MODEL, u),
+					feature: 'summary'
 				})
-				.then(() => {});
+				.then(({ error }) => {
+					if (error) {
+						supabase.from('usage_records').insert({ client_id: clientId, conversation_id: conversationId, model: CHAT_MODEL, input_tokens: u.input_tokens ?? 0, cached_tokens: u.cache_read_input_tokens ?? 0, output_tokens: u.output_tokens ?? 0, tool_calls: 0, estimated_cost: estimateCost(CHAT_MODEL, u) }).then(() => {});
+					}
+				});
 		})
 		.catch((e) => console.error('[rag] summarize failed:', e?.message ?? e));
 }
@@ -71,9 +77,10 @@ const CHAT_MODEL = 'claude-haiku-4-5';
 
 /**
  * Translate an array of message texts into English (for the operator's inbox).
- * Returns a same-length array; already-English text passes through.
+ * Returns a same-length array; already-English text passes through. Pass
+ * `clientId` to meter the Claude cost toward the tenant's AI usage.
  */
-export async function translateToEnglish(texts) {
+export async function translateToEnglish(texts, clientId = null) {
 	const list = (Array.isArray(texts) ? texts : [texts]).map((t) => String(t ?? ''));
 	if (!list.length) return [];
 	const resp = await anthropic().messages.create({
@@ -83,6 +90,19 @@ export async function translateToEnglish(texts) {
 			'You are a translator for a tour operator reading their chat inbox. Translate each input message into natural English. If a message is already English, return it unchanged. Preserve meaning, names, places, dates and numbers exactly. Return ONLY a JSON array of strings — one per input, in the same order — and nothing else.',
 		messages: [{ role: 'user', content: JSON.stringify(list) }]
 	});
+	if (clientId) {
+		const u = resp.usage ?? {};
+		const row = { client_id: clientId, model: CHAT_MODEL, input_tokens: u.input_tokens ?? 0, cached_tokens: u.cache_read_input_tokens ?? 0, output_tokens: u.output_tokens ?? 0, tool_calls: 0, estimated_cost: estimateCost(CHAT_MODEL, u), feature: 'translate' };
+		supabase
+			.from('usage_records')
+			.insert(row)
+			.then(({ error }) => {
+				if (error) {
+					delete row.feature;
+					supabase.from('usage_records').insert(row).then(() => {});
+				}
+			});
+	}
 	let text = extractText(resp).replace(/^```(?:json)?\s*|\s*```$/g, '').trim();
 	try {
 		const arr = JSON.parse(text);
@@ -202,22 +222,17 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 		}
 	}
 
-	// 1c. Enforce the monthly cap on NEW conversations only — a customer already
-	//     mid-chat is never cut off, and the count is distinct conversations this
-	//     month (matching the plan's "N conversations").
-	const cap = client.monthly_conversation_cap ?? 0;
-	if (isNewConversation && cap > 0) {
-		const now = new Date();
-		const since = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-		const { count } = await supabase
-			.from('conversations')
-			.select('*', { count: 'exact', head: true })
-			.eq('client_id', client.id)
-			.gte('created_at', since);
-		if ((count ?? 0) >= cap) {
+	// 1c. Soft AI-budget limit, enforced on NEW conversations only — a customer
+	//     already mid-chat is never cut off. The tenant keeps operating through
+	//     100% and a grace band; only past budget + grace do we pause new chats.
+	//     Fails open (budgetStatus returns spent 0 pre-migration), so nothing is
+	//     blocked until migration 014 is applied.
+	if (isNewConversation) {
+		const budget = await budgetStatus(client.id, client.plan);
+		if (budget.blocked) {
 			return {
 				answer:
-					"Thanks for your interest! Our assistant has reached its limit for this month. " +
+					"Thanks for your interest! Our assistant has reached its monthly AI allowance. " +
 					(client.whatsapp_number
 						? 'Please reach us directly on WhatsApp and the team will help you right away.'
 						: 'Please try again soon or contact the team directly.'),
@@ -234,7 +249,7 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 
 	let chunks = [];
 	if (question) {
-		const queryEmbedding = await embedQuery(question);
+		const queryEmbedding = await embedQuery(question, { clientId: client.id, feature: 'embedding' });
 
 		// 3. Retrieve scoped chunks. Isolation is enforced in SQL (match_chunks).
 		const { data, error: matchErr } = await supabase.rpc('match_chunks', {
@@ -372,25 +387,28 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 			});
 	}
 
-	// Usage + rolling summary — both fire-and-forget.
-	if (convId) {
-		supabase
-			.from('usage_records')
-			.insert({
-				client_id: client.id,
-				conversation_id: convId,
-				model,
-				input_tokens: totals.input_tokens,
-				cached_tokens: totals.cache_read_input_tokens,
-				output_tokens: totals.output_tokens,
-				tool_calls: toolCalls,
-				estimated_cost: estimateCost(model, totals)
-			})
-			.then(({ error: uErr }) => {
-				if (uErr) console.error('[rag] usage log failed:', uErr.message);
-			});
-		if (summariesAllowed) summarizeConversation(client.id, convId, fullTranscript);
-	}
+	// Usage — always logged (even if the conversation insert failed, so spend is
+	// never undercounted; conversation_id is nullable). Tag with the surface
+	// (widget / hosted / whatsapp) for the usage dashboard; fall back to an
+	// untagged row if the feature column isn't migrated. Fire-and-forget.
+	const usageRow = {
+		client_id: client.id,
+		conversation_id: convId,
+		model,
+		input_tokens: totals.input_tokens,
+		cached_tokens: totals.cache_read_input_tokens,
+		output_tokens: totals.output_tokens,
+		tool_calls: toolCalls,
+		estimated_cost: estimateCost(model, totals)
+	};
+	supabase
+		.from('usage_records')
+		.insert({ ...usageRow, feature: source || 'widget' })
+		.then(({ error: uErr }) => {
+			if (uErr) supabase.from('usage_records').insert(usageRow).then(() => {});
+		});
+	// Rolling summary needs a persisted conversation to attach to.
+	if (convId && summariesAllowed) summarizeConversation(client.id, convId, fullTranscript);
 
 	return {
 		answer,
@@ -417,7 +435,7 @@ export async function reingestItem(item) {
 	const texts = chunkItem(item);
 	if (!texts.length) return;
 
-	const vectors = await embed(texts, 'document');
+	const vectors = await embed(texts, 'document', { clientId: item.client_id, feature: 'knowledge_index' });
 
 	const rows = texts.map((content, i) => ({
 		client_id: item.client_id,

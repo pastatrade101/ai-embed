@@ -4,9 +4,27 @@
 	export let data;
 	export let form;
 	$: client = data.client;
-	$: cap = client.monthly_conversation_cap ?? 0;
-	$: usagePct = cap > 0 ? Math.min(100, Math.round((data.usedThisMonth / cap) * 100)) : 0;
-	$: usageClass = usagePct >= 100 ? 'over' : usagePct >= 80 ? 'warn' : '';
+	$: credits = data.credits;
+	// AI Usage (credit) bar — the friendly, budget-based view.
+	$: barPct = Math.min(100, credits?.pct ?? 0);
+	$: barClass = barPct >= 100 ? 'over' : barPct >= 80 ? 'warn' : '';
+	const STATUS = {
+		healthy: { label: 'Healthy', tone: 'ok' },
+		approaching: { label: 'Approaching limit', tone: 'warn' },
+		critical: { label: 'Almost used up', tone: 'warn' },
+		grace: { label: 'Over allowance · grace', tone: 'danger' },
+		exhausted: { label: 'Allowance used up', tone: 'danger' }
+	};
+	$: cStatus = STATUS[credits?.status] ?? STATUS.healthy;
+	const fmtDate = (iso) => {
+		try {
+			return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+		} catch {
+			return '';
+		}
+	};
+	const nf = (n) => Number(n ?? 0).toLocaleString();
+	let showAdvanced = false;
 	const statusLabel = { active: 'Active', trialing: 'Trial', past_due: 'Payment due', canceled: 'Canceled' };
 	$: justReturned = $page.url.searchParams.get('upgrade') === 'success';
 	const planName = (key) => data.plans.find((p) => p.key === key)?.name ?? key;
@@ -63,9 +81,15 @@
 	</div>
 
 	<div style="margin-top:1rem">
-		<div class="rowflex" style="justify-content:space-between"><span class="muted" style="font-size:.85rem">Conversations this month</span><span class="mono">{data.usedThisMonth} / {cap}</span></div>
-		<div class="usage {usageClass}"><span style={`width:${usagePct}%`}></span></div>
-		{#if usagePct >= 100}<div class="hint" style="color:var(--danger)">You've reached your monthly cap — the assistant will pause new conversations until next month or an upgrade.</div>{/if}
+		<div class="rowflex" style="justify-content:space-between;align-items:baseline">
+			<span class="muted" style="font-size:.85rem">AI usage this month</span>
+			<span class="mono">{credits.pct}% · <span class="tone-{cStatus.tone}">{cStatus.label}</span></span>
+		</div>
+		<div class="usage {barClass}"><span style={`width:${barPct}%`}></span></div>
+		<div class="rowflex" style="justify-content:space-between;margin-top:.45rem">
+			<span class="hint">≈ {nf(credits.estRemainingConversations)} conversations left</span>
+			<span class="hint">{fmtDate(credits.period.start)} – {fmtDate(credits.period.end)}</span>
+		</div>
 	</div>
 
 	{#if data.currentPlan?.features?.length}
@@ -75,15 +99,67 @@
 	{/if}
 </div>
 
-<h2 class="section">AI usage this month</h2>
-<div class="stat-grid">
-	<div class="tile"><div class="k">Turns</div><div class="v">{data.usage.turns}</div><div class="foot">AI replies generated</div></div>
-	<div class="tile"><div class="k">Input tokens</div><div class="v" style="font-size:1.5rem">{data.usage.inputTokens.toLocaleString()}</div><div class="foot">{data.usage.cachedTokens.toLocaleString()} cached</div></div>
-	<div class="tile"><div class="k">Output tokens</div><div class="v" style="font-size:1.5rem">{data.usage.outputTokens.toLocaleString()}</div><div class="foot">assistant responses</div></div>
-	<div class="tile"><div class="k">Est. AI cost</div><div class="v">${data.usage.cost.toFixed(2)}</div><div class="foot">approximate, this month</div></div>
+<!-- Soft-limit banner: never abrupt; escalates 80 → 95 → 100+ (grace) -->
+{#if credits.status === 'approaching'}
+	<div class="soft warn">You're approaching your monthly AI allowance ({credits.pct}% used). Everything keeps working — consider an upgrade below if you expect a busy month.</div>
+{:else if credits.status === 'critical'}
+	<div class="soft warn">You've nearly used this month's AI allowance ({credits.pct}%). To avoid any slowdown for your customers, <a href="#plans">upgrade your plan</a>.</div>
+{:else if credits.status === 'grace' || credits.status === 'exhausted'}
+	<div class="soft danger">You've reached your monthly AI allowance. Your assistant is still running on a grace allowance so live chats aren't interrupted — <a href="#plans">upgrade your plan</a> to restore full capacity.</div>
+{/if}
+
+<h2 class="section">AI usage</h2>
+<div class="usage-grid">
+	<div class="card u-hero">
+		<div class="u-pct tone-{cStatus.tone}">{credits.pct}<span>%</span></div>
+		<div class="u-caption">of your monthly AI allowance used</div>
+		<div class="usage {barClass}" style="margin:.8rem 0 1rem"><span style={`width:${barPct}%`}></span></div>
+		<div class="u-row"><span class="muted">Estimated remaining</span><b>≈ {nf(credits.estRemainingConversations)} conversations</b></div>
+		<div class="u-row"><span class="muted">Plan capacity</span><span>≈ {nf(credits.estTotalConversations)} / month</span></div>
+		<div class="u-row"><span class="muted">Billing period</span><span>{fmtDate(credits.period.start)} – {fmtDate(credits.period.end)}</span></div>
+		<div class="u-row"><span class="muted">Status</span><span class="tone-{cStatus.tone}">{cStatus.label}</span></div>
+	</div>
+
+	<div class="card u-forecast">
+		<div class="k">Forecast</div>
+		{#if credits.forecast.willExceed}
+			<div class="f-big tone-warn">May exceed your plan</div>
+			<div class="f-sub">At your current pace (~{credits.forecast.projectedPct}% projected this month){#if credits.forecast.exhaustsOnDay}, you could reach your allowance around day {credits.forecast.exhaustsOnDay}{/if}. An upgrade keeps things smooth.</div>
+		{:else}
+			<div class="f-big tone-ok">On track</div>
+			<div class="f-sub">Projected ~{credits.forecast.projectedPct}% of your allowance this month — comfortably within your plan.</div>
+		{/if}
+		<div class="u-row" style="margin-top:.9rem"><span class="muted">Average daily usage</span><span>≈ {nf(credits.forecast.avgDailyConversations)} conversations</span></div>
+		<div class="u-row"><span class="muted">Days left in period</span><span>{credits.period.daysRemaining}</span></div>
+	</div>
 </div>
 
-<h2 class="section">All plans</h2>
+{#if credits.categories.length}
+	<h2 class="section">Where your AI is used</h2>
+	<div class="card cat-card">
+		{#each credits.categories as c}
+			<div class="cat-row">
+				<span class="cat-name">{c.label}</span>
+				<div class="cat-bar"><span style={`width:${Math.max(3, c.pct)}%`}></span></div>
+				<span class="cat-val">{c.pct}%</span>
+			</div>
+		{/each}
+	</div>
+{/if}
+
+<button type="button" class="adv-toggle" on:click={() => (showAdvanced = !showAdvanced)} aria-expanded={showAdvanced}>
+	{showAdvanced ? '▾' : '▸'} Advanced usage details
+</button>
+{#if showAdvanced}
+	<div class="stat-grid">
+		<div class="tile"><div class="k">Claude input</div><div class="v" style="font-size:1.4rem">{nf(credits.advanced.inputTokens)}</div><div class="foot">{nf(credits.advanced.cachedTokens)} cached</div></div>
+		<div class="tile"><div class="k">Claude output</div><div class="v" style="font-size:1.4rem">{nf(credits.advanced.outputTokens)}</div><div class="foot">tokens generated</div></div>
+		<div class="tile"><div class="k">Knowledge processing</div><div class="v" style="font-size:1.4rem">{nf(credits.advanced.embeddingTokens)}</div><div class="foot">Voyage embedding tokens</div></div>
+		<div class="tile"><div class="k">Est. AI cost</div><div class="v">${credits.spent.toFixed(2)}</div><div class="foot">Claude ${credits.advanced.claudeCost.toFixed(2)} · Voyage ${credits.advanced.voyageCost.toFixed(2)}</div></div>
+	</div>
+{/if}
+
+<h2 class="section" id="plans">All plans</h2>
 <div class="plans-grid">
 	{#each data.plans as p (p.key)}
 		<div class="card plan-card" class:is-current={p.key === client.plan}>
@@ -212,5 +288,133 @@
 		opacity: 0.55;
 		cursor: default;
 		pointer-events: none;
+	}
+
+	/* --- AI Usage dashboard --- */
+	.soft {
+		border-radius: 12px;
+		padding: 0.75rem 0.9rem;
+		font-size: 0.88rem;
+		margin: 0 0 1rem;
+		line-height: 1.45;
+	}
+	.soft.warn {
+		color: var(--warn, #c79a2e);
+		background: rgba(200, 150, 40, 0.08);
+		border: 1px solid rgba(200, 150, 40, 0.3);
+	}
+	.soft.danger {
+		color: var(--danger, #c84646);
+		background: rgba(200, 70, 70, 0.08);
+		border: 1px solid rgba(200, 70, 70, 0.3);
+	}
+	.soft a {
+		font-weight: 600;
+		color: inherit;
+		text-decoration: underline;
+	}
+	.usage-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		gap: 1rem;
+		align-items: stretch;
+	}
+	.u-hero,
+	.u-forecast {
+		padding: 1.35rem;
+	}
+	.u-pct {
+		font-size: 2.6rem;
+		font-weight: 800;
+		letter-spacing: -0.02em;
+		line-height: 1;
+	}
+	.u-pct span {
+		font-size: 1.3rem;
+		font-weight: 700;
+	}
+	.u-caption {
+		color: var(--muted, #9aa5a1);
+		font-size: 0.85rem;
+		margin-top: 0.3rem;
+	}
+	.u-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		gap: 1rem;
+		font-size: 0.88rem;
+		padding: 0.42rem 0;
+		border-top: 1px solid var(--edge, rgba(255, 255, 255, 0.08));
+	}
+	.u-row:first-of-type {
+		border-top: 0;
+	}
+	.u-row .muted {
+		color: var(--muted, #9aa5a1);
+	}
+	.f-big {
+		font-size: 1.3rem;
+		font-weight: 700;
+		margin: 0.5rem 0 0.3rem;
+	}
+	.f-sub {
+		color: var(--muted, #9aa5a1);
+		font-size: 0.86rem;
+		line-height: 1.5;
+	}
+	.cat-card {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.cat-row {
+		display: grid;
+		grid-template-columns: minmax(96px, 150px) 1fr 44px;
+		align-items: center;
+		gap: 0.8rem;
+		font-size: 0.86rem;
+	}
+	.cat-name {
+		color: var(--body, #cdd6d2);
+	}
+	.cat-bar {
+		height: 8px;
+		border-radius: 999px;
+		background: var(--panel-2, rgba(255, 255, 255, 0.05));
+		overflow: hidden;
+	}
+	.cat-bar span {
+		display: block;
+		height: 100%;
+		background: var(--mint, #4bbf9a);
+		border-radius: 999px;
+	}
+	.cat-val {
+		text-align: right;
+		color: var(--muted, #9aa5a1);
+		font-variant-numeric: tabular-nums;
+	}
+	.adv-toggle {
+		background: none;
+		border: 0;
+		color: var(--muted, #9aa5a1);
+		font: inherit;
+		font-size: 0.86rem;
+		cursor: pointer;
+		padding: 0.7rem 0;
+		margin-top: 0.4rem;
+	}
+	.adv-toggle:hover {
+		color: var(--strong, #fff);
+	}
+	.tone-ok {
+		color: #1f9d55;
+	}
+	.tone-warn {
+		color: var(--warn, #c79a2e);
+	}
+	.tone-danger {
+		color: var(--danger, #c84646);
 	}
 </style>

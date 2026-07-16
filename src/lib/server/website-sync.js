@@ -625,7 +625,7 @@ export async function findKnowledgeGaps(clientId, { limit = 12 } = {}) {
 	for (const item of questions) {
 		let best = 1; // on any error, don't flag it as a gap
 		try {
-			const emb = await embedQuery(item.question);
+			const emb = await embedQuery(item.question, { clientId, feature: 'website_sync' });
 			const { data } = await supabase.rpc('match_chunks', {
 				p_client_id: clientId,
 				p_query_embedding: emb,

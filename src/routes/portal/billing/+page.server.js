@@ -1,16 +1,18 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { conversationsThisMonth, usageThisMonth } from '$lib/server/tenant.js';
+import { usageSummary, CREDIT_PACKS } from '$lib/server/credits.js';
 import { getPaymentProvider, paymentsEnabled } from '$lib/server/payments/index.js';
 import { activateClientPlan } from '$lib/server/payments/activate.js';
 
 export async function load({ parent }) {
 	const { client } = await parent();
 	const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-	const [plansRes, used, usage, pendingRes] = await Promise.all([
+	const [plansRes, used, usage, credits, pendingRes] = await Promise.all([
 		supabase.from('plans').select('*').eq('is_active', true).order('sort'),
 		conversationsThisMonth(client.id),
 		usageThisMonth(client.id),
+		usageSummary(client.id, client.plan),
 		supabase
 			.from('payment_attempts')
 			.select('id, plan_key, amount, currency, status, created_at')
@@ -27,6 +29,8 @@ export async function load({ parent }) {
 		currentPlan: plans.find((p) => p.key === client.plan) ?? null,
 		usedThisMonth: used,
 		usage,
+		credits,
+		creditPacks: CREDIT_PACKS,
 		paymentsEnabled: paymentsEnabled(),
 		pendingAttempt: pendingRes.data ?? null
 	};
