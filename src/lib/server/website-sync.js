@@ -7,6 +7,7 @@
 //
 // Scan = fast URL discovery (sitemap → links) + URL-based categorisation.
 // Import = fetch + extract readable text + embed the pages the operator approved.
+import { createHash } from 'node:crypto';
 import { supabase } from '$lib/server/supabase.js';
 import { reingestItem } from '$lib/server/rag.js';
 
@@ -179,6 +180,122 @@ function htmlToText(html) {
 	return { title, text: s };
 }
 
+// ---- Best-effort structured extraction (price, duration) -------------------
+
+const CUR = { $: 'USD', '€': 'EUR', '£': 'GBP', usd: 'USD', eur: 'EUR', gbp: 'GBP', tzs: 'TZS', tsh: 'TZS', kes: 'KES', ksh: 'KES' };
+
+// Pull a headline price only when a currency is explicit (so we never grab a
+// phone number or year). Prefer amounts sitting near price/from/per-person words.
+function extractPrice(text) {
+	const t = String(text ?? '').slice(0, 7000);
+	const re = /(usd|eur|gbp|tzs|tsh|kes|ksh|\$|€|£)\s*([\d][\d,]{1,})|([\d][\d,]{1,})\s*(usd|eur|gbp|tzs|tsh|kes|ksh)/gi;
+	let best = null;
+	let m;
+	while ((m = re.exec(t)) !== null) {
+		const cur = CUR[(m[1] || m[4] || '').toLowerCase()];
+		const amount = Number(String(m[2] || m[3]).replace(/,/g, ''));
+		if (!cur || !amount || amount < 10 || amount > 100000000) continue;
+		const ctx = t.slice(Math.max(0, m.index - 30), m.index + m[0].length + 24).toLowerCase();
+		const score = (/(price|from|cost|per person|per pax|\bpp\b|package|rate)/.test(ctx) ? 2 : 0);
+		if (!best || score > best.score) best = { amount, currency: cur, score };
+	}
+	return best ? { amount: best.amount, currency: best.currency } : null;
+}
+
+function extractDuration(text) {
+	const m = String(text ?? '').match(/\b(\d{1,2})\s*[-\s]?\s*days?\b(?:[^\n.]{0,20}?\b(\d{1,2})\s*nights?\b)?/i);
+	if (!m) return null;
+	return m[2] ? `${m[1]} Days / ${m[2]} Nights` : `${m[1]} Days`;
+}
+
+function contentHash(s) {
+	return createHash('sha1').update(String(s ?? '')).digest('hex').slice(0, 16);
+}
+
+// ---- Conflict detection (website vs AI Knowledge) --------------------------
+
+function normTitle(s) {
+	return String(s ?? '')
+		.toLowerCase()
+		.replace(/[^a-z0-9 ]+/g, ' ')
+		.replace(/\b(the|a|an|of|from|to|in|and|day|days|tour|safari|package|trip|our)\b/g, ' ')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+function tokenOverlap(a, b) {
+	const A = new Set(a.split(' ').filter(Boolean));
+	const B = new Set(b.split(' ').filter(Boolean));
+	if (!A.size || !B.size) return 0;
+	let inter = 0;
+	for (const w of A) if (B.has(w)) inter++;
+	return inter / new Set([...A, ...B]).size;
+}
+
+/**
+ * Conservative: flag only when a website page and a manually-kept item clearly
+ * describe the same thing (matching title) and quote a DIFFERENT price in the
+ * SAME currency. Everything else is left alone — never a false alarm on price.
+ */
+export function detectConflicts(items) {
+	const web = (items ?? []).filter((i) => i?.metadata?.source === 'website' && i.price_amount != null && !i.metadata?.price_dismissed);
+	const manual = (items ?? []).filter((i) => i?.metadata?.source !== 'website' && i.price_amount != null);
+	const out = [];
+	for (const w of web) {
+		const wn = normTitle(w.title);
+		if (!wn) continue;
+		const match = manual.find((m) => {
+			const mn = normTitle(m.title);
+			return mn && (mn === wn || tokenOverlap(mn, wn) >= 0.6);
+		});
+		if (!match || w.price_currency !== match.price_currency) continue;
+		const wp = Number(w.price_amount);
+		const mp = Number(match.price_amount);
+		if (Math.max(wp, mp) > 0 && Math.abs(wp - mp) / Math.max(wp, mp) > 0.02) {
+			out.push({
+				currency: w.price_currency ?? 'USD',
+				website: { id: w.id, title: w.title, amount: wp, url: w.metadata?.source_url ?? null },
+				knowledge: { id: match.id, title: match.title, amount: mp }
+			});
+		}
+	}
+	return out;
+}
+
+/** Resolve one price conflict: adopt the website price, or keep the saved one. */
+export async function resolveConflict(clientId, { action, websiteId, knowledgeId }) {
+	const [{ data: web }, { data: kn }] = await Promise.all([
+		supabase.from('knowledge_items').select(ITEM_COLS).eq('id', websiteId).eq('client_id', clientId).maybeSingle(),
+		supabase.from('knowledge_items').select(ITEM_COLS).eq('id', knowledgeId).eq('client_id', clientId).maybeSingle()
+	]);
+	if (!web || !kn) return { error: 'That item no longer exists.' };
+	const now = new Date().toISOString();
+
+	if (action === 'useWebsite') {
+		// The website is right → update AI Knowledge to match, and re-learn it.
+		const { data: updated, error } = await supabase
+			.from('knowledge_items')
+			.update({ price_amount: web.price_amount, price_currency: web.price_currency, updated_at: now })
+			.eq('id', kn.id)
+			.select(ITEM_COLS)
+			.single();
+		if (error) return { error: error.message };
+		await reingestItem(updated);
+		return { ok: `Updated “${kn.title}” to ${web.price_currency} ${Number(web.price_amount).toLocaleString()}.` };
+	}
+	// keepKnowledge: the saved price is right → align the website item so it stops
+	// contradicting, and mark it resolved.
+	const meta = { ...(web.metadata ?? {}), price_dismissed: true };
+	const { data: updated, error } = await supabase
+		.from('knowledge_items')
+		.update({ price_amount: kn.price_amount, price_currency: kn.price_currency, metadata: meta, updated_at: now })
+		.eq('id', web.id)
+		.select(ITEM_COLS)
+		.single();
+	if (error) return { error: error.message };
+	await reingestItem(updated);
+	return { ok: `Kept your saved price for “${kn.title}”.` };
+}
+
 // ---- Public API ------------------------------------------------------------
 
 /**
@@ -233,13 +350,23 @@ export async function importWebsitePages(clientId, urls) {
 			failed.push(`${prettyLabel(url)}: not enough readable content`);
 			continue;
 		}
+		// Best-effort structured fields so the AI answers with real prices/duration
+		// and so conflicts can be detected against AI Knowledge.
+		const price = extractPrice(body);
+		const duration = extractDuration(body);
+		const metadata = { source: 'website', source_url: url, last_synced: now, hash: contentHash(body) };
+		if (duration) metadata.duration = duration;
 		const row = {
 			client_id: clientId,
 			title: title || prettyLabel(url),
 			body,
 			category: categorize(url, title),
-			metadata: { source: 'website', source_url: url, last_synced: now }
+			metadata
 		};
+		if (price) {
+			row.price_amount = price.amount;
+			row.price_currency = price.currency;
+		}
 
 		// Update the existing item for this URL, or insert a new one.
 		const { data: existing } = await supabase

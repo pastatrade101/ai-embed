@@ -11,7 +11,7 @@ import {
 } from '$lib/server/tenant.js';
 import { departuresByItem } from '$lib/server/tours.js';
 import { customerQuestions } from '$lib/server/dashboard.js';
-import { scanWebsite, importWebsitePages } from '$lib/server/website-sync.js';
+import { scanWebsite, importWebsitePages, detectConflicts, resolveConflict as resolveConflictFn } from '$lib/server/website-sync.js';
 import { planAllows, FEATURE } from '$lib/server/gating.js';
 import { fail } from '@sveltejs/kit';
 
@@ -26,7 +26,23 @@ export async function load({ locals }) {
 	const tourIds = list.filter((i) => (i.category ?? '').toLowerCase().includes('tour')).map((i) => i.id);
 	const departures = await departuresByItem(clientId, tourIds);
 	const questions = customerQuestions(convRes.data ?? []);
-	return { items: list, departures, questions, websiteUrl: clientRes.data?.website_url ?? '' };
+
+	// Website Knowledge health + conflict review.
+	const websiteItems = list.filter((i) => i?.metadata?.source === 'website');
+	const lastSync = websiteItems.reduce((a, i) => {
+		const t = i.metadata?.last_synced;
+		return t && (!a || t > a) ? t : a;
+	}, null);
+	const conflicts = detectConflicts(list);
+
+	return {
+		items: list,
+		departures,
+		questions,
+		websiteUrl: clientRes.data?.website_url ?? '',
+		websiteHealth: { connected: websiteItems.length, lastSync, conflicts: conflicts.length },
+		conflicts
+	};
 }
 
 export const actions = {
@@ -74,5 +90,16 @@ export const actions = {
 			ok: `Connected ${imported} page${imported === 1 ? '' : 's'} from your website${failed.length ? ` · ${failed.length} skipped` : ''}.`,
 			failed
 		};
+	},
+
+	resolveConflict: async ({ request, locals }) => {
+		const form = await request.formData();
+		const r = await resolveConflictFn(locals.user.client_id, {
+			action: String(form.get('action') ?? ''),
+			websiteId: String(form.get('websiteId') ?? ''),
+			knowledgeId: String(form.get('knowledgeId') ?? '')
+		});
+		if (r.error) return fail(400, { section: 'website', error: r.error });
+		return { section: 'website', ok: r.ok };
 	}
 };

@@ -4,11 +4,14 @@
 	import { enhance } from '$app/forms';
 	export let websiteUrl = '';
 	export let items = [];
+	export let health = null;
+	export let conflicts = [];
 	export let form = null;
 
 	let url = websiteUrl || '';
 	let scanning = false;
 	let importing = false;
+	let resolving = false;
 	let selectedUrls = [];
 	let seenScan = null;
 
@@ -39,6 +42,13 @@
 			importing = false;
 		};
 	};
+	const resolveSubmit = () => {
+		resolving = true;
+		return async ({ update }) => {
+			await update();
+			resolving = false;
+		};
+	};
 
 	function relTime(iso) {
 		if (!iso) return '';
@@ -60,6 +70,37 @@
 			<div class="ws-stat"><b>{connected.length}</b><span>page{connected.length === 1 ? '' : 's'} connected</span></div>
 		{/if}
 	</div>
+
+	{#if health && health.connected > 0}
+		<div class="ws-health">
+			<span class="wh"><span class="wh-dot"></span> Website connected</span>
+			<span class="wh"><b>{health.connected}</b> page{health.connected === 1 ? '' : 's'} indexed</span>
+			<span class="wh"><b>{health.lastSync ? relTime(health.lastSync) : '—'}</b> last sync</span>
+			<span class="wh" class:warn={health.conflicts > 0}><b>{health.conflicts}</b> conflict{health.conflicts === 1 ? '' : 's'}</span>
+		</div>
+	{/if}
+
+	{#if conflicts?.length}
+		<div class="ws-conflicts">
+			<div class="wc-head">⚠ Price mismatch detected — your website and AI Knowledge disagree. Review before customers see it.</div>
+			{#each conflicts as c}
+				<div class="wc-row">
+					<div class="wc-title">{c.knowledge.title}</div>
+					<div class="wc-vals">
+						<span class="wc-val">Website <b>{c.currency} {c.website.amount.toLocaleString()}</b></span>
+						<span class="wc-sep">vs</span>
+						<span class="wc-val">AI Knowledge <b>{c.currency} {c.knowledge.amount.toLocaleString()}</b></span>
+					</div>
+					<form method="POST" action="?/resolveConflict" use:enhance={resolveSubmit} class="wc-actions">
+						<input type="hidden" name="websiteId" value={c.website.id} />
+						<input type="hidden" name="knowledgeId" value={c.knowledge.id} />
+						<button class="btn sm" type="submit" name="action" value="useWebsite" disabled={resolving}>Use website</button>
+						<button class="btn sm ghost" type="submit" name="action" value="keepKnowledge" disabled={resolving}>Keep AI Knowledge</button>
+					</form>
+				</div>
+			{/each}
+		</div>
+	{/if}
 
 	<form method="POST" action="?/scanWebsite" use:enhance={scanSubmit} class="ws-scan">
 		<input name="url" type="url" bind:value={url} placeholder="https://yourbusiness.com" autocomplete="url" />
@@ -179,6 +220,81 @@
 	.ws-scan input {
 		flex: 1;
 		min-width: 220px;
+	}
+	.ws-health {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.2rem;
+		padding: 0.7rem 0.9rem;
+		border: 1px solid var(--edge);
+		border-radius: 12px;
+		background: var(--panel-2);
+		font-size: 0.82rem;
+		color: var(--muted);
+	}
+	.wh b {
+		color: var(--strong);
+	}
+	.wh {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+	}
+	.wh.warn b {
+		color: var(--warn);
+	}
+	.wh-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: 50%;
+		background: var(--mint);
+	}
+	.ws-conflicts {
+		border: 1px solid rgba(255, 181, 71, 0.4);
+		background: rgba(255, 181, 71, 0.08);
+		border-radius: 12px;
+		padding: 0.8rem 0.9rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.wc-head {
+		font-size: 0.86rem;
+		font-weight: 600;
+		color: var(--warn);
+	}
+	.wc-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		border-top: 1px solid rgba(255, 181, 71, 0.2);
+		padding-top: 0.6rem;
+	}
+	.wc-title {
+		font-weight: 600;
+		color: var(--strong);
+		font-size: 0.9rem;
+		flex: 1;
+		min-width: 140px;
+	}
+	.wc-vals {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.85rem;
+		color: var(--muted);
+	}
+	.wc-val b {
+		color: var(--strong);
+	}
+	.wc-sep {
+		color: var(--faint);
+	}
+	.wc-actions {
+		display: inline-flex;
+		gap: 0.5rem;
 	}
 	.ws-preview {
 		border-top: 1px solid var(--edge);

@@ -280,6 +280,7 @@
 					<div class="item-title-row">
 						<span class="item-title">{item.title}</span>
 						{#if item.category}<span class="badge neutral">{titleCase(item.category)}</span>{/if}
+						{#if item.metadata?.source === 'website'}<span class="badge web-src" title={item.metadata?.source_url}>🌐 Website</span>{/if}
 						{#if item.price_amount != null}<span class="badge">{item.price_currency ?? 'USD'} {Number(item.price_amount).toLocaleString()}</span>{/if}
 						{#if isStale(item.updated_at)}<span class="badge off">⚠ Review</span>{/if}
 					</div>
@@ -365,6 +366,11 @@
 </button>
 
 <style>
+	.web-src {
+		background: rgba(var(--accent-rgb), 0.16);
+		color: var(--accent);
+		cursor: help;
+	}
 	.kb-toolbar {
 		display: flex;
 		align-items: center;
