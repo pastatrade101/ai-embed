@@ -6,6 +6,7 @@ import { error } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { listTours, departuresByItem } from '$lib/server/tours.js';
 import { FEATURE, planUnlocks } from '$lib/server/gating.js';
+import { suggestionChips } from '$lib/server/suggest.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -96,7 +97,7 @@ export async function load({ params, url }) {
 			languages: client.languages ?? null,
 			assistantName: client.assistant_name ?? null,
 			welcome: client.welcome_message ?? null,
-			suggestions: Array.isArray(client.suggested_questions) ? client.suggested_questions.slice(0, 6) : [],
+			suggestions: suggestionChips(client.suggested_questions, tours),
 			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
 			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
 		},

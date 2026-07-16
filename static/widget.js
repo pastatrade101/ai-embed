@@ -366,12 +366,22 @@
 		return '';
 	}
 
+	// Carry the chat context into WhatsApp so the operator opens a message that
+	// already says who the customer is and what they were asking about.
+	function conversationContext() {
+		var qs = messages
+			.filter(function (m) { return m.role === 'user'; })
+			.map(function (m) { return String(m.content || '').trim(); })
+			.filter(Boolean);
+		var head = 'Hi' + (name ? ', ' + name : '') + '! I was just chatting with ' + (assistantName || 'your assistant') + ' on your website.';
+		if (!qs.length) return head + ' I have a question — can you help?';
+		if (qs.length === 1) return head + ' I asked about: "' + qs[0] + '". Could you help me with this?';
+		var body = " Here's what I asked about:\n" + qs.slice(-4).map(function (q) { return '• ' + q; }).join('\n');
+		return (head + body + '\n\nCould you help me from here?').slice(0, 700);
+	}
 	function waLink() {
 		var num = (whatsapp || '').replace(/[^0-9]/g, '');
-		var ctx = 'Hi' + (name ? ' from ' + name : '') + ', I was chatting with your site assistant';
-		var last = lastUserMessage();
-		if (last) ctx += ' about: ' + last;
-		return 'https://wa.me/' + num + '?text=' + encodeURIComponent(ctx);
+		return 'https://wa.me/' + num + '?text=' + encodeURIComponent(conversationContext());
 	}
 
 	// --- helpers ------------------------------------------------------------

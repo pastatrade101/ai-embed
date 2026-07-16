@@ -416,6 +416,18 @@
 		return waLink + '?text=' + encodeURIComponent(msg);
 	}
 
+	// Hand the chat context to WhatsApp so the operator sees who's messaging and
+	// what they were asking about, instead of a blank thread.
+	function waContext(msgs) {
+		const qs = (msgs ?? []).filter((m) => m.role === 'user').map((m) => String(m.content ?? '').trim()).filter(Boolean);
+		const head = `Hi! I was just chatting with ${assistantName} on your page.`;
+		if (!qs.length) return `${head} I'd like some help planning.`;
+		if (qs.length === 1) return `${head} I asked about: "${qs[0]}". Could you help me with this?`;
+		return (`${head} Here's what I asked about:\n` + qs.slice(-4).map((q) => `• ${q}`).join('\n') + `\n\nCould you help me from here?`).slice(0, 700);
+	}
+	// Header + floating WhatsApp button carry the conversation once it's under way.
+	$: waContextLink = waLink && messages.some((m) => m.role === 'user') ? waLink + '?text=' + encodeURIComponent(waContext(messages)) : waLink;
+
 	// Collapsible open-state, keyed by message id + block index.
 	let openSet = {};
 	function toggleOpen(k) {
@@ -462,7 +474,7 @@
 
 		<div class="top-actions">
 			{#if waLink}
-				<a class="chip-btn" href={waLink} target="_blank" rel="noopener" aria-label="WhatsApp">
+				<a class="chip-btn" href={waContextLink} target="_blank" rel="noopener" aria-label="WhatsApp">
 					<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
 						><path
 							fill="currentColor"
@@ -817,7 +829,7 @@
 
 	<!-- Persistent booking action (mobile-reachable) -------------------------->
 	{#if waLink}
-		<a class="fab" href={waLink} target="_blank" rel="noopener" aria-label="Book on WhatsApp">
+		<a class="fab" href={waContextLink} target="_blank" rel="noopener" aria-label="Book on WhatsApp">
 			<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
 				><path
 					fill="currentColor"
