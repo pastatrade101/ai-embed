@@ -53,9 +53,29 @@ export async function load({ locals, parent }) {
 	// stages are AI-derived only and the operator's stage control is inert.
 	const pipelineReady = rawLeads?.length ? 'status' in rawLeads[0] : true;
 
+	// Prefer the AI's structured extraction (leads.details) when present, keeping the
+	// regex extractor as the baseline (and for the tour-price-based value estimate).
+	const mergeDetail = (l) => {
+		const base = extractLead(l, tours);
+		const d = l.details && typeof l.details === 'object' ? l.details : null;
+		if (!d) return base;
+		return {
+			...base,
+			destination: d.destination || base.destination,
+			tour: d.tour || base.tour,
+			month: d.travel || base.dates || base.month,
+			dates: null,
+			group: d.adults ?? base.group,
+			children: d.children ?? base.children,
+			country: d.country || base.country,
+			accommodation: d.accommodation || base.accommodation,
+			budget: d.budget ?? base.budget
+		};
+	};
+
 	const leads = (rawLeads ?? []).map((l) => {
 		const score = scoreLead(l);
-		const detail = extractLead(l, tours);
+		const detail = mergeDetail(l);
 		return { ...l, score, tier: leadTier(score), detail, stage: leadStage(l, detail, score), action: nextAction(l, detail, score) };
 	});
 

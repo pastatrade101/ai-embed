@@ -7,6 +7,7 @@ import { supabase } from './supabase.js';
 import { sendLeadEmail } from './email.js';
 import { searchTours, getTourPrice } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
+import { enrichLead } from './lead-ai.js';
 
 /** Tool schemas exposed to Claude. */
 export const TOOL_DEFS = [
@@ -110,8 +111,13 @@ export async function runTool(name, input, ctx) {
 		if (!lead.whatsapp && !lead.email && !lead.name) {
 			return 'Not enough detail to save a lead — ask for a name or WhatsApp number first.';
 		}
-		const { error } = await supabase.from('leads').insert(lead);
+		const { data: inserted, error } = await supabase.from('leads').insert(lead).select('id').single();
 		if (error) return `Could not save lead: ${error.message}`;
+		// Structured extraction — enrich the lead's typed fields in the background
+		// (premium, metered). Never blocks the reply; free/over-quota tenants no-op.
+		if (inserted?.id && (await planAllows(ctx.client.plan, FEATURE.QUALIFIED_LEADS))) {
+			enrichLead(ctx.client.id, ctx.client.plan, inserted.id, lead).catch(() => {});
+		}
 		// Email alerts are a plan feature; the lead is always saved regardless.
 		if (await planAllows(ctx.client.plan, FEATURE.EMAIL_ALERTS)) {
 			try {

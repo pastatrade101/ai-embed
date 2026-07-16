@@ -15,6 +15,8 @@ export const PLAN_FEATURES = [
 	'Structured tours & pricing',
 	'Bulk knowledge import (CSV/JSON)',
 	'Website Knowledge Sync',
+	'AI data analyst',
+	'AI research assistant',
 	'Advanced (Sonnet) AI model',
 	'Chat file attachments (photos & PDFs)',
 	'Remove "Powered by Makutano" badge',

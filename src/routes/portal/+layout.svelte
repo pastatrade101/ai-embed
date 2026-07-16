@@ -42,6 +42,10 @@
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
 				<span class="nav-label">Conversations</span>
 			</a>
+			<a href="/portal/insights" class="nav-item" title="AI Insights" aria-label="AI Insights" class:active={active(routeId, '/portal/insights')}>
+				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/><path d="M9 21h6"/></svg></span>
+				<span class="nav-label">AI Insights</span>
+			</a>
 		</div>
 		<div class="nav-group">
 			<p class="nav-heading">Account</p>

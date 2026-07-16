@@ -21,6 +21,8 @@ export const FEATURE = {
 	TOURS: 'Structured tours & pricing',
 	BULK_IMPORT: 'Bulk knowledge import (CSV/JSON)',
 	WEBSITE_SYNC: 'Website Knowledge Sync',
+	DATA_ANALYST: 'AI data analyst',
+	RESEARCH: 'AI research assistant',
 	PRIORITY: 'Priority responses',
 	SONNET: 'Advanced (Sonnet) AI model',
 	ATTACHMENTS: 'Chat file attachments (photos & PDFs)',
