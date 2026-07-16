@@ -396,17 +396,39 @@
 	}
 
 	// Carry the chat context into WhatsApp so the operator opens a message that
-	// already says who the customer is and what they were asking about.
+	// already contains the recent back-and-forth — the customer's questions AND the
+	// assistant's answers — not just the questions.
+	function waClean(s) {
+		return String(s || '')
+			.replace(/\*\*([^*]+)\*\*/g, '$1') // bold
+			.replace(/`([^`]+)`/g, '$1') // code
+			.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '$1 ($2)') // [text](url)
+			.replace(/[#*_>]/g, '') // stray markdown
+			.replace(/\s+/g, ' ') // flatten each turn to one line
+			.trim();
+	}
 	function conversationContext() {
-		var qs = messages
-			.filter(function (m) { return m.role === 'user'; })
-			.map(function (m) { return String(m.content || '').trim(); })
-			.filter(Boolean);
 		var head = 'Hi' + (name ? ', ' + name : '') + '! I was just chatting with ' + (assistantName || 'your assistant') + ' on your website.';
-		if (!qs.length) return head + ' I have a question — can you help?';
-		if (qs.length === 1) return head + ' I asked about: "' + qs[0] + '". Could you help me with this?';
-		var body = " Here's what I asked about:\n" + qs.slice(-4).map(function (q) { return '• ' + q; }).join('\n');
-		return (head + body + '\n\nCould you help me from here?').slice(0, 700);
+		var aiLabel = assistantName || 'Assistant';
+		// A short transcript of the recent exchange (both sides), each turn trimmed.
+		var recent = messages.slice(-6); // ~3 back-and-forths
+		var lines = [];
+		for (var i = 0; i < recent.length; i++) {
+			var m = recent[i];
+			var t = waClean(m.content);
+			if (!t) continue;
+			var cap = m.role === 'assistant' ? 220 : 160;
+			if (t.length > cap) t = t.slice(0, cap).replace(/\s+\S*$/, '') + '…';
+			lines.push((m.role === 'user' ? 'Me' : aiLabel) + ': ' + t);
+		}
+		if (!lines.length) return head + ' I have a question — can you help?';
+		var tail = '\n\nCould you help me continue from here?';
+		var MAX = 1200;
+		var build = function () { return head + "\n\nHere's our conversation so far:\n\n" + lines.join('\n') + tail; };
+		// Keep the most recent turns; drop from the front until it fits WhatsApp.
+		while (lines.length > 1 && build().length > MAX) lines.shift();
+		var msg = build();
+		return msg.length > MAX ? msg.slice(0, MAX) : msg;
 	}
 	function waLink() {
 		var num = (whatsapp || '').replace(/[^0-9]/g, '');
