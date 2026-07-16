@@ -27,6 +27,10 @@
 
 	const money = (n, cur = rev?.currency ?? 'USD') =>
 		n == null ? '—' : new Intl.NumberFormat('en', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n);
+	// AI provider costs are billed in USD; convert to the platform currency (TZS)
+	// so cost & margin read in the same currency as revenue. Approximate rate.
+	const USD_TZS = 2600;
+	const inRevCur = (usd) => (rev?.currency === 'USD' ? usd : usd * USD_TZS);
 	const initials = (s) => (s ?? '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 	const num = (n) => new Intl.NumberFormat('en').format(n ?? 0);
 	function tokens(n) {
@@ -238,18 +242,18 @@
 					<div class="bar-row">
 						<span class="bl mono">{m.model}</span>
 						<div class="btrack"><span class="bfill" style="width:{Math.round((m.cost / maxModelCost) * 100)}%;background:var(--accent)"></span></div>
-						<span class="bv">${m.cost.toFixed(2)}</span>
+						<span class="bv">{money(inRevCur(m.cost))}</span>
 					</div>
 				{/each}
 			</div>
 			<div class="cost-tiles">
-				<div class="mini-tile"><div class="mt-v">${spend.cost.toFixed(2)}</div><div class="mt-l">Est. AI cost / mo</div></div>
-				<div class="mini-tile"><div class="mt-v">${(t.conversationsMonth ? spend.cost / t.conversationsMonth : 0).toFixed(3)}</div><div class="mt-l">Cost / conversation</div></div>
-				<div class="mini-tile"><div class="mt-v">{money(rev.mrr - spend.cost, 'USD')}</div><div class="mt-l">Gross margin</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.cost))}</div><div class="mt-l">Est. AI cost / mo</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.conversationsMonth ? spend.cost / t.conversationsMonth : 0))}</div><div class="mt-l">Cost / conversation</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(rev.mrr - inRevCur(spend.cost))}</div><div class="mt-l">Gross margin</div></div>
 				<div class="mini-tile"><div class="mt-v">{tokens(spend.cachedTokens)}</div><div class="mt-l">Cached tokens</div></div>
 			</div>
 		</div>
-		<p class="fineprint">From metered AI turns (usage_records). Gross margin = MRR − est. AI cost; excludes storage, embeddings &amp; opex.</p>
+		<p class="fineprint">From metered AI turns (usage_records). Gross margin = MRR − est. AI cost; excludes storage, embeddings &amp; opex.{#if rev?.currency && rev.currency !== 'USD'} AI cost billed in USD, shown at ≈{USD_TZS.toLocaleString()} {rev.currency}/USD.{/if}</p>
 	{:else}
 		<div class="card empty-soft">AI cost isn’t metered yet — once usage logging records turns, spend, tokens and margin appear here.</div>
 	{/if}
@@ -286,7 +290,10 @@
 	</div>
 
 	<!-- 9 · CLIENT PORTFOLIO -->
-	<h2 class="section">Client portfolio</h2>
+	<!-- 9-13 · Portfolio (main column) + activity/opportunities (right rail) -->
+	<div class="dash-cols">
+		<div class="dash-main">
+			<h2 class="section">Client portfolio</h2>
 	{#if clients.length === 0}
 		<div class="card empty">
 			<h3>No clients yet</h3>
@@ -298,7 +305,11 @@
 			{#each clients as c}
 				<div class="pcard">
 					<div class="pc-top">
-						<div class="avatar" style="background:{c.brand_color ?? '#e0b24c'};color:{readableInk(c.brand_color ?? '#e0b24c')}">{initials(c.name)}</div>
+						{#if c.logo_url}
+							<div class="avatar has-logo"><img src={c.logo_url} alt="" /></div>
+						{:else}
+							<div class="avatar" style="background:{c.brand_color ?? '#e0b24c'};color:{readableInk(c.brand_color ?? '#e0b24c')}">{initials(c.name)}</div>
+						{/if}
 						<div class="pc-id">
 							<div class="pc-name">{c.name}</div>
 							<div class="pc-meta">{c.plan} · <span class="st {c.subscription_status}">{c.is_active ? c.subscription_status : 'paused'}</span></div>
@@ -346,13 +357,15 @@
 		</div>
 	{/if}
 
+		</div>
+
+		<aside class="dash-side">
 	<!-- 11 · INSIGHT -->
 	{#if insight}
 		<div class="card insight"><span class="spark">✦</span><div><div class="ins-t">AI insight</div><p>{insight}</p></div></div>
 	{/if}
 
 	<!-- 12 · ACTIVITY + 13 · OPPORTUNITIES -->
-	<div class="split top">
 		<div class="card feed">
 			<div class="card-head">Live activity</div>
 			{#if activity.length}
@@ -376,6 +389,7 @@
 				{/each}
 			{:else}<div class="empty-soft sm">No opportunities flagged — the fleet looks well-optimized.</div>{/if}
 		</div>
+		</aside>
 	</div>
 
 	<!-- 14 · BILLING -->
@@ -862,9 +876,43 @@
 	}
 
 	/* Portfolio */
+	/* Lower dashboard: portfolio in a main column, activity/opportunities in a
+	   right rail that fills the width. Stacks to one column on tablet/mobile. */
+	.dash-cols {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 1rem;
+		margin-top: 1.5rem;
+		align-items: start;
+	}
+	@media (min-width: 1024px) {
+		.dash-cols {
+			grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+			gap: 1.25rem;
+		}
+	}
+	.dash-main {
+		display: flex;
+		flex-direction: column;
+		min-width: 0;
+	}
+	.dash-side {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-width: 0;
+	}
+	.dash-side .card {
+		margin: 0;
+	}
+	/* Keep the live feed from stretching the rail; scroll instead. */
+	.feed {
+		max-height: 560px;
+		overflow-y: auto;
+	}
 	.portfolio {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 		gap: 0.85rem;
 	}
 	.pcard {
@@ -895,6 +943,17 @@
 		font-weight: 700;
 		font-size: 0.9rem;
 		flex: none;
+	}
+	.avatar.has-logo {
+		background: var(--panel-2);
+		border: 1px solid var(--edge);
+		overflow: hidden;
+	}
+	.avatar.has-logo img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: inherit;
 	}
 	.pc-id {
 		min-width: 0;

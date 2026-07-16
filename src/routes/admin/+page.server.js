@@ -47,7 +47,7 @@ export async function load({ locals }) {
 		const [clientsRes, convRes, leadRes, itemRes, usageRes, usersRes, payAttRes, payEvtRes] = await Promise.all([
 			supabase
 				.from('clients')
-				.select('id, slug, name, business_type, plan, subscription_status, is_active, brand_color, monthly_conversation_cap, plan_renews_at, website_url, created_at')
+				.select('id, slug, name, business_type, plan, subscription_status, is_active, brand_color, logo_url, monthly_conversation_cap, plan_renews_at, website_url, created_at')
 				.order('created_at', { ascending: false }),
 			supabase.from('conversations').select('client_id, created_at'),
 			supabase.from('leads').select('client_id, name, whatsapp, email, interest, transcript, created_at').order('created_at', { ascending: false }).limit(500),
