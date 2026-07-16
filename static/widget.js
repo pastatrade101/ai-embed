@@ -117,7 +117,9 @@
 	function render() {
 		container.style.setProperty('--mk-brand', brand);
 		container.innerHTML =
-			'<button class="mk-fab" aria-label="Chat">' + (open ? svgClose() : svgChat()) + '</button>' +
+			'<button class="mk-fab' + (!open && logo ? ' mk-fab-logo' : '') + '" aria-label="Chat">' +
+			(open ? svgClose() : logo ? '<img class="mk-fab-img" src="' + esc(logo) + '" alt="" />' : svgChat()) +
+			'</button>' +
 			(open ? panel() : '');
 		container.querySelector('.mk-fab').addEventListener('click', toggle);
 
@@ -434,6 +436,8 @@
 			'.mk{position:fixed;bottom:20px;right:20px;z-index:2147483000;color-scheme:light;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}' +
 			'.mk-fab{width:58px;height:58px;border-radius:50%;border:0;background:var(--mk-brand);color:#fff;cursor:pointer;box-shadow:0 6px 22px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;margin-left:auto;transition:transform .15s ease}' +
 			'.mk-fab:hover{transform:scale(1.06)}' +
+			'.mk-fab-logo{padding:0;overflow:hidden}' +
+			'.mk-fab-img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}' +
 			'.mk-panel{position:absolute;bottom:70px;right:0;width:392px;max-width:calc(100vw - 24px);height:620px;max-height:calc(100vh - 96px);background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden}' +
 			'.mk-head{background:var(--mk-brand);color:#fff;padding:.7rem .85rem;display:flex;align-items:center;justify-content:space-between;gap:.5rem}' +
 			'.mk-head-id{display:flex;align-items:center;gap:.55rem;min-width:0}' +
