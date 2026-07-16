@@ -58,7 +58,11 @@ export const TOOL_DEFS = [
 				name: { type: 'string' },
 				whatsapp: { type: 'string', description: 'WhatsApp number with country code' },
 				email: { type: 'string' },
-				interest: { type: 'string', description: 'What they want — tour, dates, group size, budget' }
+				interest: {
+					type: 'string',
+					description:
+						'Everything learned about the trip in one line: tour/destination, travel month or exact dates, number of adults and children, budget, accommodation preference, and nationality (where they travel from) — whatever was mentioned.'
+				}
 			}
 		}
 	}

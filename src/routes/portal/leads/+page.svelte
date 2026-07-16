@@ -1,33 +1,38 @@
 <script>
-	import { onMount } from 'svelte';
+	import { enhance } from '$app/forms';
 	import ShareCard from '$lib/components/ShareCard.svelte';
 
 	export let data;
-	$: ({ leads, stats, summary, insights, client } = data);
+	export let form;
+	$: ({ leads, stats, summary, insights, stageCounts, gaps, pipelineReady, client } = data);
 
 	let q = '';
 	let filter = 'all';
+	let stageFilter = null;
 	let openId = null;
-	let contacted = new Set();
+	let savingId = null;
 
-	const CKEY = 'mk_leads_contacted';
-	onMount(() => {
-		try {
-			contacted = new Set(JSON.parse(localStorage.getItem(CKEY) || '[]'));
-		} catch (e) {
-			/* first run */
-		}
-	});
-	function toggleContacted(id) {
-		const next = new Set(contacted);
-		next.has(id) ? next.delete(id) : next.add(id);
-		contacted = next;
-		try {
-			localStorage.setItem(CKEY, JSON.stringify([...next]));
-		} catch (e) {
-			/* private mode */
-		}
-	}
+	// Pipeline stages (order + display). new/qualifying/qualified are AI-derived;
+	// contacted/quoted/won/lost are operator-set (need the pipeline migration).
+	const STAGE_META = {
+		new: { label: 'New', cls: 'st-new' },
+		qualifying: { label: 'Qualifying', cls: 'st-qualifying' },
+		qualified: { label: 'Qualified', cls: 'st-qualified' },
+		contacted: { label: 'Contacted', cls: 'st-contacted' },
+		quoted: { label: 'Quoted', cls: 'st-quoted' },
+		won: { label: 'Won', cls: 'st-won' },
+		lost: { label: 'Lost', cls: 'st-lost' }
+	};
+	const STAGE_ORDER = ['new', 'qualifying', 'qualified', 'contacted', 'quoted', 'won', 'lost'];
+	const OPERATOR_STAGES = ['contacted', 'quoted', 'won', 'lost'];
+	// Submit a stage change; `savingId` disables that lead's control mid-flight.
+	const stageSubmit = (id) => {
+		savingId = id;
+		return async ({ update }) => {
+			await update();
+			savingId = null;
+		};
+	};
 
 	// ---- formatting helpers ----
 	const money = (n, cur = stats.currency) => {
@@ -74,7 +79,7 @@
 		{ id: 'followup', label: 'Needs follow-up' },
 		{ id: 'today', label: 'Today' },
 		{ id: 'week', label: 'This week' },
-		{ id: 'uncontacted', label: 'Not contacted' }
+		{ id: 'open', label: 'Open' }
 	];
 
 	function matchFilter(l) {
@@ -90,19 +95,21 @@
 				return d && d.toDateString() === new Date().toDateString();
 			case 'week':
 				return d && Date.now() - d.getTime() < 604800000;
-			case 'uncontacted':
-				return !contacted.has(l.id);
+			case 'open':
+				return l.stage !== 'won' && l.stage !== 'lost';
 			default:
 				return true;
 		}
 	}
 	$: needle = q.trim().toLowerCase();
 	$: filtered = leads.filter((l) => {
+		if (stageFilter && l.stage !== stageFilter) return false;
 		if (!matchFilter(l)) return false;
 		if (!needle) return true;
 		const hay = `${l.name ?? ''} ${l.whatsapp ?? ''} ${l.email ?? ''} ${l.interest ?? ''} ${l.detail.destination ?? ''} ${l.detail.tour ?? ''}`.toLowerCase();
 		return hay.includes(needle);
 	});
+	const toggleStage = (s) => (stageFilter = stageFilter === s ? null : s);
 </script>
 
 <div class="page-head">
@@ -143,12 +150,26 @@
 			<span class="kpi-v">{stats.pipelineValue ? money(stats.pipelineValue) : '—'}</span>
 			<span class="kpi-s">{stats.matched} tour-matched</span>
 		</div>
-		<div class="kpi">
-			<span class="kpi-l">Avg lead score</span>
-			<span class="kpi-v">{stats.avgScore}</span>
-			<span class="kpi-s">out of 100</span>
+		<div class="kpi win">
+			<span class="kpi-l">Booked value</span>
+			<span class="kpi-v">{stats.wonValue ? money(stats.wonValue) : '—'}</span>
+			<span class="kpi-s">{stats.wonCount} won{stats.conversion != null ? ` · ${stats.conversion}% conversion` : ''}</span>
 		</div>
 	</div>
+
+	<!-- Sales pipeline -->
+	<div class="pipeline">
+		{#each STAGE_ORDER as s}
+			<button class="stage {STAGE_META[s].cls}" class:on={stageFilter === s} class:empty={!stageCounts[s]} on:click={() => toggleStage(s)} data-no-busy>
+				<span class="st-n">{stageCounts[s] ?? 0}</span>
+				<span class="st-l">{STAGE_META[s].label}</span>
+			</button>
+		{/each}
+	</div>
+	{#if !pipelineReady}
+		<div class="pipe-hint">Stages <b>New → Qualified</b> update automatically. To mark <b>Contacted / Quoted / Won / Lost</b> yourself, run <code>db/011_leads_pipeline.sql</code> once in Supabase.</div>
+	{/if}
+	{#if form?.error}<div class="pipe-err">{form.error}</div>{/if}
 
 	<!-- AI summary -->
 	<div class="card ai-brief">
@@ -157,7 +178,10 @@
 			<h3>Today’s summary</h3>
 		</div>
 		<ul class="brief-list">
-			<li><b>{summary.todayCount}</b> new {summary.todayCount === 1 ? 'enquiry' : 'enquiries'} today · <b>{summary.weekCount}</b> this week</li>
+			<li>Your AI handled <b>{summary.convToday}</b> {summary.convToday === 1 ? 'conversation' : 'conversations'} today → <b>{summary.todayCount}</b> {summary.todayCount === 1 ? 'lead' : 'leads'} captured · <b>{summary.weekCount}</b> this week</li>
+			{#if summary.qualifiedCount > 0 || summary.pipelineValue > 0}
+				<li><b>{summary.qualifiedCount}</b> qualified{summary.pipelineValue > 0 ? ` · ${money(summary.pipelineValue)} potential value` : ''}</li>
+			{/if}
 			{#if summary.topMonth}
 				<li><b>{summary.topMonth[1]}</b> {summary.topMonth[1] === 1 ? 'customer wants' : 'customers want'} to travel in <b>{summary.topMonth[0]}</b></li>
 			{/if}
@@ -194,6 +218,21 @@
 		</div>
 	{/if}
 
+	<!-- Opportunities: demand the catalogue doesn't cover yet -->
+	{#if gaps?.length}
+		<div class="card gaps">
+			<div class="brief-head"><span class="spark">💡</span><h3>Opportunities</h3></div>
+			<ul class="gap-list">
+				{#each gaps as g}
+					<li>
+						<b>{g.count}</b> {g.count === 1 ? 'customer' : 'customers'} asked about <b>{g.label}</b> — you don’t offer this yet.
+						<a class="gap-add" href="/portal/knowledge">Add it</a>
+					</li>
+				{/each}
+			</ul>
+		</div>
+	{/if}
+
 	<!-- Search + filters -->
 	<div class="toolbar">
 		<div class="search">
@@ -214,12 +253,12 @@
 	{:else}
 		<div class="lead-grid">
 			{#each filtered as l (l.id)}
-				<article class="lead" class:done={contacted.has(l.id)}>
+				<article class="lead" class:done={l.stage === 'won' || l.stage === 'lost'}>
 					<header class="lead-top">
 						<div class="who">
 							<div class="avatar {l.tier.cls}">{initials(l.name)}</div>
 							<div>
-								<div class="name">{l.name || 'Unnamed enquiry'}{#if contacted.has(l.id)}<span class="badge-done">Contacted</span>{/if}</div>
+								<div class="name">{l.name || 'Unnamed enquiry'} <span class="stage-badge {STAGE_META[l.stage].cls}">{STAGE_META[l.stage].label}</span></div>
 								<div class="captured">Captured {timeAgo(l.created_at)}</div>
 							</div>
 						</div>
@@ -229,11 +268,13 @@
 						</div>
 					</header>
 
-					{#if l.detail.destination || l.detail.month || l.detail.group || l.detail.budget || l.detail.estValue}
+					{#if l.detail.destination || l.detail.month || l.detail.dates || l.detail.group || l.detail.children != null || l.detail.country || l.detail.accommodation || l.detail.budget || l.detail.estValue}
 						<div class="facts">
 							{#if l.detail.destination}<span class="fact">📍 {l.detail.destination}</span>{/if}
-							{#if l.detail.month}<span class="fact">📅 {l.detail.month}</span>{/if}
-							{#if l.detail.group}<span class="fact">👥 {l.detail.group} people</span>{/if}
+							{#if l.detail.dates || l.detail.month}<span class="fact">📅 {l.detail.dates || l.detail.month}</span>{/if}
+							{#if l.detail.group}<span class="fact">👥 {l.detail.group} adult{l.detail.group === 1 ? '' : 's'}{#if l.detail.children}+{l.detail.children} kid{l.detail.children === 1 ? '' : 's'}{/if}</span>{/if}
+							{#if l.detail.country}<span class="fact">🌍 {l.detail.country}</span>{/if}
+							{#if l.detail.accommodation}<span class="fact">🏨 {l.detail.accommodation}</span>{/if}
 							{#if l.detail.budget}<span class="fact">💰 {money(l.detail.budget)}</span>{/if}
 							{#if l.detail.estValue}<span class="fact val">≈ {money(l.detail.estValue)} value</span>{/if}
 						</div>
@@ -260,9 +301,24 @@
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
 							</a>
 						{/if}
-						<button class="btn ghost" class:on={contacted.has(l.id)} on:click={() => toggleContacted(l.id)} data-no-busy>
-							{contacted.has(l.id) ? '✓ Contacted' : 'Mark contacted'}
-						</button>
+						<form method="POST" action="?/setStatus" use:enhance={() => stageSubmit(l.id)} class="stage-form">
+							<input type="hidden" name="id" value={l.id} />
+							<label class="stage-set">
+								<span>Stage</span>
+								<select
+									name="status"
+									value={OPERATOR_STAGES.includes(l.stage) ? l.stage : ''}
+									disabled={savingId === l.id}
+									on:change={(e) => {
+										e.target.form.action = e.target.value ? '?/setStatus' : '?/clearStatus';
+										e.target.form.requestSubmit();
+									}}
+								>
+									<option value="">{OPERATOR_STAGES.includes(l.stage) ? 'Back to auto' : `${STAGE_META[l.stage].label} (auto)`}</option>
+									{#each OPERATOR_STAGES as s}<option value={s}>{STAGE_META[s].label}</option>{/each}
+								</select>
+							</label>
+						</form>
 						<button class="btn link" on:click={() => (openId = openId === l.id ? null : l.id)} data-no-busy>
 							{openId === l.id ? 'Hide details' : 'Details'}
 						</button>
@@ -274,9 +330,12 @@
 								<h4>What the AI learned</h4>
 								<dl>
 									{#if l.detail.tour || l.detail.destination}<dt>Interested in</dt><dd>{l.detail.tour || l.detail.destination}</dd>{/if}
+									{#if l.detail.country}<dt>Country</dt><dd>{l.detail.country}</dd>{/if}
+									{#if l.detail.dates || l.detail.month}<dt>Travelling</dt><dd>{l.detail.dates || l.detail.month}</dd>{/if}
+									{#if l.detail.group}<dt>Adults</dt><dd>{l.detail.group}</dd>{/if}
+									{#if l.detail.children != null}<dt>Children</dt><dd>{l.detail.children}</dd>{/if}
+									{#if l.detail.accommodation}<dt>Accommodation</dt><dd>{l.detail.accommodation}</dd>{/if}
 									{#if budgetBand(l)}<dt>Budget</dt><dd>{budgetBand(l)} ({money(l.detail.budget)})</dd>{/if}
-									{#if l.detail.month}<dt>Travelling</dt><dd>{l.detail.month}</dd>{/if}
-									{#if l.detail.group}<dt>Group</dt><dd>{l.detail.group} people</dd>{/if}
 									<dt>Buying intent</dt><dd class="intent {l.tier.cls}">{INTENT[l.tier.cls]}</dd>
 									<dt>Recommended</dt><dd>{l.action}</dd>
 								</dl>
@@ -290,8 +349,9 @@
 										<li class="done"><span>Shared trip details{l.detail.month ? ` · ${l.detail.month}` : ''}{l.detail.budget ? ` · ${money(l.detail.budget)}` : ''}</span></li>
 									{/if}
 									<li class="done"><span>Left contact details {timeAgo(l.created_at)}</span></li>
-									{#if contacted.has(l.id)}
-										<li class="done you"><span>You marked this contacted</span></li>
+									{#if OPERATOR_STAGES.includes(l.stage)}
+										<li class="done you"><span>You marked this {STAGE_META[l.stage].label.toLowerCase()}</span></li>
+										{#if l.stage !== 'won' && l.stage !== 'lost'}<li class="todo"><span>{l.action}</span></li>{/if}
 									{:else}
 										<li class="todo"><span>{l.action}</span></li>
 									{/if}
@@ -310,6 +370,147 @@
 {/if}
 
 <style>
+	/* Sales pipeline */
+	.pipeline {
+		display: flex;
+		gap: 0.4rem;
+		overflow-x: auto;
+		padding-bottom: 0.2rem;
+		margin-bottom: 0.5rem;
+	}
+	.stage {
+		flex: 1 0 auto;
+		min-width: 72px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.05rem;
+		padding: 0.5rem 0.55rem;
+		border: 1px solid var(--edge);
+		border-radius: 12px;
+		background: var(--panel-2);
+		cursor: pointer;
+		transition: border-color 0.12s, background 0.12s;
+	}
+	.stage .st-n {
+		font-size: 1.15rem;
+		font-weight: 700;
+		color: var(--strong);
+		line-height: 1.1;
+	}
+	.stage .st-l {
+		font-size: 0.66rem;
+		color: var(--muted);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+	}
+	.stage.empty {
+		opacity: 0.5;
+	}
+	.stage.on {
+		border-color: var(--mint);
+		background: rgba(var(--gold-rgb), 0.1);
+	}
+	.stage.st-won .st-n {
+		color: #1f9d55;
+	}
+	.stage.st-lost .st-n {
+		color: var(--warn);
+	}
+	.stage-badge {
+		display: inline-block;
+		font-size: 0.58rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		padding: 0.1rem 0.4rem;
+		border-radius: 999px;
+		vertical-align: middle;
+		background: var(--edge);
+		color: var(--muted);
+	}
+	.stage-badge.st-qualified {
+		background: rgba(var(--gold-rgb), 0.16);
+		color: var(--mint);
+	}
+	.stage-badge.st-contacted {
+		background: rgba(74, 123, 208, 0.16);
+		color: #4a7bd0;
+	}
+	.stage-badge.st-quoted {
+		background: rgba(138, 99, 208, 0.16);
+		color: #8a63d0;
+	}
+	.stage-badge.st-won {
+		background: rgba(31, 157, 85, 0.16);
+		color: #1f9d55;
+	}
+	.stage-badge.st-lost {
+		background: rgba(200, 70, 70, 0.14);
+		color: var(--warn);
+	}
+	.pipe-hint {
+		font-size: 0.78rem;
+		color: var(--faint);
+		margin: -0.1rem 0 0.7rem;
+	}
+	.pipe-hint code {
+		background: var(--panel-2);
+		padding: 0.05rem 0.3rem;
+		border-radius: 5px;
+	}
+	.pipe-err {
+		font-size: 0.82rem;
+		color: var(--warn);
+		margin: -0.1rem 0 0.7rem;
+	}
+	.stage-form {
+		display: inline-flex;
+	}
+	.stage-set {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.75rem;
+		color: var(--muted);
+	}
+	.stage-set select {
+		font-size: 0.8rem;
+		padding: 0.25rem 0.4rem;
+		border-radius: 8px;
+		border: 1px solid var(--edge);
+		background: var(--panel);
+		color: var(--strong);
+	}
+	.kpi.win .kpi-v {
+		color: #1f9d55;
+	}
+	.gaps {
+		margin-bottom: 1rem;
+	}
+	.gap-list {
+		list-style: none;
+		margin: 0.5rem 0 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.45rem;
+		font-size: 0.9rem;
+		color: var(--body);
+	}
+	.gap-list li {
+		line-height: 1.45;
+	}
+	.gap-list b {
+		color: var(--strong);
+	}
+	.gap-add {
+		color: var(--mint);
+		font-weight: 600;
+		margin-left: 0.3rem;
+		white-space: nowrap;
+	}
+
 	/* KPIs */
 	.kpis {
 		display: grid;

@@ -1,6 +1,9 @@
 import { supabase } from '$lib/server/supabase.js';
+import { fail } from '@sveltejs/kit';
 import { listTours } from '$lib/server/tours.js';
-import { scoreLead, leadTier, extractLead } from '$lib/server/dashboard.js';
+import { scoreLead, leadTier, extractLead, leadStage, STAGES, catalogueGaps } from '$lib/server/dashboard.js';
+
+const OPERATOR_STAGES = ['contacted', 'quoted', 'won', 'lost'];
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -32,9 +35,10 @@ export async function load({ locals, parent }) {
 	const weekStart = new Date();
 	weekStart.setDate(weekStart.getDate() - 7);
 
-	const [{ data: rawLeads }, tourItems] = await Promise.all([
+	const [{ data: rawLeads }, tourItems, { data: convs }] = await Promise.all([
 		supabase.from('leads').select('*').eq('client_id', clientId).order('created_at', { ascending: false }).limit(200),
-		listTours(clientId)
+		listTours(clientId),
+		supabase.from('conversations').select('messages, summary, created_at').eq('client_id', clientId).order('created_at', { ascending: false }).limit(300)
 	]);
 
 	const tours = (tourItems ?? []).map((t) => ({
@@ -45,10 +49,14 @@ export async function load({ locals, parent }) {
 		season: metaGet(t.metadata, 'season', 'month')
 	}));
 
+	// Does the pipeline migration exist yet? (leads.status). Until it's applied,
+	// stages are AI-derived only and the operator's stage control is inert.
+	const pipelineReady = rawLeads?.length ? 'status' in rawLeads[0] : true;
+
 	const leads = (rawLeads ?? []).map((l) => {
 		const score = scoreLead(l);
 		const detail = extractLead(l, tours);
-		return { ...l, score, tier: leadTier(score), detail, action: nextAction(l, detail, score) };
+		return { ...l, score, tier: leadTier(score), detail, stage: leadStage(l, detail, score), action: nextAction(l, detail, score) };
 	});
 
 	// --- CRM aggregates (all from real, scored data) ---
@@ -71,12 +79,20 @@ export async function load({ locals, parent }) {
 	const monthTally = tally(leads.map((l) => l.detail.month));
 	const highBudget = leads.filter((l) => (l.detail.budget ?? 0) >= 5000);
 
+	// Conversation volume (the AI's workload) + opportunities the catalogue misses.
+	const conversations = convs ?? [];
+	const convToday = conversations.filter((c) => isToday(c.created_at)).length;
+	const gaps = catalogueGaps(conversations, tours);
+
 	// "Contact first": the strongest warm/hot lead that arrived recently.
 	const priority = [...leads].filter((l) => isWeek(l.created_at) && l.score >= 55).sort((a, b) => b.score - a.score)[0] ?? null;
 
 	const summary = {
+		convToday,
 		todayCount: todays.length,
 		weekCount: leads.filter((l) => isWeek(l.created_at)).length,
+		qualifiedCount: leads.filter((l) => l.stage === 'qualified' || l.tier.cls === 'hot' || l.tier.cls === 'warm').length,
+		pipelineValue,
 		topMonth: monthTally[0] ?? null,
 		topDestination: destTally[0] ?? null,
 		highBudgetCount: highBudget.length,
@@ -91,12 +107,25 @@ export async function load({ locals, parent }) {
 			: null
 	};
 
+	// --- Sales pipeline + revenue ---
+	const stageCounts = Object.fromEntries(STAGES.map((s) => [s, 0]));
+	for (const l of leads) stageCounts[l.stage] = (stageCounts[l.stage] ?? 0) + 1;
+	const won = leads.filter((l) => l.stage === 'won');
+	const wonValue = won.reduce((s, l) => s + (l.detail.estValue ?? 0), 0);
+	// Conversion = booked ÷ (booked + everything closed or actioned), only meaningful
+	// once the operator has been marking outcomes.
+	const decided = leads.filter((l) => l.stage === 'won' || l.stage === 'lost').length;
+	const conversion = decided ? Math.round((won.length / decided) * 100) : null;
+
 	const stats = {
 		today: todays.length,
 		hot: hot.length,
 		warmPlus: hot.length + warm.length,
 		total: leads.length,
 		pipelineValue,
+		wonValue,
+		wonCount: won.length,
+		conversion,
 		avgScore,
 		currency,
 		matched: leads.filter((l) => l.detail.estValue != null).length
@@ -108,5 +137,34 @@ export async function load({ locals, parent }) {
 		hotCount: hot.length
 	};
 
-	return { leads, stats, summary, insights, client };
+	return { leads, stats, summary, insights, stageCounts, gaps, pipelineReady, client };
 }
+
+export const actions = {
+	// Move a lead through the pipeline. Requires the leads.status column (migration
+	// 011); until then it returns a clear, non-fatal message.
+	setStatus: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		const status = String(form.get('status') ?? '');
+		if (!id || !OPERATOR_STAGES.includes(status)) return fail(400, { error: 'Invalid stage.' });
+		const { error } = await supabase.from('leads').update({ status }).eq('id', id).eq('client_id', locals.user.client_id);
+		if (error) {
+			const needsMigration = /status.* column|column .*status|schema cache/i.test(error.message);
+			return fail(needsMigration ? 409 : 400, {
+				error: needsMigration ? 'Pipeline stages need a quick database update — run db/011_leads_pipeline.sql in Supabase to enable them.' : error.message
+			});
+		}
+		return { ok: true, id, status };
+	},
+
+	// Clear an operator stage → the lead falls back to its AI-derived stage.
+	clearStatus: async ({ request, locals }) => {
+		const form = await request.formData();
+		const id = String(form.get('id') ?? '');
+		if (!id) return fail(400, { error: 'Missing lead.' });
+		const { error } = await supabase.from('leads').update({ status: null }).eq('id', id).eq('client_id', locals.user.client_id);
+		if (error) return fail(400, { error: error.message });
+		return { ok: true, id, status: null };
+	}
+};

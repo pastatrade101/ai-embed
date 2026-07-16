@@ -51,6 +51,40 @@ export function topInterests(conversations, tours, limit = 4) {
 		.map(([k, n]) => ({ term: k.charAt(0).toUpperCase() + k.slice(1), count: n }));
 }
 
+// Common safari/tour experiences customers ask for. If the catalogue doesn't
+// cover one but customers keep asking, that's a revenue opportunity to surface.
+const THEMES = [
+	{ label: 'Hot-air balloon safari', re: /balloon/i },
+	{ label: 'Honeymoon / romantic package', re: /honeymoon|romantic|anniversary/i },
+	{ label: 'Gorilla trekking', re: /gorilla/i },
+	{ label: 'Chimpanzee trekking', re: /chimpanzee|chimp\b/i },
+	{ label: 'Kilimanjaro climb', re: /kilimanjaro|mount meru|mountain climb/i },
+	{ label: 'Diving / snorkelling', re: /scuba|diving|snorkel/i },
+	{ label: 'Walking safari', re: /walking safari|bush walk|guided walk/i },
+	{ label: 'Night game drive', re: /night (drive|safari|game)/i },
+	{ label: 'Cultural / village tour', re: /cultural|maasai(?!\s+mara)|village tour|boma|tribe/i },
+	{ label: 'Family safari', re: /family safari|kid[- ]friendly|child[- ]friendly/i },
+	{ label: 'Birdwatching', re: /bird ?watch|birding/i },
+	{ label: 'Photographic safari', re: /photographic|photography safari/i },
+	{ label: 'Budget / camping safari', re: /budget safari|camping safari|backpack/i }
+];
+
+/**
+ * Opportunities: experiences customers ASK about that the catalogue doesn't cover.
+ * Pure keyword match against tour titles/destinations vs conversation text.
+ */
+export function catalogueGaps(conversations, tours, limit = 3) {
+	const cat = (tours ?? []).map((t) => `${t.title ?? ''} ${t.destination ?? ''} ${t.season ?? ''}`).join(' ');
+	const out = [];
+	for (const th of THEMES) {
+		if (th.re.test(cat)) continue; // already offered
+		let count = 0;
+		for (const c of conversations ?? []) if (th.re.test(convText(c))) count++;
+		if (count > 0) out.push({ label: th.label, count });
+	}
+	return out.sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
 /** Parse a rough group size from free text ("5 people", "group of 4", "for 2"). */
 function groupSize(text) {
 	const s = String(text ?? '').toLowerCase();
@@ -58,6 +92,86 @@ function groupSize(text) {
 	if (m) return Math.min(20, Number(m[1]));
 	m = s.match(/(?:group of|party of|for)\s*(\d{1,2})/);
 	if (m) return Math.min(20, Number(m[1]));
+	return null;
+}
+
+/** Number of children, if the customer mentioned any ("2 kids", "1 child"). */
+function childCount(text) {
+	const s = String(text ?? '').toLowerCase();
+	const m = s.match(/(\d{1,2})\s*(?:children|child|kids?|infants?|toddlers?)\b/);
+	if (m) return Math.min(15, Number(m[1]));
+	if (/\b(no children|no kids|without children|adults only)\b/.test(s)) return 0;
+	return null;
+}
+
+// Common source-market nationalities → the operator sees "Country". Demonyms plus
+// "from <country>". Best-effort; unknown → null (never guess).
+const NATIONALITIES = {
+	british: 'United Kingdom', english: 'United Kingdom', scottish: 'United Kingdom', uk: 'United Kingdom',
+	american: 'United States', usa: 'United States', canadian: 'Canada', australian: 'Australia', australia: 'Australia',
+	german: 'Germany', french: 'France', italian: 'Italy', spanish: 'Spain', dutch: 'Netherlands', belgian: 'Belgium',
+	swiss: 'Switzerland', austrian: 'Austria', irish: 'Ireland', portuguese: 'Portugal', swedish: 'Sweden',
+	norwegian: 'Norway', danish: 'Denmark', polish: 'Poland', russian: 'Russia', indian: 'India', chinese: 'China',
+	japanese: 'Japan', korean: 'South Korea', kenyan: 'Kenya', tanzanian: 'Tanzania', ugandan: 'Uganda',
+	nigerian: 'Nigeria', 'south african': 'South Africa', brazilian: 'Brazil', mexican: 'Mexico', emirati: 'UAE'
+};
+const COUNTRIES = ['united kingdom', 'united states', 'germany', 'france', 'italy', 'spain', 'netherlands', 'belgium', 'switzerland', 'austria', 'ireland', 'canada', 'australia', 'sweden', 'norway', 'denmark', 'poland', 'india', 'china', 'japan', 'kenya', 'tanzania', 'uganda', 'nigeria', 'south africa', 'brazil', 'mexico', 'uae', 'usa', 'uk'];
+const TITLE = (s) => s.replace(/\b\w/g, (c) => c.toUpperCase());
+const CODES = { uk: 'United Kingdom', usa: 'United States', us: 'United States', uae: 'UAE' };
+function resolveCountry(cand) {
+	if (NATIONALITIES[cand]) return NATIONALITIES[cand];
+	if (COUNTRIES.includes(cand) || CODES[cand]) return CODES[cand] || TITLE(cand);
+	return null;
+}
+function nationality(text) {
+	const s = String(text ?? '').toLowerCase();
+	// "from <country>" — try a two-word then one-word candidate (so "from Kenya
+	// with our kids" resolves to Kenya, not "kenya with"; and "from the UK" works).
+	const from = s.match(/\bfrom\s+(?:the\s+)?([a-z]{2,}(?:\s+[a-z]{3,})?)/);
+	if (from) {
+		const words = from[1].trim().split(/\s+/);
+		for (const cand of [words.slice(0, 2).join(' '), words[0]]) {
+			const c = resolveCountry(cand);
+			if (c) return c;
+		}
+	}
+	// Demonyms only in an explicit personal context, so "Indian Ocean" or
+	// "English-speaking guide" are never misread as the customer's Country.
+	for (const [demonym, country] of Object.entries(NATIONALITIES)) {
+		const d = demonym.replace(/ /g, '\\s+');
+		if (new RegExp(`\\b(?:we(?:'re| are)|i(?:'m| am)|we'?re a|as an?|group of)\\s+(?:an?\\s+)?${d}\\b`).test(s)) return country;
+		if (new RegExp(`\\b${d}\\s+(?:couple|family|tourists?|travellers?|traveler|guests?|clients?|nationals?|citizens?|passport|holder)`).test(s)) return country;
+	}
+	return null;
+}
+
+/** Accommodation preference / band ("luxury", "mid-range lodge", "budget camping"). */
+function accommodation(text) {
+	const s = String(text ?? '').toLowerCase();
+	const type = s.match(/\b(luxury lodge|tented camp|luxury camp|mobile camp|lodge|tented|hotel|guesthouse|camping|glamping|resort|villa)\b/)?.[1];
+	let band = null;
+	if (/\b(luxury|high[- ]?end|premium|5[- ]?star|five[- ]?star|exclusive)\b/.test(s)) band = 'Luxury';
+	else if (/\b(mid[- ]?range|standard|comfortable|3[- ]?star|4[- ]?star)\b/.test(s)) band = 'Mid-range';
+	// "budget" only as an accommodation tier, not the money sense ("budget is $8000").
+	else if (/\bbudget\b(?!\s*(?:is|of|:|around|about|approx\.?|~|usd|eur|gbp|tzs|tsh|\$|€|£|\d))/.test(s) || /\b(basic|affordable|backpack)\b/.test(s)) band = 'Budget';
+	if (band && type) return type.includes(band.toLowerCase()) ? TITLE(type) : `${band} · ${TITLE(type)}`;
+	if (type) return TITLE(type);
+	// A band with no lodging type only counts if there's a stay/lodging cue nearby.
+	if (band && /\b(stay|staying|accommodation|lodging|lodge|camp|hotel|room|nights?|resort|suite|board|safari|tour|trip)\b/.test(s)) return band;
+	return null;
+}
+
+const MONTHS_RE = 'january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec';
+/** A concrete date/range if given ("15 July", "July 15-22", "2nd of August"). */
+function travelDates(text) {
+	const s = String(text ?? '');
+	// `(?!\d)` after each day stops a 4-digit year ("July 2024") reading as a day.
+	let m = s.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:-|–|to|until)\\s*(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)\\s*(?:of\\s+)?(${MONTHS_RE})`, 'i'));
+	if (m) return `${m[1]}–${m[2]} ${TITLE(m[3])}`;
+	m = s.match(new RegExp(`\\b(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)\\s*(?:of\\s+)?(${MONTHS_RE})`, 'i'));
+	if (m) return `${m[1]} ${TITLE(m[2])}`;
+	m = s.match(new RegExp(`\\b(${MONTHS_RE})\\s+(\\d{1,2})(?:st|nd|rd|th)?(?!\\d)`, 'i'));
+	if (m) return `${TITLE(m[1])} ${m[2]}`;
 	return null;
 }
 
@@ -88,6 +202,28 @@ export function leadTier(score) {
 	return { label: 'Just browsing', cls: 'cold' };
 }
 
+// Sales pipeline stages, in order. The first three are AI-derived from real
+// signals (no operator action needed); the rest are operator-set (persisted in
+// leads.status once the pipeline migration is applied).
+export const STAGES = ['new', 'qualifying', 'qualified', 'contacted', 'quoted', 'won', 'lost'];
+const AUTO_STAGES = new Set(['new', 'qualifying', 'qualified']);
+
+/** AI-derived stage from real signals — used until the operator sets one. */
+export function autoStage(lead, detail, score) {
+	const hasContact = !!(lead.whatsapp || lead.email);
+	const hasDetail = !!(detail.tour || detail.destination || detail.month || detail.dates || detail.budget || detail.group);
+	if (hasContact && score >= 55 && hasDetail) return 'qualified';
+	if (hasDetail || score >= 35) return 'qualifying';
+	return 'new';
+}
+
+/** Effective stage: an operator's saved status wins; otherwise the AI's guess. */
+export function leadStage(lead, detail, score) {
+	const s = lead.status;
+	if (s && STAGES.includes(s) && !AUTO_STAGES.has(s)) return s; // operator-set wins
+	return autoStage(lead, detail, score);
+}
+
 /** A soft pipeline estimate grounded in the operator's real tour prices. */
 export function pipeline(scoredLeads, tours) {
 	const kw = tourKeywords(tours);
@@ -116,7 +252,17 @@ export function pipeline(scoredLeads, tours) {
 
 const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 function parseMonth(text) {
-	for (const m of MONTHS) if (text.includes(m) || text.includes(m.slice(0, 3))) return m.charAt(0).toUpperCase() + m.slice(1);
+	// Whole-word match on the month or its 3-letter abbreviation, so "may" no
+	// longer fires on "maybe" and "mar" no longer fires on "market".
+	for (const m of MONTHS) {
+		// "may" is also the modal verb — only accept it with a date cue nearby,
+		// so "I may travel in September" isn't mistagged as May.
+		if (m === 'may') {
+			if (/\b(?:in|by|of|during|early|mid|late|around|for)\s+may\b/i.test(text) || /\bmay\s+(?:\d|next|this|202\d)/i.test(text)) return 'May';
+			continue;
+		}
+		if (new RegExp(`\\b(${m}|${m.slice(0, 3)})\\b`, 'i').test(text)) return m.charAt(0).toUpperCase() + m.slice(1);
+	}
 	return null;
 }
 function parseBudget(text) {
@@ -144,11 +290,15 @@ export function extractLead(lead, tours) {
 	}
 	const month = parseMonth(low);
 	const group = groupSize(low);
+	const children = childCount(text);
+	const dates = travelDates(text);
+	const country = nationality(text);
+	const stay = accommodation(text);
 	const budget = parseBudget(low);
 	const firstMessage =
 		(Array.isArray(lead.transcript) ? lead.transcript.find((m) => m.role === 'user')?.content : null) || lead.interest || '';
 	const estValue = tour && tour.price != null ? Math.round(Number(tour.price) * (group ?? 2)) : null;
-	return { destination, tour: tour?.title ?? null, month, group, budget, firstMessage, estValue };
+	return { destination, tour: tour?.title ?? null, month, dates, group, children, country, accommodation: stay, budget, firstMessage, estValue };
 }
 
 /** Merge recent conversations + leads into a single reverse-chronological feed. */
