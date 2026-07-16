@@ -59,7 +59,7 @@
 						</label>
 					</div>
 				</div>
-				<div class="hint">Choose a file from your computer or paste a URL — your assistant’s icon, shown on the floating chat button, the chat header &amp; your hosted page.</div>
+				<div class="hint">Choose a file from your computer or paste a URL — your assistant’s avatar, shown in the chat header &amp; on your hosted page.</div>
 			</div>
 			<div><label for="brand_color">Brand color</label><input id="brand_color" name="brand_color" type="color" value={client.brand_color ?? '#0f6e56'} style="height:44px;padding:.25rem" /></div>
 		</div>
