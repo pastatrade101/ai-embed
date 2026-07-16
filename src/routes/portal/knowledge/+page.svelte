@@ -1,5 +1,6 @@
 <script>
 	import KnowledgeManager from '$lib/components/KnowledgeManager.svelte';
+	import WebsiteSync from '$lib/components/WebsiteSync.svelte';
 	export let data;
 	export let form;
 </script>
@@ -12,3 +13,7 @@
 </div>
 
 <KnowledgeManager items={data.items} departures={data.departures} questions={data.questions} slug={data.client.slug} {form} />
+
+<div style="margin-top:1.5rem">
+	<WebsiteSync websiteUrl={data.websiteUrl} items={data.items} {form} />
+</div>

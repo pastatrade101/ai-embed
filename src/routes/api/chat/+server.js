@@ -15,7 +15,7 @@ export async function POST({ request }) {
 		return jsonCors({ error: 'invalid JSON' }, 400);
 	}
 
-	const { clientSlug, messages, conversationId, source, attachment } = payload ?? {};
+	const { clientSlug, messages, conversationId, source, attachment, page } = payload ?? {};
 	if (!clientSlug || !Array.isArray(messages) || messages.length === 0) {
 		return jsonCors({ error: 'clientSlug and messages[] are required' }, 400);
 	}
@@ -42,8 +42,17 @@ export async function POST({ request }) {
 
 	if (!clean.length) return jsonCors({ error: 'no valid messages' }, 400);
 
+	// The page the widget is embedded on (so the AI can answer about it live).
+	let pg = null;
+	if (page && typeof page === 'object') {
+		const url = typeof page.url === 'string' ? page.url.slice(0, 500) : '';
+		const title = typeof page.title === 'string' ? page.title.slice(0, 200) : '';
+		const excerpt = typeof page.excerpt === 'string' ? page.excerpt.slice(0, 1200) : '';
+		if (url || title || excerpt) pg = { url, title, excerpt };
+	}
+
 	try {
-		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId, source: src, attachment: att });
+		const result = await answerQuestion({ slug: clientSlug, messages: clean, conversationId: convId, source: src, attachment: att, page: pg });
 		return jsonCors(result);
 	} catch (err) {
 		const status = err?.status ?? 500;

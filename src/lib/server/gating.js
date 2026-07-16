@@ -20,6 +20,7 @@ export const FEATURE = {
 	SUMMARIES: 'Conversation history & summaries',
 	TOURS: 'Structured tours & pricing',
 	BULK_IMPORT: 'Bulk knowledge import (CSV/JSON)',
+	WEBSITE_SYNC: 'Website Knowledge Sync',
 	PRIORITY: 'Priority responses',
 	SONNET: 'Advanced (Sonnet) AI model',
 	ATTACHMENTS: 'Chat file attachments (photos & PDFs)',

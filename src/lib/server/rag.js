@@ -153,7 +153,7 @@ function contextBlock(chunks) {
  * @param {{ slug: string, messages: {role:'user'|'assistant', content:string}[], conversationId?: string|null }} args
  * @returns {Promise<{ answer: string, conversationId: string|null, client: { name:string, whatsapp:string|null, brand:string } }>}
  */
-export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget', attachment = null }) {
+export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget', attachment = null, page = null }) {
 	// 1. Resolve the tenant. Reject if inactive or the subscription is canceled.
 	const { data: client, error } = await supabase
 		.from('clients')
@@ -254,6 +254,15 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	];
 	if (convoSummary) {
 		system.push({ type: 'text', text: `EARLIER IN THIS CONVERSATION (summary):\n${convoSummary}` });
+	}
+	// The page the customer is looking at right now (from the embedded widget).
+	// Lets the AI answer about the exact page even if it isn't in the knowledge base.
+	if (page && (page.title || page.excerpt || page.url)) {
+		const head = `The customer is currently viewing this page on the website: ${page.title || ''}${page.url ? ` (${page.url})` : ''}.`.trim();
+		system.push({
+			type: 'text',
+			text: `CURRENT PAGE THE CUSTOMER IS ON:\n${head}${page.excerpt ? `\nPage content:\n${page.excerpt}` : ''}`
+		});
 	}
 
 	// With a summary in hand, send only the recent turns (the summary covers the

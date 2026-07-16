@@ -277,6 +277,14 @@
 		sendText(input ? input.value : '');
 	}
 
+	// The page the customer is currently on, so the assistant can answer about it
+	// even before it's been imported. innerText excludes our shadow-DOM widget.
+	function pageContext() {
+		var text = '';
+		try { text = ((document.body && document.body.innerText) || '').replace(/\s+/g, ' ').trim().slice(0, 1000); } catch (e) {}
+		return { url: location.href.slice(0, 500), title: (document.title || '').slice(0, 200), excerpt: text };
+	}
+
 	function sendText(q) {
 		q = (q || '').trim();
 		if (busy || !q) return;
@@ -287,7 +295,7 @@
 		fetch(API + '/api/chat', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
-			body: JSON.stringify({ clientSlug: CLIENT, messages: messages, conversationId: conversationId })
+			body: JSON.stringify({ clientSlug: CLIENT, messages: messages, conversationId: conversationId, page: pageContext() })
 		})
 			.then(function (r) { return r.json(); })
 			.then(function (data) {
