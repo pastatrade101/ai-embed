@@ -290,10 +290,7 @@
 	</div>
 
 	<!-- 9 · CLIENT PORTFOLIO -->
-	<!-- 9-13 · Portfolio (main column) + activity/opportunities (right rail) -->
-	<div class="dash-cols">
-		<div class="dash-main">
-			<h2 class="section">Client portfolio</h2>
+	<h2 class="section">Client portfolio</h2>
 	{#if clients.length === 0}
 		<div class="card empty">
 			<h3>No clients yet</h3>
@@ -357,15 +354,13 @@
 		</div>
 	{/if}
 
-		</div>
-
-		<aside class="dash-side">
 	<!-- 11 · INSIGHT -->
 	{#if insight}
 		<div class="card insight"><span class="spark">✦</span><div><div class="ins-t">AI insight</div><p>{insight}</p></div></div>
 	{/if}
 
 	<!-- 12 · ACTIVITY + 13 · OPPORTUNITIES -->
+	<div class="split top">
 		<div class="card feed">
 			<div class="card-head">Live activity</div>
 			{#if activity.length}
@@ -389,7 +384,6 @@
 				{/each}
 			{:else}<div class="empty-soft sm">No opportunities flagged — the fleet looks well-optimized.</div>{/if}
 		</div>
-		</aside>
 	</div>
 
 	<!-- 14 · BILLING -->
@@ -876,43 +870,15 @@
 	}
 
 	/* Portfolio */
-	/* Lower dashboard: portfolio in a main column, activity/opportunities in a
-	   right rail that fills the width. Stacks to one column on tablet/mobile. */
-	.dash-cols {
-		display: grid;
-		grid-template-columns: 1fr;
-		gap: 1rem;
-		margin-top: 1.5rem;
-		align-items: start;
-	}
-	@media (min-width: 1024px) {
-		.dash-cols {
-			grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
-			gap: 1.25rem;
-		}
-	}
-	.dash-main {
-		display: flex;
-		flex-direction: column;
-		min-width: 0;
-	}
-	.dash-side {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-		min-width: 0;
-	}
-	.dash-side .card {
-		margin: 0;
-	}
-	/* Keep the live feed from stretching the rail; scroll instead. */
+	/* Keep the live activity feed tidy; scroll rather than stretch the page. */
 	.feed {
-		max-height: 560px;
+		max-height: 620px;
 		overflow-y: auto;
 	}
+	/* Full-width portfolio: cards stretch to fill the row, capped at 4 per row. */
 	.portfolio {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(max(240px, calc((100% - 3 * 0.85rem) / 4)), 1fr));
 		gap: 0.85rem;
 	}
 	.pcard {
