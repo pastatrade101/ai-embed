@@ -4,7 +4,7 @@
 // Idempotent on the provider event id. (Same technique as the Pastatrade backend.)
 import { supabase } from '$lib/server/supabase.js';
 import { getPaymentProvider } from '$lib/server/payments/index.js';
-import { activateClientPlan } from '$lib/server/payments/activate.js';
+import { activateClientPlan, creditClientPack } from '$lib/server/payments/activate.js';
 
 const ATTEMPT_STATUS = {
 	'payment.completed': 'completed',
@@ -47,6 +47,8 @@ export async function POST({ request }) {
 	const clientId = event.metadata.client_id ?? null;
 	const userId = event.metadata.user_id ?? null;
 	const planKey = event.metadata.plan_key ?? null;
+	const isPack = event.metadata.kind === 'credit_pack';
+	const packKey = event.metadata.pack_key ?? null;
 
 	await supabase.from('payment_events').insert({
 		client_id: clientId,
@@ -57,29 +59,29 @@ export async function POST({ request }) {
 		event_payload: event.raw
 	});
 
-	// Advance the matching pending attempt for this client.
+	// Advance the matching pending attempt for this client (match by reference when
+	// available so a concurrent pack + plan attempt don't cross).
 	const attemptStatus = ATTEMPT_STATUS[event.type] ?? null;
 	if (attemptStatus && clientId) {
-		let q = supabase
-			.from('payment_attempts')
-			.select('id')
-			.eq('client_id', clientId)
-			.eq('status', 'pending')
-			.order('created_at', { ascending: false })
-			.limit(1);
-		if (planKey) q = q.eq('plan_key', planKey);
-		const { data: attempt } = await q.maybeSingle();
+		let q = supabase.from('payment_attempts').select('id').eq('client_id', clientId).eq('status', 'pending');
+		if (event.reference) q = q.eq('reference', event.reference);
+		else if (planKey) q = q.eq('plan_key', planKey);
+		const { data: attempt } = await q.order('created_at', { ascending: false }).limit(1).maybeSingle();
 		if (attempt) {
 			await supabase.from('payment_attempts').update({ status: attemptStatus, updated_at: new Date().toISOString() }).eq('id', attempt.id);
 		}
 	}
 
-	if (event.type === 'payment.completed' && clientId && planKey) {
-		await activateClientPlan(clientId, planKey, {
-			provider: 'snippe',
-			interval: event.metadata.interval === 'yearly' ? 'yearly' : 'monthly',
-			reference: event.reference
-		});
+	if (event.type === 'payment.completed' && clientId) {
+		if (isPack && packKey) {
+			await creditClientPack(clientId, packKey, { reference: event.reference, provider: 'snippe' });
+		} else if (planKey) {
+			await activateClientPlan(clientId, planKey, {
+				provider: 'snippe',
+				interval: event.metadata.interval === 'yearly' ? 'yearly' : 'monthly',
+				reference: event.reference
+			});
+		}
 	}
 
 	return new Response('OK');

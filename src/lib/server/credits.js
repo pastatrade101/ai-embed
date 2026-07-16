@@ -21,12 +21,15 @@ export const AVG_COST_PER_CONVERSATION = 0.004;
 // conversations. Live conversations are never cut off mid-chat.
 export const GRACE_PCT = 0.15;
 
-// Purchasable top-ups (Pass 2 wires the checkout; pricing lives here now so the
-// dashboard can advertise them). `budget` is the AI cost value the pack adds.
+// Purchasable top-ups. `price`/`currency` are what the customer is charged and
+// MUST be in the platform's billing currency (the same one the plans use — TZS
+// here — and above Snippe's 500 minimum). `budget` is the AI cost value (USD) the
+// pack adds to the allowance; it's currency-independent (AI cost is billed in USD).
+// Retune prices if you change billing currency.
 export const CREDIT_PACKS = [
-	{ key: 'small', label: 'Small', price: 10, currency: 'USD', budget: 4 },
-	{ key: 'medium', label: 'Medium', price: 25, currency: 'USD', budget: 11 },
-	{ key: 'large', label: 'Large', price: 60, currency: 'USD', budget: 29 }
+	{ key: 'small', label: 'Small', price: 25000, currency: 'TZS', budget: 4 },
+	{ key: 'medium', label: 'Medium', price: 60000, currency: 'TZS', budget: 11 },
+	{ key: 'large', label: 'Large', price: 150000, currency: 'TZS', budget: 29 }
 ];
 
 // Friendly labels for the usage-by-category breakdown, keyed by usage_records.feature.
@@ -101,11 +104,25 @@ export async function monthSpend(clientId) {
 	}
 }
 
+/** AI budget (USD) added by credit packs bought this billing period. Fails to 0
+ *  if migration 015 hasn't run (packs simply don't apply yet). */
+export async function packsThisPeriod(clientId) {
+	try {
+		const { data, error } = await supabase.rpc('tenant_pack_budget', { p_client_id: clientId, p_since: monthStartISO() });
+		if (error) return 0;
+		return Number(data ?? 0);
+	} catch {
+		return 0;
+	}
+}
+
 const level = (pct, over) => (over ? 'exhausted' : pct >= 100 ? 'grace' : pct >= 95 ? 'critical' : pct >= 80 ? 'approaching' : 'healthy');
 
 /** Lean budget status — used by both the chat gate and the dashboard header. */
 export async function budgetStatus(clientId, planKey) {
-	const budget = await effectiveBudget(planKey);
+	const base = await effectiveBudget(planKey);
+	const packCredits = await packsThisPeriod(clientId);
+	const budget = base + packCredits;
 	const spent = await monthSpend(clientId);
 	const grace = budget * GRACE_PCT;
 	const ratio = budget > 0 ? (spent / budget) * 100 : 0; // unrounded — drives status thresholds
@@ -114,6 +131,8 @@ export async function budgetStatus(clientId, planKey) {
 	const remainingBudget = Math.max(0, budget - spent);
 	return {
 		budget,
+		base,
+		packCredits,
 		spent,
 		grace,
 		pct,

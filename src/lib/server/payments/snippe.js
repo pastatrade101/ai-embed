@@ -51,14 +51,17 @@ export const snippeProvider = {
 			);
 		}
 
+		const isPack = input.kind === 'credit_pack';
 		const payload = {
 			amount,
 			currency: input.currency,
 			customer: { name: input.customer.name, email: input.customer.email, phone: input.customer.phone },
 			redirect_url: input.successUrl,
-			description: `Makutano ${input.planName} (${input.interval})`,
-			// Echoed back on the webhook so we know who/what to activate.
-			metadata: { client_id: input.clientId, user_id: input.userId, plan_key: input.planKey, interval: input.interval, kind: 'subscription' },
+			description: isPack ? `Makutano AI Credits — ${input.planName}` : `Makutano ${input.planName} (${input.interval})`,
+			// Echoed back on the webhook so we know who/what to activate or credit.
+			metadata: isPack
+				? { client_id: input.clientId, user_id: input.userId, kind: 'credit_pack', pack_key: input.packKey }
+				: { client_id: input.clientId, user_id: input.userId, plan_key: input.planKey, interval: input.interval, kind: 'subscription' },
 			expires_in: 3600
 		};
 		// Snippe rejects non-public webhook URLs. In dev (http://localhost) omit it

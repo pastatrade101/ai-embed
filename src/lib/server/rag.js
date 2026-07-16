@@ -10,6 +10,7 @@ import { estimateCost } from './pricing.js';
 import { TOOL_DEFS, runTool } from './tools.js';
 import { FEATURE, planAllows, planUnlocks } from './gating.js';
 import { budgetStatus } from './credits.js';
+import { notifyUsageIfCrossed } from './usage-alerts.js';
 
 const MAX_TOOL_LOOPS = 6;
 // Premium model tier unlocked by the "Advanced (Sonnet) AI model" plan feature.
@@ -229,6 +230,8 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	//     blocked until migration 014 is applied.
 	if (isNewConversation) {
 		const budget = await budgetStatus(client.id, client.plan);
+		// Heads-up email at 80/95/100% (de-duped per month) — never blocks the reply.
+		notifyUsageIfCrossed(client.id, budget).catch(() => {});
 		if (budget.blocked) {
 			return {
 				answer:

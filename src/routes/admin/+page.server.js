@@ -100,7 +100,8 @@ export async function load({ locals }) {
 		}
 
 		const rev = revenue(clients, plans);
-		const spend = aiSpend(usageRes.error ? [] : usageRes.data);
+		const nameById = Object.fromEntries(clients.map((c) => [c.id, c.name]));
+		const spend = aiSpend(usageRes.error ? [] : usageRes.data, nameById);
 
 		// Real day-over-day deltas (we have timestamps; no fabrication).
 		const countAtLeast = (rows, iso) => (rows ?? []).filter((r) => r.created_at >= iso).length;

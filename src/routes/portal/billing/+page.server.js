@@ -1,9 +1,9 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { conversationsThisMonth, usageThisMonth } from '$lib/server/tenant.js';
-import { usageSummary, CREDIT_PACKS } from '$lib/server/credits.js';
+import { usageSummary, CREDIT_PACKS, AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
 import { getPaymentProvider, paymentsEnabled } from '$lib/server/payments/index.js';
-import { activateClientPlan } from '$lib/server/payments/activate.js';
+import { activateClientPlan, creditClientPack } from '$lib/server/payments/activate.js';
 
 export async function load({ parent }) {
 	const { client } = await parent();
@@ -30,7 +30,7 @@ export async function load({ parent }) {
 		usedThisMonth: used,
 		usage,
 		credits,
-		creditPacks: CREDIT_PACKS,
+		creditPacks: CREDIT_PACKS.map((p) => ({ ...p, conversations: Math.round(p.budget / AVG_COST_PER_CONVERSATION) })),
 		paymentsEnabled: paymentsEnabled(),
 		pendingAttempt: pendingRes.data ?? null
 	};
@@ -111,6 +111,61 @@ export const actions = {
 		throw redirect(303, checkout.checkout_url);
 	},
 
+	// Buy a one-time AI Credit pack. Same Snippe hosted-checkout rails as an
+	// upgrade, but the webhook credits the pack instead of changing the plan.
+	buyCredits: async ({ request, locals, url }) => {
+		const provider = getPaymentProvider();
+		if (!provider) return fail(503, { error: 'Online payment isn’t set up yet — contact us to add AI Credits.' });
+		const form = await request.formData();
+		const packKey = String(form.get('pack') ?? '').trim();
+		const phone = String(form.get('phone') ?? '').trim();
+		const pack = CREDIT_PACKS.find((p) => p.key === packKey);
+		if (!pack) return fail(400, { error: 'Unknown credit pack.' });
+
+		const clientId = locals.user.client_id;
+		const { data: client } = await supabase.from('clients').select('id, name, contact_email, whatsapp_number').eq('id', clientId).maybeSingle();
+		if (!client) return fail(404, { error: 'Business not found.' });
+
+		let checkout;
+		try {
+			checkout = await provider.createCheckout({
+				clientId,
+				userId: locals.user.id,
+				kind: 'credit_pack',
+				packKey: pack.key,
+				planName: `${pack.label} pack`,
+				amount: Number(pack.price),
+				currency: pack.currency,
+				customer: { name: client.name, email: client.contact_email || locals.user.email, phone: phone || client.whatsapp_number || undefined },
+				successUrl: `${url.origin}/portal/billing?credits=success`
+			});
+		} catch (e) {
+			return fail(e?.status ?? 502, { error: e?.message ?? 'Could not start checkout.' });
+		}
+
+		await supabase.from('payment_events').insert({
+			client_id: clientId,
+			user_id: locals.user.id,
+			provider: provider.name,
+			event_type: 'checkout_created',
+			status: 'pending',
+			event_payload: { reference: checkout.reference, kind: 'credit_pack', pack_key: pack.key, amount: pack.price, currency: pack.currency }
+		});
+		await supabase.from('payment_attempts').insert({
+			client_id: clientId,
+			user_id: locals.user.id,
+			provider: provider.name,
+			reference: checkout.reference,
+			kind: 'credit_pack',
+			pack_key: pack.key,
+			amount: pack.price,
+			currency: pack.currency,
+			status: 'pending'
+		});
+
+		throw redirect(303, checkout.checkout_url);
+	},
+
 	// Pull-based fallback when the webhook is missed/delayed: check the live status
 	// of the latest pending attempt and activate if it's actually paid.
 	verifyPayment: async ({ locals }) => {
@@ -119,7 +174,7 @@ export const actions = {
 
 		const { data: attempt } = await supabase
 			.from('payment_attempts')
-			.select('id, reference, plan_key')
+			.select('id, reference, plan_key, kind, pack_key')
 			.eq('client_id', locals.user.client_id)
 			.eq('status', 'pending')
 			.order('created_at', { ascending: false })
@@ -131,7 +186,12 @@ export const actions = {
 		if (!status) return { ok: false, message: 'Could not reach the payment provider. Please try again shortly.' };
 		if (!status.paid) return { ok: false, message: 'Your payment hasn’t completed yet. If you’ve paid, give it a minute and try again.' };
 
-		await activateClientPlan(locals.user.client_id, attempt.plan_key, { provider: provider.name, reference: attempt.reference });
+		const isPack = attempt.kind === 'credit_pack';
+		if (isPack) {
+			await creditClientPack(locals.user.client_id, attempt.pack_key, { reference: attempt.reference, provider: provider.name });
+		} else {
+			await activateClientPlan(locals.user.client_id, attempt.plan_key, { provider: provider.name, reference: attempt.reference });
+		}
 		await supabase.from('payment_attempts').update({ status: 'completed', updated_at: new Date().toISOString() }).eq('id', attempt.id);
 		await supabase.from('payment_events').insert({
 			client_id: locals.user.client_id,
@@ -139,8 +199,8 @@ export const actions = {
 			provider: provider.name,
 			event_type: 'payment.completed',
 			status: 'completed',
-			event_payload: { reference: attempt.reference, via: 'self-verify' }
+			event_payload: { reference: attempt.reference, via: 'self-verify', kind: attempt.kind ?? 'subscription' }
 		});
-		return { ok: true, message: 'Payment verified — your plan is now active.' };
+		return { ok: true, message: isPack ? 'Payment verified — your AI Credits have been added.' : 'Payment verified — your plan is now active.' };
 	}
 };

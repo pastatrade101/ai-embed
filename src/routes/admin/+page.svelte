@@ -247,13 +247,29 @@
 				{/each}
 			</div>
 			<div class="cost-tiles">
-				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.cost))}</div><div class="mt-l">Est. AI cost / mo</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.cost))}</div><div class="mt-l">AI cost so far / mo</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.projected))}</div><div class="mt-l">Projected / mo</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.claudeCost))}</div><div class="mt-l">Claude cost</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(spend.voyageCost))}</div><div class="mt-l">Voyage (embeddings)</div></div>
 				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.conversationsMonth ? spend.cost / t.conversationsMonth : 0))}</div><div class="mt-l">Cost / conversation</div></div>
-				<div class="mini-tile"><div class="mt-v">{money(rev.mrr - inRevCur(spend.cost))}</div><div class="mt-l">Gross margin</div></div>
-				<div class="mini-tile"><div class="mt-v">{tokens(spend.cachedTokens)}</div><div class="mt-l">Cached tokens</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.qualified ? spend.cost / t.qualified : 0))}</div><div class="mt-l">Cost / qualified lead</div></div>
+				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.clients ? spend.cost / t.clients : 0))}</div><div class="mt-l">Cost / tenant</div></div>
+				<div class="mini-tile"><div class="mt-v">{rev.mrr > 0 ? Math.round(((rev.mrr - inRevCur(spend.projected)) / rev.mrr) * 100) + '%' : '—'}</div><div class="mt-l">Projected gross margin</div></div>
 			</div>
 		</div>
-		<p class="fineprint">From metered AI turns (usage_records). Gross margin = MRR − est. AI cost; excludes storage, embeddings &amp; opex.{#if rev?.currency && rev.currency !== 'USD'} AI cost billed in USD, shown at ≈{USD_TZS.toLocaleString()} {rev.currency}/USD.{/if}</p>
+		{#if spend.topSpenders?.length}
+			<div class="card" style="margin-top:1rem">
+				<div class="bars-head">Top AI spenders · this month</div>
+				{#each spend.topSpenders as s}
+					<div class="bar-row">
+						<span class="bl">{s.name}</span>
+						<div class="btrack"><span class="bfill" style="width:{Math.round((s.cost / Math.max(1e-9, spend.topSpenders[0].cost)) * 100)}%;background:var(--accent)"></span></div>
+						<span class="bv">{money(inRevCur(s.cost))}</span>
+					</div>
+				{/each}
+			</div>
+		{/if}
+		<p class="fineprint">From metered AI turns (usage_records), Claude + Voyage embeddings. Projected = straight-line to month end. Gross margin = MRR − projected AI cost; excludes storage &amp; opex.{#if rev?.currency && rev.currency !== 'USD'} AI cost billed in USD, shown at ≈{USD_TZS.toLocaleString()} {rev.currency}/USD.{/if}</p>
 	{:else}
 		<div class="card empty-soft">AI cost isn’t metered yet — once usage logging records turns, spend, tokens and margin appear here.</div>
 	{/if}

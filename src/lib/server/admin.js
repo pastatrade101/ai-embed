@@ -173,16 +173,23 @@ export function leaderboard(clients, key, limit = 5) {
 /* ------------------------------------------------------------- AI spend --- */
 
 /** Real AI cost + tokens from usage_records (empty-safe). */
-export function aiSpend(usageRows) {
+const VOYAGE_MODELS = new Set(['voyage-3']);
+
+export function aiSpend(usageRows, nameById = {}) {
 	const rows = usageRows ?? [];
 	let cost = 0;
+	let claude = 0;
+	let voyage = 0;
 	let inTok = 0;
 	let outTok = 0;
 	let cachedTok = 0;
 	const byModel = new Map();
+	const byTenant = new Map();
 	for (const r of rows) {
 		const c = Number(r.estimated_cost) || 0;
 		cost += c;
+		if (VOYAGE_MODELS.has(r.model)) voyage += c;
+		else claude += c;
 		inTok += Number(r.input_tokens) || 0;
 		outTok += Number(r.output_tokens) || 0;
 		cachedTok += Number(r.cached_tokens) || 0;
@@ -190,15 +197,29 @@ export function aiSpend(usageRows) {
 		m.cost += c;
 		m.calls += 1;
 		byModel.set(r.model, m);
+		byTenant.set(r.client_id, (byTenant.get(r.client_id) ?? 0) + c);
 	}
+	// Straight-line projection of this month's spend to the full month.
+	const now = new Date();
+	const dayOfMonth = now.getDate();
+	const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+	const projected = dayOfMonth > 0 ? (cost / dayOfMonth) * daysInMonth : cost;
+	const topSpenders = [...byTenant.entries()]
+		.map(([id, c]) => ({ id, name: nameById[id] ?? 'Unknown', cost: c }))
+		.sort((a, b) => b.cost - a.cost)
+		.slice(0, 6);
 	return {
 		tracked: rows.length > 0,
 		cost,
+		claudeCost: claude,
+		voyageCost: voyage,
+		projected,
 		turns: rows.length,
 		inputTokens: inTok,
 		outputTokens: outTok,
 		cachedTokens: cachedTok,
-		byModel: [...byModel.values()].sort((a, b) => b.cost - a.cost)
+		byModel: [...byModel.values()].sort((a, b) => b.cost - a.cost),
+		topSpenders
 	};
 }
 

@@ -27,6 +27,7 @@
 	let showAdvanced = false;
 	const statusLabel = { active: 'Active', trialing: 'Trial', past_due: 'Payment due', canceled: 'Canceled' };
 	$: justReturned = $page.url.searchParams.get('upgrade') === 'success';
+	$: boughtCredits = $page.url.searchParams.get('credits') === 'success';
 	const planName = (key) => data.plans.find((p) => p.key === key)?.name ?? key;
 	// Where a plan sits relative to the one the operator is on, so we only ever
 	// offer real upgrades — never a "buy again" for the current or a lower tier.
@@ -57,12 +58,14 @@
 	<div class="notice err">{form.error}</div>
 {/if}
 
-{#if justReturned || data.pendingAttempt}
+{#if justReturned || boughtCredits || data.pendingAttempt}
 	<div class="notice">
-		{#if justReturned}
+		{#if boughtCredits}
+			Thanks! Your AI Credits will be added once payment confirms.
+		{:else if justReturned}
 			Thanks! Payment can take a moment to confirm.
 		{:else}
-			You have an upgrade to <b>{planName(data.pendingAttempt.plan_key)}</b> in progress.
+			You have a payment in progress.
 		{/if}
 		If your plan hasn’t updated yet, check its status:
 		<form method="POST" action="?/verifyPayment" use:enhance={() => { verifying = true; return async ({ update }) => { verifying = false; await update(); }; }} style="display:inline">
@@ -156,6 +159,27 @@
 		<div class="tile"><div class="k">Claude output</div><div class="v" style="font-size:1.4rem">{nf(credits.advanced.outputTokens)}</div><div class="foot">tokens generated</div></div>
 		<div class="tile"><div class="k">Knowledge processing</div><div class="v" style="font-size:1.4rem">{nf(credits.advanced.embeddingTokens)}</div><div class="foot">Voyage embedding tokens</div></div>
 		<div class="tile"><div class="k">Est. AI cost</div><div class="v">${credits.spent.toFixed(2)}</div><div class="foot">Claude ${credits.advanced.claudeCost.toFixed(2)} · Voyage ${credits.advanced.voyageCost.toFixed(2)}</div></div>
+	</div>
+{/if}
+
+{#if data.paymentsEnabled}
+	<h2 class="section" id="credits">Add AI Credits</h2>
+	<p class="muted" style="margin:-0.4rem 0 0.9rem;font-size:0.9rem">
+		Need more capacity this month? Top up instantly — credits apply to your current billing period ({fmtDate(credits.period.start)} – {fmtDate(credits.period.end)}).
+		{#if credits.packCredits > 0}<br />You've added ≈ {nf(Math.round(credits.packCredits / 0.004))} conversations in top-ups this period.{/if}
+	</p>
+	<div class="packs-grid">
+		{#each data.creditPacks as p (p.key)}
+			<div class="card pack-card">
+				<div class="pack-name">{p.label}</div>
+				<div class="pack-price">{p.currency} {nf(p.price)}</div>
+				<div class="pack-conv">≈ {nf(p.conversations)} more conversations</div>
+				<form method="POST" action="?/buyCredits">
+					<input type="hidden" name="pack" value={p.key} />
+					<button class="btn pack-cta" type="submit">Buy {p.label} pack</button>
+				</form>
+			</div>
+		{/each}
 	</div>
 {/if}
 
@@ -416,5 +440,40 @@
 	}
 	.tone-danger {
 		color: var(--danger, #c84646);
+	}
+	.packs-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: 1rem;
+		align-items: stretch;
+	}
+	.pack-card {
+		padding: 1.25rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.35rem;
+	}
+	.pack-name {
+		font-weight: 700;
+		color: var(--strong, #fff);
+		font-size: 1.05rem;
+	}
+	.pack-price {
+		font-size: 1.5rem;
+		font-weight: 800;
+		color: var(--strong, #fff);
+		letter-spacing: -0.02em;
+	}
+	.pack-conv {
+		color: var(--muted, #9aa5a1);
+		font-size: 0.85rem;
+		margin-bottom: 0.6rem;
+	}
+	.pack-card form {
+		margin-top: auto;
+	}
+	.pack-cta {
+		width: 100%;
+		justify-content: center;
 	}
 </style>
