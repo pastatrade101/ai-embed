@@ -6,12 +6,16 @@
 	export let items = [];
 	export let health = null;
 	export let conflicts = [];
+	export let autoSync = false;
 	export let form = null;
 
 	let url = websiteUrl || '';
 	let scanning = false;
 	let importing = false;
 	let resolving = false;
+	let resyncing = false;
+	let togglingAuto = false;
+	let findingGaps = false;
 	let selectedUrls = [];
 	let seenScan = null;
 
@@ -24,6 +28,14 @@
 	}
 	$: allSelected = scan && selectedUrls.length === scan.pages.length;
 	$: connected = (items ?? []).filter((i) => i?.metadata?.source === 'website');
+	// Gap results arrive on `form`, but `form` is shared by every action in this
+	// component — so we copy them into local state the moment a findGaps response
+	// lands, and never clear it just because another action (e.g. a per-gap "Import
+	// page") later replaces `form`. gapsChecked distinguishes "ran" from "not run".
+	let gapView = null;
+	$: if (form?.section === 'website' && form?.gapsChecked !== undefined) {
+		gapView = { gaps: form.gaps ?? [], checked: form.gapsChecked };
+	}
 
 	const toggle = (u) => (selectedUrls = selectedUrls.includes(u) ? selectedUrls.filter((x) => x !== u) : [...selectedUrls, u]);
 	const toggleAll = () => (selectedUrls = allSelected ? [] : scan.pages.map((p) => p.url));
@@ -47,6 +59,27 @@
 		return async ({ update }) => {
 			await update();
 			resolving = false;
+		};
+	};
+	const resyncSubmit = () => {
+		resyncing = true;
+		return async ({ update }) => {
+			await update();
+			resyncing = false;
+		};
+	};
+	const autoSubmit = () => {
+		togglingAuto = true;
+		return async ({ update }) => {
+			await update();
+			togglingAuto = false;
+		};
+	};
+	const gapsSubmit = () => {
+		findingGaps = true;
+		return async ({ update }) => {
+			await update();
+			findingGaps = false;
 		};
 	};
 
@@ -156,12 +189,59 @@
 					<span class="ws-sync">Synced {relTime(c.metadata?.last_synced)}</span>
 				</div>
 			{/each}
-			<form method="POST" action="?/importWebsite" use:enhance={importSubmit}>
-				<input type="hidden" name="urls" value={JSON.stringify(connected.map((c) => c.metadata?.source_url).filter(Boolean))} />
-				<button class="btn ghost sm" type="submit" disabled={importing}>{importing ? 'Re-syncing…' : 'Re-sync all'}</button>
-			</form>
+			<div class="ws-actions">
+				<form method="POST" action="?/resyncWebsite" use:enhance={resyncSubmit}>
+					<button class="btn ghost sm" type="submit" disabled={resyncing}>{resyncing ? 'Checking pages…' : 'Re-sync now'}</button>
+				</form>
+				<form method="POST" action="?/toggleAutoSync" use:enhance={autoSubmit} class="ws-auto">
+					<input type="hidden" name="on" value={autoSync ? 'off' : 'on'} />
+					<button class="ws-toggle" class:on={autoSync} type="submit" disabled={togglingAuto} aria-pressed={autoSync}>
+						<span class="ws-knob"></span>
+					</button>
+					<span class="ws-auto-label">{autoSync ? 'Auto-sync weekly · on' : 'Auto-sync weekly'}</span>
+				</form>
+			</div>
 		</div>
 	{/if}
+
+	<div class="ws-gaps">
+		<div class="ws-gaps-head">
+			<div>
+				<div class="ws-sub">Knowledge gaps</div>
+				<p class="muted">Questions customers asked that your AI struggled to answer — and pages that could fix them.</p>
+			</div>
+			<form method="POST" action="?/findGaps" use:enhance={gapsSubmit}>
+				<button class="btn ghost sm" type="submit" disabled={findingGaps}>{findingGaps ? 'Analysing…' : 'Find gaps'}</button>
+			</form>
+		</div>
+		{#if gapView}
+			{#if gapView.gaps.length}
+				<div class="ws-gaplist">
+					{#each gapView.gaps as g}
+						<div class="ws-gap">
+							<div class="ws-gap-q">
+								<span class="ws-gap-icon">?</span>
+								<span class="ws-gap-text">{g.question}{#if g.count > 1}<span class="ws-gap-count">×{g.count}</span>{/if}</span>
+							</div>
+							{#if g.suggestion}
+								<form method="POST" action="?/importWebsite" use:enhance={importSubmit} class="ws-gap-fix">
+									<input type="hidden" name="urls" value={JSON.stringify([g.suggestion.url])} />
+									<span class="ws-gap-sugg">Suggested: <b>{g.suggestion.label}</b></span>
+									<button class="btn sm" type="submit" disabled={importing}>Import page</button>
+								</form>
+							{:else}
+								<span class="ws-gap-none">Add this to AI Knowledge</span>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{:else if gapView.checked > 0}
+				<div class="notice">No gaps found — your AI covered the {gapView.checked} recent question{gapView.checked === 1 ? '' : 's'} well. 🎉</div>
+			{:else}
+				<div class="notice">No customer questions to analyse yet — check back once your assistant has taken some chats.</div>
+			{/if}
+		{/if}
+	</div>
 </section>
 
 <style>
@@ -410,6 +490,136 @@
 	.ws-skipped ul {
 		margin: 0.3rem 0 0;
 		padding-left: 1.1rem;
+	}
+	.ws-actions {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+		margin-top: 0.2rem;
+	}
+	.ws-auto {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+	.ws-toggle {
+		position: relative;
+		width: 36px;
+		height: 20px;
+		flex: none;
+		padding: 0;
+		border: none;
+		border-radius: 999px;
+		background: var(--edge);
+		cursor: pointer;
+		transition: background 0.15s ease;
+	}
+	.ws-toggle.on {
+		background: var(--mint);
+	}
+	.ws-toggle:disabled {
+		opacity: 0.6;
+		cursor: default;
+	}
+	.ws-knob {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 14px;
+		height: 14px;
+		border-radius: 50%;
+		background: #fff;
+		transition: transform 0.15s ease;
+	}
+	.ws-toggle.on .ws-knob {
+		transform: translateX(16px);
+	}
+	.ws-auto-label {
+		font-size: 0.8rem;
+		color: var(--muted);
+	}
+	.ws-gaps {
+		border-top: 1px solid var(--edge);
+		padding-top: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+	}
+	.ws-gaps-head {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+	.ws-gaps-head .muted {
+		margin: 0.25rem 0 0;
+		font-size: 0.82rem;
+		max-width: 48ch;
+	}
+	.ws-gaplist {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.ws-gap {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+		padding: 0.55rem 0.75rem;
+		border: 1px solid var(--edge);
+		border-radius: 10px;
+		background: var(--panel-2);
+	}
+	.ws-gap-q {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex: 1;
+		min-width: 160px;
+	}
+	.ws-gap-icon {
+		flex: none;
+		width: 18px;
+		height: 18px;
+		border-radius: 50%;
+		background: rgba(var(--gold-rgb), 0.16);
+		color: var(--mint);
+		font-size: 0.72rem;
+		font-weight: 700;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+	}
+	.ws-gap-text {
+		font-size: 0.88rem;
+		color: var(--strong);
+	}
+	.ws-gap-count {
+		margin-left: 0.4rem;
+		font-size: 0.74rem;
+		color: var(--faint);
+	}
+	.ws-gap-fix {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.6rem;
+		flex-wrap: wrap;
+	}
+	.ws-gap-sugg {
+		font-size: 0.8rem;
+		color: var(--muted);
+	}
+	.ws-gap-sugg b {
+		color: var(--strong);
+	}
+	.ws-gap-none {
+		font-size: 0.78rem;
+		color: var(--faint);
+		white-space: nowrap;
 	}
 	@media (min-width: 720px) {
 		.ws-url {

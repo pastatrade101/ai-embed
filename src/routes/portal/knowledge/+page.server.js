@@ -11,7 +11,15 @@ import {
 } from '$lib/server/tenant.js';
 import { departuresByItem } from '$lib/server/tours.js';
 import { customerQuestions } from '$lib/server/dashboard.js';
-import { scanWebsite, importWebsitePages, detectConflicts, resolveConflict as resolveConflictFn } from '$lib/server/website-sync.js';
+import {
+	scanWebsite,
+	importWebsitePages,
+	detectConflicts,
+	resolveConflict as resolveConflictFn,
+	resyncWebsitePages,
+	setAutoSync,
+	findKnowledgeGaps
+} from '$lib/server/website-sync.js';
 import { planAllows, FEATURE } from '$lib/server/gating.js';
 import { fail } from '@sveltejs/kit';
 
@@ -34,6 +42,7 @@ export async function load({ locals }) {
 		return t && (!a || t > a) ? t : a;
 	}, null);
 	const conflicts = detectConflicts(list);
+	const autoSync = websiteItems.some((i) => i?.metadata?.auto_sync === true);
 
 	return {
 		items: list,
@@ -41,7 +50,8 @@ export async function load({ locals }) {
 		questions,
 		websiteUrl: clientRes.data?.website_url ?? '',
 		websiteHealth: { connected: websiteItems.length, lastSync, conflicts: conflicts.length },
-		conflicts
+		conflicts,
+		autoSync
 	};
 }
 
@@ -101,5 +111,44 @@ export const actions = {
 		});
 		if (r.error) return fail(400, { section: 'website', error: r.error });
 		return { section: 'website', ok: r.ok };
+	},
+
+	// Re-check every connected page and only re-embed the ones that changed.
+	resyncWebsite: async ({ locals }) => {
+		const clientId = locals.user.client_id;
+		const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+		if (!(await planAllows(c?.plan, FEATURE.WEBSITE_SYNC))) {
+			return fail(403, { section: 'website', error: 'Website Sync isn’t included in your plan.' });
+		}
+		const { updated, unchanged, failed, skipped } = await resyncWebsitePages(clientId);
+		if (skipped) return { section: 'website', ok: 'A re-sync is already running — give it a moment.' };
+		const bits = [`${updated} updated`, `${unchanged} unchanged`];
+		if (failed.length) bits.push(`${failed.length} failed`);
+		return { section: 'website', ok: `Re-sync complete — ${bits.join(' · ')}.`, failed };
+	},
+
+	// Turn weekly background auto-sync on/off.
+	toggleAutoSync: async ({ request, locals }) => {
+		const clientId = locals.user.client_id;
+		const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+		if (!(await planAllows(c?.plan, FEATURE.WEBSITE_SYNC))) {
+			return fail(403, { section: 'website', error: 'Website Sync isn’t included in your plan.' });
+		}
+		const form = await request.formData();
+		const on = String(form.get('on') ?? '') === 'on';
+		const r = await setAutoSync(clientId, on);
+		if (r.error) return fail(400, { section: 'website', error: r.error });
+		return { section: 'website', ok: r.ok };
+	},
+
+	// Surface questions the AI struggled to answer, with page suggestions.
+	findGaps: async ({ locals }) => {
+		const clientId = locals.user.client_id;
+		const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+		if (!(await planAllows(c?.plan, FEATURE.WEBSITE_SYNC))) {
+			return fail(403, { section: 'website', error: 'Website Sync isn’t included in your plan.' });
+		}
+		const { gaps, checked } = await findKnowledgeGaps(clientId);
+		return { section: 'website', gaps, gapsChecked: checked };
 	}
 };

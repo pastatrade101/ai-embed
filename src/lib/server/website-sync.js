@@ -8,26 +8,100 @@
 // Scan = fast URL discovery (sitemap → links) + URL-based categorisation.
 // Import = fetch + extract readable text + embed the pages the operator approved.
 import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+import { lookup } from 'node:dns/promises';
+import { env } from '$env/dynamic/private';
 import { supabase } from '$lib/server/supabase.js';
 import { reingestItem } from '$lib/server/rag.js';
+import { embedQuery } from '$lib/server/embeddings.js';
+import { customerQuestions } from '$lib/server/dashboard.js';
 
 const UA = 'Mozilla/5.0 (compatible; MakutanoBot/1.0; +https://ai.makutano.co.tz)';
 const ITEM_COLS = 'id, client_id, title, body, category, price_amount, price_currency, metadata';
 const MAX_IMPORT = 40; // pages embedded per import run
+const MAX_RESYNC = 100; // pages re-checked per re-sync run (stalest first)
 const MAX_TEXT = 9000; // chars of extracted body per page
+// Escape hatch for local dev/testing against localhost. NEVER set in production.
+const ALLOW_PRIVATE = env.WEBSITE_SYNC_ALLOW_PRIVATE === 'on';
+// Clients with a re-sync in progress — prevents a manual re-sync and the scheduler
+// (or a double-click) from re-embedding the same items concurrently, which would
+// race in reingestItem's non-atomic delete-then-insert.
+const resyncing = new Set();
 
-/** Fetch a URL as text with a browser-ish UA and a hard timeout. Null on failure. */
+// ---- SSRF guard ------------------------------------------------------------
+// We fetch operator-supplied and stored URLs server-side (scan, import, and the
+// background re-sync), so a URL pointing at a private/loopback/link-local host
+// (cloud metadata 169.254.169.254, Caddy admin on localhost, RFC-1918 LAN, …)
+// must be refused — including after a redirect.
+
+function ipIsPrivate(ip) {
+	const v = isIP(ip);
+	if (v === 4) {
+		const p = ip.split('.').map(Number);
+		return (
+			p[0] === 0 || p[0] === 10 || p[0] === 127 || // this-network, private, loopback
+			(p[0] === 169 && p[1] === 254) || // link-local + cloud metadata
+			(p[0] === 172 && p[1] >= 16 && p[1] <= 31) || // private
+			(p[0] === 192 && p[1] === 168) || // private
+			(p[0] === 100 && p[1] >= 64 && p[1] <= 127) || // CGNAT
+			p[0] >= 224 // multicast/reserved
+		);
+	}
+	if (v === 6) {
+		const s = ip.toLowerCase();
+		if (s.startsWith('::ffff:')) return ipIsPrivate(s.slice(7)); // IPv4-mapped
+		return s === '::1' || s === '::' || s.startsWith('fe80') || s.startsWith('fc') || s.startsWith('fd');
+	}
+	return true; // unknown → refuse
+}
+
+/** True if it's safe to fetch this URL (public http/https host). */
+async function urlIsSafe(u) {
+	if (ALLOW_PRIVATE) return /^https?:\/\//i.test(u);
+	let url;
+	try {
+		url = new URL(u);
+	} catch {
+		return false;
+	}
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+	const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+	if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal')) return false;
+	if (isIP(host)) return !ipIsPrivate(host);
+	try {
+		const { address } = await lookup(host);
+		return !ipIsPrivate(address);
+	} catch {
+		return false; // unresolvable → refuse
+	}
+}
+
+/** Fetch a URL as text with a browser-ish UA, a hard timeout, and SSRF checks on
+ *  every hop (redirects are followed manually so we can vet each target). */
 async function fetchText(url, timeout = 9000) {
 	const ctrl = new AbortController();
 	const timer = setTimeout(() => ctrl.abort(), timeout);
 	try {
-		const res = await fetch(url, {
-			headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml,*/*' },
-			redirect: 'follow',
-			signal: ctrl.signal
-		});
-		if (!res.ok) return null;
-		return await res.text();
+		let current = url;
+		for (let hop = 0; hop < 5; hop++) {
+			if (!(await urlIsSafe(current))) return null;
+			const res = await fetch(current, {
+				headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml,application/xml,*/*' },
+				redirect: 'manual',
+				signal: ctrl.signal
+			});
+			if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+				try {
+					current = new URL(res.headers.get('location'), current).href;
+				} catch {
+					return null;
+				}
+				continue;
+			}
+			if (!res.ok) return null;
+			return await res.text();
+		}
+		return null; // too many redirects
 	} catch {
 		return null;
 	} finally {
@@ -326,6 +400,52 @@ export async function scanWebsite(input, { max = 60 } = {}) {
 }
 
 /**
+ * Fetch one URL and turn it into a knowledge_items row (readable text + best-effort
+ * price/duration + a content hash). `prevMeta` is preserved (so flags like
+ * price_dismissed / auto_sync survive a re-sync). Returns { row, hash } or { error }.
+ */
+async function fetchPageRow(clientId, url, now, prevMeta = {}) {
+	const html = await fetchText(url);
+	if (!html) return { error: `${prettyLabel(url)}: couldn't open the page` };
+	const { title, text } = htmlToText(html);
+	const body = text.slice(0, MAX_TEXT);
+	if (body.length < 140) return { error: `${prettyLabel(url)}: not enough readable content` };
+
+	const hash = contentHash(body);
+	const price = extractPrice(body);
+	const duration = extractDuration(body);
+	// Best-effort structured fields so the AI answers with real prices/duration
+	// and so conflicts can be detected against AI Knowledge.
+	const metadata = { ...prevMeta, source: 'website', source_url: url, last_synced: now, hash };
+	if (duration) metadata.duration = duration;
+	else delete metadata.duration;
+	const row = {
+		client_id: clientId,
+		title: title || prettyLabel(url),
+		body,
+		category: categorize(url, title),
+		// Always write price so a page that DROPS its price clears the old value,
+		// rather than the assistant quoting a number no longer on the site.
+		price_amount: price ? price.amount : null,
+		price_currency: price ? price.currency : null,
+		metadata
+	};
+	return { row, hash };
+}
+
+/** True if the client currently has weekly auto-sync enabled (flag lives on any
+ *  of their website items' metadata). */
+async function clientHasAutoSync(clientId) {
+	const { data } = await supabase
+		.from('knowledge_items')
+		.select('id')
+		.eq('client_id', clientId)
+		.contains('metadata', { source: 'website', auto_sync: true })
+		.limit(1);
+	return !!(data && data.length);
+}
+
+/**
  * Import (approve): re-fetch each approved URL, extract readable text, and store
  * it as a knowledge item that the AI can use — updating in place if the page was
  * imported before (so re-syncing never duplicates). Returns a per-page summary.
@@ -335,57 +455,38 @@ export async function importWebsitePages(clientId, urls) {
 	if (!list.length) return { imported: 0, failed: ['No pages selected.'] };
 
 	const now = new Date().toISOString();
+	// If the client already has auto-sync on, new pages inherit it — otherwise a
+	// page added after enabling auto-sync would silently be left out of it.
+	const clientAutoSync = await clientHasAutoSync(clientId);
 	let imported = 0;
 	const failed = [];
 
 	for (const url of list) {
-		const html = await fetchText(url);
-		if (!html) {
-			failed.push(`${prettyLabel(url)}: couldn't open the page`);
-			continue;
-		}
-		const { title, text } = htmlToText(html);
-		const body = text.slice(0, MAX_TEXT);
-		if (body.length < 140) {
-			failed.push(`${prettyLabel(url)}: not enough readable content`);
-			continue;
-		}
-		// Best-effort structured fields so the AI answers with real prices/duration
-		// and so conflicts can be detected against AI Knowledge.
-		const price = extractPrice(body);
-		const duration = extractDuration(body);
-		const metadata = { source: 'website', source_url: url, last_synced: now, hash: contentHash(body) };
-		if (duration) metadata.duration = duration;
-		const row = {
-			client_id: clientId,
-			title: title || prettyLabel(url),
-			body,
-			category: categorize(url, title),
-			metadata
-		};
-		if (price) {
-			row.price_amount = price.amount;
-			row.price_currency = price.currency;
-		}
-
-		// Update the existing item for this URL, or insert a new one.
+		// Preserve any prior metadata (e.g. a resolved price, auto-sync flag).
 		const { data: existing } = await supabase
 			.from('knowledge_items')
-			.select('id')
+			.select('id, metadata')
 			.eq('client_id', clientId)
 			.contains('metadata', { source_url: url })
 			.maybeSingle();
+
+		const built = await fetchPageRow(clientId, url, now, existing?.metadata ?? {});
+		if (built.error) {
+			failed.push(built.error);
+			continue;
+		}
+		if (!existing && clientAutoSync) built.row.metadata.auto_sync = true;
 
 		let item, error;
 		if (existing) {
 			({ data: item, error } = await supabase
 				.from('knowledge_items')
-				.update({ ...row, updated_at: now })
+				.update({ ...built.row, updated_at: now })
 				.eq('id', existing.id)
 				.select(ITEM_COLS)
 				.single());
 		} else {
-			({ data: item, error } = await supabase.from('knowledge_items').insert(row).select(ITEM_COLS).single());
+			({ data: item, error } = await supabase.from('knowledge_items').insert(built.row).select(ITEM_COLS).single());
 		}
 		if (error) {
 			failed.push(`${prettyLabel(url)}: ${error.message}`);
@@ -401,4 +502,167 @@ export async function importWebsitePages(clientId, urls) {
 	}
 
 	return { imported, failed };
+}
+
+/**
+ * Change monitoring: re-fetch every connected website page, and only re-embed the
+ * ones whose content actually changed (compared via content hash). Unchanged pages
+ * just get their "last synced" bumped — no wasted embedding cost. `force` re-embeds
+ * everything regardless. Returns { checked, updated, unchanged, failed }.
+ */
+export async function resyncWebsitePages(clientId, { force = false } = {}) {
+	if (resyncing.has(clientId)) return { checked: 0, updated: 0, unchanged: 0, failed: [], skipped: true };
+	resyncing.add(clientId);
+	try {
+		const { data: items } = await supabase
+			.from('knowledge_items')
+			.select('id, metadata')
+			.eq('client_id', clientId)
+			.contains('metadata', { source: 'website' });
+		// Oldest-checked first, so if a client has more pages than one run can cover,
+		// successive runs rotate through the stale ones instead of the same arbitrary set.
+		const list = (items ?? [])
+			.filter((i) => i.metadata?.source_url)
+			.sort((a, b) => (a.metadata?.last_synced ?? '') < (b.metadata?.last_synced ?? '') ? -1 : 1)
+			.slice(0, MAX_RESYNC);
+		if (!list.length) return { checked: 0, updated: 0, unchanged: 0, failed: [] };
+
+		const now = new Date().toISOString();
+		let updated = 0;
+		let unchanged = 0;
+		const failed = [];
+
+		for (const it of list) {
+			const url = it.metadata.source_url;
+			const built = await fetchPageRow(clientId, url, now, it.metadata ?? {});
+			if (built.error) {
+				failed.push(built.error);
+				continue;
+			}
+			// Unchanged → just record that we checked; never re-embed (saves cost).
+			if (!force && built.hash === it.metadata?.hash) {
+				await supabase
+					.from('knowledge_items')
+					.update({ metadata: { ...(it.metadata ?? {}), last_synced: now } })
+					.eq('id', it.id)
+					.eq('client_id', clientId);
+				unchanged++;
+				continue;
+			}
+			const { data: saved, error } = await supabase
+				.from('knowledge_items')
+				.update({ ...built.row, updated_at: now })
+				.eq('id', it.id)
+				.eq('client_id', clientId)
+				.select(ITEM_COLS)
+				.single();
+			if (error) {
+				failed.push(`${prettyLabel(url)}: ${error.message}`);
+				continue;
+			}
+			try {
+				await reingestItem(saved);
+				updated++;
+			} catch (e) {
+				failed.push(`${prettyLabel(url)}: saved but couldn't be learned — ${e.message}`);
+			}
+		}
+
+		return { checked: list.length, updated, unchanged, failed };
+	} finally {
+		resyncing.delete(clientId);
+	}
+}
+
+/**
+ * Turn weekly auto-sync on/off for a client. There's no client settings table, so
+ * the flag lives on the website items' metadata (the same jsonb the rest of this
+ * feature uses) — the scheduler reads it back from there.
+ */
+export async function setAutoSync(clientId, on) {
+	const { data: items } = await supabase
+		.from('knowledge_items')
+		.select('id, metadata')
+		.eq('client_id', clientId)
+		.contains('metadata', { source: 'website' });
+	const list = items ?? [];
+	if (!list.length) return { error: 'Connect at least one website page before turning on auto-sync.' };
+	for (const it of list) {
+		await supabase
+			.from('knowledge_items')
+			.update({ metadata: { ...(it.metadata ?? {}), auto_sync: !!on } })
+			.eq('id', it.id)
+			.eq('client_id', clientId);
+	}
+	return { ok: on ? 'Auto-sync on — your website is checked weekly and updated when it changes.' : 'Auto-sync turned off.' };
+}
+
+// Similarity (1 = identical) below which a customer question looks uncovered by
+// the current knowledge base. Voyage-3 well-covered questions score ~0.6–0.8.
+const GAP_THRESHOLD = 0.5;
+
+/**
+ * AI gap suggestions: find questions customers asked that the knowledge base
+ * barely covers (low retrieval similarity), and — when possible — suggest an
+ * un-imported website page that likely answers them. Reuses match_chunks, so it
+ * measures exactly what the live assistant would have retrieved. On-demand only
+ * (it embeds each question), never on page load.
+ */
+export async function findKnowledgeGaps(clientId, { limit = 12 } = {}) {
+	const { data: convs } = await supabase
+		.from('conversations')
+		.select('messages, summary, created_at')
+		.eq('client_id', clientId)
+		.order('created_at', { ascending: false })
+		.limit(120);
+	const questions = customerQuestions(convs ?? [], limit)
+		.map((q) => ({ question: q.q.replace(/…$/, '').trim(), count: q.count }))
+		.filter((x) => x.question.length >= 6);
+	if (!questions.length) return { gaps: [], checked: 0 };
+
+	// Score each question against current coverage.
+	const gaps = [];
+	for (const item of questions) {
+		let best = 1; // on any error, don't flag it as a gap
+		try {
+			const emb = await embedQuery(item.question);
+			const { data } = await supabase.rpc('match_chunks', {
+				p_client_id: clientId,
+				p_query_embedding: emb,
+				p_match_count: 3
+			});
+			best = (data ?? []).reduce((a, r) => Math.max(a, r.similarity ?? 0), 0);
+		} catch {
+			best = 1;
+		}
+		if (best < GAP_THRESHOLD) gaps.push({ ...item, score: Number(best.toFixed(2)) });
+	}
+	if (!gaps.length) return { gaps: [], checked: questions.length };
+
+	// Best-effort: suggest an un-imported website page for each gap.
+	const [{ data: client }, { data: webItems }] = await Promise.all([
+		supabase.from('clients').select('website_url').eq('id', clientId).maybeSingle(),
+		supabase.from('knowledge_items').select('metadata').eq('client_id', clientId).contains('metadata', { source: 'website' })
+	]);
+	const connected = new Set((webItems ?? []).map((i) => i.metadata?.source_url).filter(Boolean));
+	let candidates = [];
+	if (client?.website_url) {
+		const scan = await scanWebsite(client.website_url);
+		if (!scan.error) candidates = scan.pages.filter((p) => !connected.has(p.url));
+	}
+	for (const g of gaps) {
+		if (!candidates.length) continue;
+		const qn = normTitle(g.question);
+		let bestP = null;
+		let bestScore = 0;
+		for (const p of candidates) {
+			const s = tokenOverlap(qn, normTitle(`${p.label} ${p.category}`));
+			if (s > bestScore) {
+				bestScore = s;
+				bestP = p;
+			}
+		}
+		if (bestP && bestScore >= 0.12) g.suggestion = { url: bestP.url, label: bestP.label, category: bestP.category };
+	}
+	return { gaps, checked: questions.length };
 }

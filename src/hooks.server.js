@@ -2,6 +2,10 @@
 // Runtime API routes (/api/*) stay public for the widget.
 import { redirect } from '@sveltejs/kit';
 import { SESSION_COOKIE, readSessionToken, loadUser } from '$lib/server/auth.js';
+import { startScheduler } from '$lib/server/scheduler.js';
+
+// Kick off background auto-sync once, at server start (inert unless enabled).
+startScheduler();
 
 // Safety net: a single stray promise rejection would otherwise crash the whole
 // Node process (Node 22 exits on unhandled rejections) — which behind a reverse
