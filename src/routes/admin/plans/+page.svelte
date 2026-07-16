@@ -10,6 +10,18 @@
 	let showCreate = false;
 	const toggle = (key) => (open = { ...open, [key]: !open[key] });
 
+	// Included AI budget (USD) → estimated conversations, same basis the operator
+	// dashboard uses, so both screens show the same capacity.
+	$: cpc = data.costPerConversation || 0.004;
+	const convFromBudget = (budget) => Math.round((Number(budget) || 0) / cpc);
+	const convEstimate = (p) => (Number(p.included_ai_budget) > 0 ? convFromBudget(p.included_ai_budget) : Number(p.monthly_conversation_cap) || 0);
+
+	// Live-editable budget drafts (seeded from each plan) so the "≈ conversations"
+	// helper updates as you type.
+	let budgetDraft = {};
+	$: if (data.plans) for (const p of data.plans) if (budgetDraft[p.key] === undefined) budgetDraft[p.key] = Number(p.included_ai_budget) || 0;
+	let newBudget = '';
+
 	const priceLabel = (p) =>
 		Number(p.price_amount) > 0 ? `${p.price_currency} ${Number(p.price_amount).toLocaleString()}/mo` : 'Free';
 
@@ -27,7 +39,7 @@
 <div class="page-head">
 	<div>
 		<h1>Plans &amp; billing</h1>
-		<div class="sub">Define subscription tiers. Assigning a plan sets a client's monthly conversation cap. To sell online via Snippe, price in <b>TZS</b> (minimum 500 TZS).</div>
+		<div class="sub">Define subscription tiers. Each plan’s <b>monthly AI budget</b> (in USD) sets its capacity — shown to operators as an estimated number of conversations. To sell online via Snippe, price in <b>TZS</b> (minimum 500 TZS).</div>
 	</div>
 	<div class="actions">
 		<button class="sm" on:click={() => (showCreate = !showCreate)}>
@@ -57,7 +69,11 @@
 				<div><label>Price / month</label><input name="price_amount" inputmode="decimal" placeholder="250000" /></div>
 				<div><label>Currency</label><select name="price_currency" value="TZS">{#each CURRENCIES as c}<option value={c}>{c}</option>{/each}</select></div>
 			</div>
-			<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" inputmode="numeric" placeholder="20000" /></div>
+			<div>
+				<label>Monthly AI budget (USD)</label>
+				<input name="included_ai_budget" bind:value={newBudget} inputmode="decimal" placeholder="32" />
+				<small class="hint">≈ {convFromBudget(newBudget).toLocaleString()} customer conversations / month</small>
+			</div>
 			<div>
 				<label>Features included</label>
 				<div class="feat-grid">
@@ -84,7 +100,7 @@
 				</div>
 				<div class="plan-meta">
 					<span class="plan-price">{priceLabel(p)}</span>
-					<span>{Number(p.monthly_conversation_cap).toLocaleString()} conv/mo</span>
+					<span title="Estimated from the monthly AI budget">≈ {convEstimate(p).toLocaleString()} conv/mo</span>
 					<span>{(p.features ?? []).length} features</span>
 					<span class="badge {(data.counts[p.key] ?? 0) > 0 ? '' : 'neutral'}">{data.counts[p.key] ?? 0} client{(data.counts[p.key] ?? 0) === 1 ? '' : 's'}</span>
 					<button class="ghost sm" type="button" on:click|stopPropagation={() => toggle(p.key)}>{open[p.key] ? 'Close' : 'Edit'}</button>
@@ -96,7 +112,11 @@
 					<input type="hidden" name="key" value={p.key} />
 					<div class="row">
 						<div><label>Name</label><input name="name" value={p.name} required /></div>
-						<div><label>Monthly conversation cap</label><input name="monthly_conversation_cap" value={p.monthly_conversation_cap} inputmode="numeric" /></div>
+						<div>
+							<label>Monthly AI budget (USD)</label>
+							<input name="included_ai_budget" bind:value={budgetDraft[p.key]} inputmode="decimal" placeholder="32" />
+							<small class="hint">≈ {convFromBudget(budgetDraft[p.key]).toLocaleString()} customer conversations / month</small>
+						</div>
 					</div>
 					<div class="row">
 						<div><label>Price / month</label><input name="price_amount" value={p.price_amount} inputmode="decimal" /></div>
@@ -220,5 +240,11 @@
 	.plan-actions {
 		display: flex;
 		gap: 0.5rem;
+	}
+	small.hint {
+		display: block;
+		margin-top: 0.35rem;
+		color: var(--muted);
+		font-size: 0.8rem;
 	}
 </style>

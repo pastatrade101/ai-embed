@@ -1,6 +1,11 @@
 import { fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { PLAN_FEATURES } from '$lib/plans.js';
+import { AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
+
+// The included AI budget (USD) is the real allowance; the conversation cap is
+// derived from it so the admin console and the operator dashboard always agree.
+const capFromBudget = (budget) => Math.max(0, Math.round((Number(budget) || 0) / AVG_COST_PER_CONVERSATION));
 
 function slugKey(s) {
 	return (s ?? '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -19,18 +24,20 @@ export async function load() {
 	// Count clients on each plan.
 	const counts = {};
 	for (const c of clientsRes.data ?? []) counts[c.plan] = (counts[c.plan] ?? 0) + 1;
-	return { plans: plansRes.data ?? [], counts, loadError: plansRes.error?.message ?? null };
+	return { plans: plansRes.data ?? [], counts, costPerConversation: AVG_COST_PER_CONVERSATION, loadError: plansRes.error?.message ?? null };
 }
 
 export const actions = {
 	save: async ({ request }) => {
 		const form = await request.formData();
 		const key = String(form.get('key') ?? '').trim();
+		const budget = Number(form.get('included_ai_budget') ?? 0) || 0;
 		const patch = {
 			name: String(form.get('name') ?? '').trim(),
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
 			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
-			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 0) || 0,
+			included_ai_budget: budget,
+			monthly_conversation_cap: capFromBudget(budget), // kept in sync for the fallback path
 			features: pickFeatures(form),
 			is_active: form.get('is_active') === 'on'
 		};
@@ -54,12 +61,14 @@ export const actions = {
 		const name = String(form.get('name') ?? '').trim();
 		const key = slugKey(String(form.get('key') ?? '') || name);
 		if (!name || !key) return fail(400, { section: 'new', error: 'Name is required.' });
+		const budget = Number(form.get('included_ai_budget') ?? 0) || 0;
 		const { error } = await supabase.from('plans').insert({
 			key,
 			name,
 			price_amount: Number(form.get('price_amount') ?? 0) || 0,
 			price_currency: (String(form.get('price_currency') ?? 'USD').trim().toUpperCase() || 'USD'),
-			monthly_conversation_cap: Number(form.get('monthly_conversation_cap') ?? 200) || 200,
+			included_ai_budget: budget,
+			monthly_conversation_cap: capFromBudget(budget) || 200,
 			features: pickFeatures(form),
 			sort: 99
 		});

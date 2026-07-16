@@ -31,6 +31,7 @@ export async function load({ parent }) {
 		usage,
 		credits,
 		creditPacks: CREDIT_PACKS.map((p) => ({ ...p, conversations: Math.round(p.budget / AVG_COST_PER_CONVERSATION) })),
+		costPerConversation: AVG_COST_PER_CONVERSATION,
 		paymentsEnabled: paymentsEnabled(),
 		pendingAttempt: pendingRes.data ?? null
 	};

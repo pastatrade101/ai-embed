@@ -24,6 +24,13 @@
 		}
 	};
 	const nf = (n) => Number(n ?? 0).toLocaleString();
+	// Estimated conversations for a plan, from its AI budget — the same basis the
+	// usage dashboard uses, so plan cards and the meter agree.
+	const planConversations = (p) => {
+		const cpc = data.costPerConversation || 0.004;
+		const budget = Number(p.included_ai_budget) || 0;
+		return budget > 0 ? Math.round(budget / cpc) : Number(p.monthly_conversation_cap) || 0;
+	};
 	let showAdvanced = false;
 	const statusLabel = { active: 'Active', trialing: 'Trial', past_due: 'Payment due', canceled: 'Canceled' };
 	$: justReturned = $page.url.searchParams.get('upgrade') === 'success';
@@ -194,7 +201,7 @@
 			<div class="plan-price">
 				{#if Number(p.price_amount) > 0}{p.price_currency} {Number(p.price_amount).toLocaleString()}<span class="per"> /mo</span>{:else}Free{/if}
 			</div>
-			<div class="plan-cap">{Number(p.monthly_conversation_cap).toLocaleString()} conversations / month</div>
+			<div class="plan-cap">≈ {planConversations(p).toLocaleString()} conversations / month</div>
 
 			{#if p.features?.length}
 				<ul class="plan-feats">
