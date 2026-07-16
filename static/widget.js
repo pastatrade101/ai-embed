@@ -142,8 +142,29 @@
 			}
 			var log = container.querySelector('.mk-log');
 			if (log) log.scrollTop = log.scrollHeight;
-			var input = container.querySelector('.mk-input');
-			if (input) input.focus();
+
+			// Chat textarea: auto-grow up to a few lines, Enter-to-send on desktop.
+			// When empty we clear the inline height so CSS min-height gives exactly one
+			// line — measuring scrollHeight before flexbox has set the width would let
+			// the placeholder wrap and balloon the box.
+			var ta = container.querySelector('.mk-form [name="q"]');
+			if (ta) {
+				var grow = function () {
+					if (!ta.value) { ta.style.height = ''; return; }
+					ta.style.height = 'auto';
+					ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+				};
+				ta.addEventListener('input', grow);
+				ta.addEventListener('keydown', function (e) {
+					if (e.key === 'Enter' && !e.shiftKey && !isMobileWidget()) { e.preventDefault(); sendText(ta.value); }
+				});
+				grow();
+			}
+
+			// Focus the input, but not on the mobile welcome screen — that would pop the
+			// keyboard over the greeting and suggestion chips before they're read.
+			var focusEl = container.querySelector('.mk-input');
+			if (focusEl && !(isMobileWidget() && !messages.length && !leadOpen)) focusEl.focus();
 		}
 		saveState();
 	}
@@ -196,13 +217,15 @@
 			if (actions) footer += '<div class="mk-actions">' + actions + '</div>';
 		}
 
-		// The chat input — always available.
+		// The chat input — always available. A growing textarea (like ChatGPT): Enter
+		// sends on desktop, Shift+Enter (and the on-screen return key on mobile) makes
+		// a new line.
 		footer +=
 			'<form class="mk-form">' +
-			'<input class="mk-input" name="q" placeholder="Type your reply…" autocomplete="off" ' +
+			'<textarea class="mk-input mk-ta" name="q" rows="1" placeholder="Message…" autocomplete="off" ' +
 			(busy ? 'disabled' : '') +
-			' />' +
-			'<button class="mk-send" type="submit" ' + (busy ? 'disabled' : '') + '>' + svgSend() + '</button>' +
+			'></textarea>' +
+			'<button class="mk-send mk-send-round" type="submit" aria-label="Send" ' + (busy ? 'disabled' : '') + '>' + svgSend() + '</button>' +
 			'</form>';
 
 		if (leadCaptured && whatsapp) {
@@ -212,13 +235,17 @@
 		var avatar = logo
 			? '<img class="mk-avatar" src="' + esc(logo) + '" alt="" />'
 			: '<span class="mk-avatar mk-avatar-fb">' + esc((assistantName || name || '?').charAt(0).toUpperCase()) + '</span>';
+		var pageUrl = API + '/c/' + encodeURIComponent(CLIENT);
 		var head =
 			'<div class="mk-head">' +
 			'<div class="mk-head-id">' + avatar +
 			'<div class="mk-head-text"><div class="mk-head-name">' + esc(assistantName || 'Assistant') + '</div>' +
 			(name ? '<div class="mk-head-sub"><span class="mk-dot"></span>' + esc(name) + '</div>' : '') +
 			'</div></div>' +
+			'<div class="mk-head-actions">' +
+			'<a class="mk-open" href="' + esc(pageUrl) + '" target="_blank" rel="noopener" aria-label="Open full page" title="Open the full assistant page">' + svgExpand() + '</a>' +
 			'<button class="mk-x" aria-label="Close">' + svgClose() + '</button>' +
+			'</div>' +
 			'</div>';
 
 		return (
@@ -275,7 +302,7 @@
 
 	function onSend(e) {
 		e.preventDefault();
-		var input = container.querySelector('.mk-input');
+		var input = container.querySelector('.mk-form [name="q"]');
 		sendText(input ? input.value : '');
 	}
 
@@ -430,6 +457,9 @@
 	function svgSend() {
 		return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>';
 	}
+	function svgExpand() {
+		return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>';
+	}
 
 	function css() {
 		return (
@@ -447,8 +477,11 @@
 			'.mk-head-name{font-weight:700;font-size:.95rem;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
 			'.mk-head-sub{font-size:.72rem;opacity:.9;display:flex;align-items:center;gap:.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
 			'.mk-dot{width:7px;height:7px;border-radius:50%;background:#8ff0c0;box-shadow:0 0 6px #8ff0c0;flex-shrink:0}' +
-			'.mk-x{background:transparent;border:0;color:#fff;cursor:pointer;padding:.2rem;display:flex;border-radius:6px}' +
+			'.mk-x{background:transparent;border:0;color:#fff;cursor:pointer;padding:.3rem;display:flex;border-radius:6px}' +
 			'.mk-x:hover{background:rgba(255,255,255,.15)}' +
+			'.mk-head-actions{display:flex;align-items:center;gap:.1rem;flex-shrink:0}' +
+			'.mk-open{background:transparent;border:0;color:#fff;cursor:pointer;padding:.3rem;display:flex;border-radius:6px;text-decoration:none;opacity:.92}' +
+			'.mk-open:hover{background:rgba(255,255,255,.15);opacity:1}' +
 			'.mk-log{flex:1;overflow-y:auto;padding:.9rem;display:flex;flex-direction:column;gap:.55rem;background:#f6f8f7}' +
 			'.mk-msg{max-width:84%;padding:.6rem .8rem;border-radius:14px;font-size:.9rem;line-height:1.45;white-space:normal;word-wrap:break-word;box-shadow:0 1px 2px rgba(0,0,0,.05)}' +
 			'.mk-msg p{margin:0 0 .5rem}.mk-msg p:last-child{margin-bottom:0}' +
@@ -463,11 +496,15 @@
 			'.mk-chip:hover{background:#f4f8f6;border-color:var(--mk-brand)}' +
 			'.mk-user{align-self:flex-end;background:var(--mk-brand);color:#fff;border-bottom-right-radius:4px}' +
 			'.mk-assistant{align-self:flex-start;background:#fff;color:#1c2b26;border:1px solid #e2e8e4;border-bottom-left-radius:4px}' +
+			'.mk-log>.mk-msg:last-child{animation:mkin .26s ease}' +
+			'@keyframes mkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
+			'@media (prefers-reduced-motion:reduce){.mk-log>.mk-msg:last-child{animation:none}}' +
 			'.mk-typing{display:flex;gap:4px;align-items:center}' +
 			'.mk-typing span{width:6px;height:6px;border-radius:50%;background:#9aa;animation:mkb 1s infinite}' +
 			'.mk-typing span:nth-child(2){animation-delay:.15s}.mk-typing span:nth-child(3){animation-delay:.3s}' +
 			'@keyframes mkb{0%,60%,100%{opacity:.3}30%{opacity:1}}' +
-			'.mk-form{display:flex;gap:.4rem;padding:.6rem;border-top:1px solid #e2e8e4;background:#fff}' +
+			'.mk-form{display:flex;gap:.5rem;padding:.6rem;border-top:1px solid #e2e8e4;background:#fff;align-items:flex-end}' +
+			'.mk-ta{box-sizing:border-box;min-height:40px;resize:none;max-height:120px;overflow-y:auto;line-height:1.4;border-radius:20px;padding:.6rem .85rem}' +
 			'.mk-lead-form{display:flex;flex-direction:column;gap:.45rem;padding:.7rem;border-top:1px solid #e2e8e4;background:#fff}' +
 			'.mk-lead-title{font-size:.82rem;color:#6b7c75}' +
 			'.mk-lead-row{display:flex;gap:.4rem}' +
@@ -480,6 +517,7 @@
 			'.mk-input::placeholder{color:#9aa8a2}' +
 			'.mk-input:focus{border-color:var(--mk-brand)}' +
 			'.mk-send{border:0;background:var(--mk-brand);color:#fff;border-radius:8px;padding:0 .8rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font:inherit;font-weight:600}' +
+			'.mk-send-round{border-radius:50%;width:40px;height:40px;padding:0;flex-shrink:0}' +
 			'.mk-send:disabled{opacity:.5;cursor:default}' +
 			'.mk-wa{display:block;text-align:center;background:#25d366;color:#fff;text-decoration:none;padding:.5rem;border-radius:8px;font-size:.88rem;font-weight:600}' +
 			'.mk-wa-inline{margin:.6rem;margin-top:0}' +
@@ -489,12 +527,20 @@
 			'@media (max-width:480px){' +
 			'.mk{bottom:16px;right:16px}' +
 			'.mk-panel{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;max-width:none;max-height:none;border-radius:0;padding-bottom:env(safe-area-inset-bottom)}' +
-			'.mk-head{padding-top:calc(.7rem + env(safe-area-inset-top))}' +
-			'.mk-log{padding:1rem}' +
-			'.mk-msg{max-width:88%;font-size:.95rem}' +
-			'.mk-input{font-size:16px}' +
+			'.mk-head{padding:calc(.85rem + env(safe-area-inset-top)) 1rem .85rem}' +
+			'.mk-avatar{width:36px;height:36px}' +
+			'.mk-head-name{font-size:1rem}' +
+			'.mk-log{padding:1rem;gap:.6rem}' +
+			'.mk-msg{max-width:85%;font-size:.98rem;line-height:1.5}' +
+			'.mk-form{padding:.6rem .7rem}' +
+			'.mk-input{font-size:16px}' + // 16px stops iOS zoom-on-focus
+			'.mk-ta{max-height:140px}' +
+			'.mk-send-round{width:44px;height:44px}' +
 			'.mk-fab{width:54px;height:54px}' +
 			'.mk-fab-pill{width:auto;height:52px}' +
+			// The full-screen panel has its own header ✕ — hide the redundant floating
+			// close button (the open-state FAB) so it doesn't peek behind the header.
+			'.mk-fab:not(.mk-fab-pill){display:none}' +
 			'}'
 		);
 	}
