@@ -51,6 +51,14 @@
 	// through in the plan's own currency (TZS for the paid tiers).
 	export let data;
 	const nf = new Intl.NumberFormat('en-US');
+	// Estimated monthly conversations from a plan's AI budget — the same basis the
+	// operator billing and admin screens use, so all three always show one number.
+	// Falls back to the legacy conversation cap only if a plan has no budget set.
+	const cpc = data.costPerConversation || 0.004;
+	const planConversations = (p) => {
+		const budget = Number(p.included_ai_budget) || 0;
+		return budget > 0 ? Math.round(budget / cpc) : Number(p.monthly_conversation_cap) || 0;
+	};
 	$: plans = (data.plans ?? []).map((p, i, arr) => {
 		const amount = Number(p.price_amount) || 0;
 		return {
@@ -58,7 +66,7 @@
 			// A free (zero) plan just reads "Free"; paid tiers show "TZS 55,000".
 			price: amount === 0 ? 'Free' : `${p.price_currency} ${nf.format(amount)}`,
 			paid: amount > 0,
-			tag: `${nf.format(p.monthly_conversation_cap)} conversations / mo`,
+			tag: `≈ ${nf.format(planConversations(p))} conversations / mo`,
 			features: p.features ?? [],
 			// Spotlight the middle tier as the recommended one.
 			highlight: arr.length > 1 && i === Math.floor(arr.length / 2)
@@ -332,16 +340,27 @@
 	<section class="built">
 		<div class="built-bg"></div>
 		<div class="wrap built-in">
-			<div class="head-narrow">
-				<div class="label">Built specifically for tour operators</div>
-				<h2>Unlike generic chatbots, Makutano AI understands tourism.</h2>
-				<p class="cream-muted">It answers using your verified business information — never random internet content. So customers always receive accurate answers.</p>
+			<div class="built-copy">
+				<div class="head-narrow">
+					<div class="label">Built specifically for tour operators</div>
+					<h2>Unlike generic chatbots, Makutano AI understands tourism.</h2>
+					<p class="cream-muted">It answers using your verified business information — never random internet content. So customers always receive accurate answers.</p>
+				</div>
+				<ul class="built-list">
+					{#each builtWith as b}
+						<li><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{b}</li>
+					{/each}
+				</ul>
 			</div>
-			<ul class="built-list">
-				{#each builtWith as b}
-					<li><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{b}</li>
-				{/each}
-			</ul>
+			<div class="built-art">
+				<img
+					src="/dedicated_ai-web.png"
+					alt="A customer chatting with a tour operator's Makutano AI booking page on a phone"
+					width="814"
+					height="1000"
+					loading="lazy"
+				/>
+			</div>
 		</div>
 	</section>
 
@@ -1327,6 +1346,44 @@
 		padding: 0.8rem 1rem;
 		font-size: 0.9rem;
 	}
+	/* Phone product shot — sits flush on the section's bottom edge so the hand
+	   reads as rising up from below, cut cleanly at the forest → next-section line. */
+	.built {
+		padding-bottom: 0;
+	}
+	.built-in {
+		display: grid;
+		gap: 2.5rem;
+	}
+	.built-copy {
+		padding-bottom: 4rem;
+	}
+	.built-art {
+		display: flex;
+		justify-content: center;
+		align-items: flex-end;
+	}
+	.built-art img {
+		display: block;
+		width: 100%;
+		max-width: 280px;
+		height: auto;
+		margin-bottom: -1px;
+		filter: drop-shadow(0 22px 42px rgba(0, 0, 0, 0.5));
+	}
+	@media (min-width: 960px) {
+		.built-in {
+			grid-template-columns: 1.12fr 0.88fr;
+			gap: 3rem;
+			align-items: end;
+		}
+		.built-copy {
+			padding-bottom: 8rem;
+		}
+		.built-art img {
+			max-width: 400px;
+		}
+	}
 	.tick {
 		display: inline-flex;
 		align-items: center;
@@ -1435,16 +1492,21 @@
 	}
 	.plan-pop {
 		position: absolute;
-		top: 1rem;
-		right: 1rem;
+		/* Straddle the top edge, centred — clears the conversation tag beneath it
+		   instead of overlapping the top-right corner. */
+		top: -0.75rem;
+		left: 50%;
+		transform: translateX(-50%);
 		background: var(--gold);
 		color: var(--gold-ink);
 		font-size: 0.62rem;
 		font-weight: 700;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		padding: 0.3rem 0.65rem;
+		white-space: nowrap;
+		padding: 0.32rem 0.8rem;
 		border-radius: 999px;
+		box-shadow: 0 6px 16px -6px rgba(18, 53, 40, 0.45);
 	}
 	.plan-tag {
 		font-size: 0.7rem;
