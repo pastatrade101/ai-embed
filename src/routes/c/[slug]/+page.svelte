@@ -7,7 +7,7 @@
 	//
 	// Self-contained: system font stack, inline SVG icons, component-scoped styles.
 	// Light theme by default; dark via prefers-color-scheme + [data-theme].
-	import { onMount, afterUpdate, tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { renderMarkdown } from '$lib/markdown.js';
 
 	export let data;
@@ -146,6 +146,10 @@
 				const s = JSON.parse(raw);
 				if (s?.ts && Date.now() - s.ts < 2 * 60 * 60 * 1000 && Array.isArray(s.messages)) {
 					messages = s.messages;
+					// Continue the id counter past the restored messages — otherwise the
+					// next message reuses id 1 and the keyed {#each} throws on a duplicate
+					// key, crashing the thread for returning visitors.
+					uid = messages.reduce((mx, m) => Math.max(mx, Number(m?.id) || 0), 0);
 					conversationId = s.conversationId || null;
 					started = messages.length > 0;
 				}
@@ -171,9 +175,23 @@
 		const gap = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight;
 		pinned = gap < 120;
 	}
-	afterUpdate(() => {
-		if (logEl && pinned) logEl.scrollTop = logEl.scrollHeight;
-	});
+	// Called explicitly from send() (after tick() so the DOM has settled):
+	//  • 'bottom' → after the user sends, show their message + the thinking state
+	//  • 'answer' → after a reply arrives, bring the user's QUESTION to the top so
+	//    the answer reads from its START, not jumped to the bottom of a long reply.
+	function scrollThread(mode) {
+		if (!logEl) return;
+		if (mode === 'bottom') {
+			logEl.scrollTop = logEl.scrollHeight;
+			return;
+		}
+		const items = logEl.querySelectorAll('.turns > li');
+		const anchor = items[items.length - 2] || items[items.length - 1]; // the question
+		if (anchor) {
+			const top = anchor.getBoundingClientRect().top - logEl.getBoundingClientRect().top + logEl.scrollTop;
+			logEl.scrollTop = Math.max(0, top - 12);
+		}
+	}
 
 	// ---- Thinking phrases (contextual, cycling) ------------------------------
 	const THINKING = [
@@ -215,9 +233,9 @@
 		if (taEl) taEl.style.height = 'auto';
 		busy = true;
 		started = true;
-		pinned = true;
 		startThinking(q);
 		await tick();
+		scrollThread('bottom'); // show the just-sent message + the thinking state
 		try {
 			const r = await fetch('/api/chat', {
 				method: 'POST',
@@ -249,6 +267,8 @@
 		stopThinking();
 		busy = false;
 		persist();
+		await tick();
+		scrollThread('answer'); // reveal the reply from its top, not the bottom
 	}
 
 	function onSubmit(e) {
@@ -863,6 +883,12 @@
 		flex-direction: column;
 		height: 100vh;
 		height: 100dvh;
+		width: 100%;
+		max-width: 100vw;
+		/* clip (not hidden) so a wide child can't scroll the page sideways WITHOUT
+		   turning this flex column into a vertical scroll container (which `hidden`
+		   would, by forcing overflow-y from visible to auto and breaking the thread). */
+		overflow-x: clip;
 		background: radial-gradient(140% 90% at 50% -10%, var(--bg-2) 0%, var(--bg) 55%);
 		color: var(--ink);
 		font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -1018,8 +1044,12 @@
 	.thread {
 		flex: 1;
 		min-height: 0;
-		overflow-y: auto;
-		scroll-behavior: smooth;
+		overflow-y: auto; /* the scroll container — no overflow-x here (it breaks the
+		                     vertical scroll in this flex column); the .concierge
+		                     overflow-x:clip is the horizontal backstop. */
+		/* no scroll-behavior:smooth — it makes the programmatic "reveal the new answer
+		   from its top" jump unreliable (the animation gets interrupted as the answer
+		   lays out). Instant reposition is predictable and reads as a clean snap. */
 		overscroll-behavior: contain;
 	}
 
@@ -1353,7 +1383,9 @@
 	}
 	.bubble-wrap {
 		min-width: 0;
-		max-width: 88%;
+		/* reserve the avatar's column (30px + 12px gap) so the text sits in a clean
+		   column, squeezed in from the right edge, and can never overflow */
+		max-width: calc(100% - 44px);
 	}
 	.turn.user .bubble-wrap {
 		max-width: 80%;
@@ -1371,8 +1403,10 @@
 		box-shadow: var(--shadow);
 	}
 	.assistant-body {
-		font-size: 15.5px;
-		line-height: 1.62;
+		font-size: 14px;
+		line-height: 1.6;
+		overflow-wrap: anywhere; /* long URLs/words wrap instead of overflowing */
+		word-break: break-word;
 	}
 
 	/* Prose (markdown) */
@@ -1408,6 +1442,15 @@
 		border-radius: 5px;
 		background: var(--bg-2);
 		border: 1px solid var(--hair-2);
+	}
+	.prose :global(img) {
+		max-width: 100%;
+		height: auto;
+		border-radius: 10px;
+	}
+	.prose :global(pre) {
+		max-width: 100%;
+		overflow-x: auto;
 	}
 
 	/* ---- Pricing card ---------------------------------------------------- */
@@ -1943,8 +1986,12 @@
 	}
 
 	@media (max-width: 480px) {
-		.column { padding: 0 16px; }
-		.bubble-wrap, .turn.user .bubble-wrap { max-width: 92%; }
+		.column { padding: 0 14px; }
+		/* user bubble only — the assistant bubble keeps its avatar-column reserve so
+		   avatar + text never exceed the width (which caused sideways scrolling) */
+		.turn.user .bubble-wrap { max-width: 90%; }
+		.bubble.user { font-size: 14.5px; }
 		.feat-grid { grid-template-columns: 1fr; }
+		.turns { gap: 20px; }
 	}
 </style>
