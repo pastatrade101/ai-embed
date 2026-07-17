@@ -1,29 +1,17 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { INDUSTRIES, INDUSTRY_LIST, DEFAULT_INDUSTRY } from '$lib/industries.js';
 	export let form;
-
-	const STAGES = [
-		{ key: 'business', label: 'Your business', hint: 'Tell us who you are' },
-		{ key: 'tours', label: 'Your tours', hint: 'What you sell' },
-		{ key: 'channels', label: 'Channels', hint: 'Where customers reach you' },
-		{ key: 'account', label: 'Create account', hint: 'Save & go live' }
-	];
 
 	const REGIONS = ['Tanzania', 'Kenya', 'Uganda', 'Rwanda', 'South Africa', 'Other'];
 	const CURRENCIES = ['USD', 'EUR', 'GBP', 'TZS', 'KES'];
-	const FOCUS = ['Safari', 'Kilimanjaro', 'Zanzibar', 'Gorilla trekking', 'Cultural', 'Honeymoon', 'Family', 'Budget', 'Luxury'];
 	const CHANNELS = ['WhatsApp', 'Instagram', 'Facebook', 'Google Business', 'Website', 'QR Code'];
-	const SUGGESTIONS = [
-		'A boutique safari operator in Arusha specializing in Serengeti & Ngorongoro',
-		'Family-friendly Tanzania tours with Zanzibar beach extensions',
-		'Luxury Kilimanjaro climbs with private guides',
-		'Budget group departures to Masai Mara from Nairobi'
-	];
 
 	let stageIdx = 0;
 	let submitting = false;
 
 	// Form state (bound to visible inputs; mirrored into hidden named inputs).
+	let industry = form?.values?.industry && INDUSTRIES[form.values.industry] ? form.values.industry : DEFAULT_INDUSTRY;
 	let brandName = form?.values?.brandName ?? '';
 	let description = form?.values?.description ?? '';
 	let region = form?.values?.region ?? 'Tanzania';
@@ -34,6 +22,27 @@
 	let fullName = form?.values?.fullName ?? '';
 	let email = form?.values?.email ?? '';
 	let password = '';
+
+	// Everything industry-flavoured (labels, focus chips, example descriptions)
+	// comes from the Industry Registry — tourism is the preselected default.
+	$: ind = INDUSTRIES[industry];
+	$: ob = ind.onboarding;
+	$: FOCUS = ob.focusOptions;
+	$: SUGGESTIONS = ob.suggestions;
+	$: STAGES = [
+		{ key: 'industry', label: 'Your industry', hint: 'What kind of business' },
+		{ key: 'business', label: 'Your business', hint: 'Tell us who you are' },
+		{ key: 'offerings', label: ob.offeringsLabel, hint: ob.offeringsHint },
+		{ key: 'channels', label: 'Channels', hint: 'Where customers reach you' },
+		{ key: 'account', label: 'Create account', hint: 'Save & go live' }
+	];
+
+	function pickIndustry(key) {
+		if (key === industry) return;
+		industry = key;
+		tourFocus = []; // focus options differ per industry
+		if (description && INDUSTRY_LIST.some((i) => i.onboarding.suggestions.includes(description))) description = '';
+	}
 
 	// If a submit failed, jump back to the account step to show the error.
 	$: if (form?.error && stageIdx < STAGES.length - 1) stageIdx = STAGES.length - 1;
@@ -46,7 +55,7 @@
 	$: canContinue =
 		stage.key === 'business'
 			? brandName.trim() && description.trim().length > 10
-			: stage.key === 'tours'
+			: stage.key === 'offerings'
 				? tourFocus.length > 0
 				: stage.key === 'channels'
 					? channels.length > 0 && whatsapp.trim()
@@ -122,6 +131,7 @@
 		<!-- Panel -->
 		<form class="panel" method="POST" action="?/signup" use:enhance={submit}>
 			<!-- Hidden fields carry all collected state to the action -->
+			<input type="hidden" name="industry" value={industry} />
 			<input type="hidden" name="brandName" value={brandName} />
 			<input type="hidden" name="description" value={description} />
 			<input type="hidden" name="region" value={region} />
@@ -136,13 +146,26 @@
 
 			{#if form?.error}<div class="err">{form.error}</div>{/if}
 
-			{#if stage.key === 'business'}
-				<div class="eyebrow">Step 1 · Your business</div>
-				<h1>Tell us about your tour business</h1>
+			{#if stage.key === 'industry'}
+				<div class="eyebrow">Step 1 · Your industry</div>
+				<h1>What kind of business are you?</h1>
+				<p class="desc">Your AI assistant adapts to your industry — its voice, questions, and setup.</p>
+				<div class="ind-grid">
+					{#each INDUSTRY_LIST as i}
+						<button type="button" class="ind-card" class:on={industry === i.key} on:click={() => pickIndustry(i.key)}>
+							<span class="ind-ico">{i.icon}</span>
+							<span class="ind-name">{i.label}</span>
+							<span class="ind-tag">{i.tagline}</span>
+						</button>
+					{/each}
+				</div>
+			{:else if stage.key === 'business'}
+				<div class="eyebrow">Step 2 · Your business</div>
+				<h1>{ob.businessHeading}</h1>
 				<p class="desc">Your assistant will speak in your voice using this context.</p>
 				<div class="fields">
-					<label>Business name<input bind:value={brandName} placeholder="e.g. Kilima Safaris" /></label>
-					<label>What do you do?<textarea rows="3" bind:value={description} placeholder="Describe your tours, style, and where you operate…"></textarea></label>
+					<label>Business name<input bind:value={brandName} placeholder={ob.namePlaceholder} /></label>
+					<label>What do you do?<textarea rows="3" bind:value={description} placeholder={ob.descPlaceholder}></textarea></label>
 					<div>
 						<div class="mini">Try one</div>
 						<div class="tags">
@@ -153,13 +176,13 @@
 					</div>
 					<label>Primary region<select bind:value={region}>{#each REGIONS as r}<option>{r}</option>{/each}</select></label>
 				</div>
-			{:else if stage.key === 'tours'}
-				<div class="eyebrow">Step 2 · Your tours</div>
-				<h1>What kinds of tours do you sell?</h1>
-				<p class="desc">Pick everything that applies — you can upload the full catalogue later.</p>
+			{:else if stage.key === 'offerings'}
+				<div class="eyebrow">Step 3 · {ob.offeringsLabel}</div>
+				<h1>{ob.offeringsHeading}</h1>
+				<p class="desc">{ob.offeringsDesc}</p>
 				<div class="fields">
 					<div>
-						<div class="mini">Tour focus</div>
+						<div class="mini">{ob.focusLabel}</div>
 						<div class="chips">
 							{#each FOCUS as f}
 								<button type="button" class="chip" class:on={tourFocus.includes(f)} on:click={() => (tourFocus = toggle(tourFocus, f))}>{tourFocus.includes(f) ? '✓ ' : ''}{f}</button>
@@ -167,10 +190,10 @@
 						</div>
 					</div>
 					<label>Default currency<select bind:value={currency}>{#each CURRENCIES as c}<option>{c}</option>{/each}</select></label>
-					<div class="note">📎 <b>Upload later:</b> CSV, JSON, or paste your itineraries — add them from your dashboard once you're in.</div>
+					<div class="note">📎 <b>Upload later:</b> {ob.uploadNote}</div>
 				</div>
 			{:else if stage.key === 'channels'}
-				<div class="eyebrow">Step 3 · Channels</div>
+				<div class="eyebrow">Step 4 · Channels</div>
 				<h1>Where should customers reach you?</h1>
 				<p class="desc">Booking-ready leads always land in your WhatsApp.</p>
 				<div class="fields">
@@ -188,7 +211,7 @@
 					<label>WhatsApp number for handoff<input bind:value={whatsapp} placeholder="+255 712 345 678" inputmode="tel" /></label>
 				</div>
 			{:else if stage.key === 'account'}
-				<div class="eyebrow">Step 4 · Create account</div>
+				<div class="eyebrow">Step 5 · Create account</div>
 				<h1>One last thing — confirm your email</h1>
 				<p class="desc">We'll email you a one-click link to activate your workspace. No credit card required.</p>
 				<div class="fields">
@@ -475,6 +498,55 @@
 		background: rgba(224, 178, 76, 0.15);
 		color: var(--gold);
 	}
+	/* Industry picker cards */
+	.ind-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+		gap: 0.7rem;
+		margin-top: 1.4rem;
+	}
+	.ind-card {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.3rem;
+		border: 1px solid rgba(247, 242, 232, 0.2);
+		background: transparent;
+		color: rgba(247, 242, 232, 0.85);
+		border-radius: 14px;
+		padding: 0.9rem 1rem;
+		font: inherit;
+		text-align: left;
+		cursor: pointer;
+		transition: all 0.15s;
+	}
+	.ind-card:hover {
+		border-color: rgba(247, 242, 232, 0.4);
+		transform: translateY(-1px);
+	}
+	.ind-card.on {
+		border-color: var(--gold);
+		background: rgba(224, 178, 76, 0.14);
+		color: var(--cream);
+		box-shadow: inset 0 0 0 1px var(--gold);
+	}
+	.ind-ico {
+		font-size: 1.35rem;
+		line-height: 1;
+	}
+	.ind-name {
+		font-weight: 650;
+		font-size: 0.92rem;
+	}
+	.ind-tag {
+		font-size: 0.74rem;
+		color: rgba(247, 242, 232, 0.55);
+		line-height: 1.35;
+	}
+	.ind-card.on .ind-tag {
+		color: rgba(247, 242, 232, 0.75);
+	}
+
 	.chips {
 		display: flex;
 		flex-wrap: wrap;

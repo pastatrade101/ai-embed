@@ -7,20 +7,11 @@
 import { askText, AI, SONNET } from '$lib/server/ai.js';
 import { supabase } from '$lib/server/supabase.js';
 import { reingestItem } from '$lib/server/rag.js';
+import { serverIndustry } from '$lib/server/industries.js';
 
-const SYSTEM = `You are a travel-content researcher for a tour operator. They want a knowledge-base entry on a topic so their AI assistant can answer customer questions about it.
-
-Use web search (up to a few queries) to gather accurate, current facts. Then STOP searching and write the entry.
-
-Your FINAL message must be ONLY the entry — nothing else:
-- First line, exactly: "# <Title>"
-- Then 150–350 words: clear prose plus a few short, useful bullet points a customer would care about.
-- Do NOT narrate your process, do not say "here is" or "now I'll write", do not include citation markers or a source list.
-- Do NOT invent prices, dates, or this operator's own tour details — those belong to the operator.
-- For facts that change (visa fees, seasonal prices, park fees, health rules), write "confirm current details" rather than guessing.`;
-
-/** Draft a knowledge entry for a topic. Gated + metered via ai.js. */
-export async function researchDraft(clientId, planKey, topic) {
+/** Draft a knowledge entry for a topic. Gated + metered via ai.js. The
+ *  researcher's role framing comes from the Industry Registry (tourism verbatim). */
+export async function researchDraft(clientId, planKey, topic, ind = serverIndustry(null)) {
 	const topicStr = String(topic).slice(0, 300);
 	// Server-side web search loops internally; give enough hops to finish searching
 	// and reach a clean final entry rather than being cut off mid-search.
@@ -31,7 +22,7 @@ export async function researchDraft(clientId, planKey, topic) {
 		model: SONNET,
 		maxTokens: 2000,
 		hops: 12,
-		system: SYSTEM,
+		system: ind.researchSystem,
 		tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 4 }],
 		messages: [{ role: 'user', content: `Draft a knowledge-base entry about: ${topicStr}` }]
 	});

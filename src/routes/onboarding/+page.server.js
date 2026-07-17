@@ -8,6 +8,7 @@ import { supabase } from '$lib/server/supabase.js';
 import { hashPassword } from '$lib/server/password.js';
 import { createSignupToken } from '$lib/server/signup-token.js';
 import { sendEmail } from '$lib/server/email.js';
+import { industryKeyOf } from '$lib/industries.js';
 
 export function load({ locals }) {
 	// Already signed in? Skip signup and go to the workspace.
@@ -23,6 +24,9 @@ export const actions = {
 		// Honeypot — real users never fill this hidden field; bots do.
 		if (String(form.get('company_website') ?? '').trim()) throw redirect(303, '/portal');
 
+		// Unknown/missing industry keys resolve to the default (tourism), so old
+		// forms and tampered values can never break provisioning.
+		const industry = industryKeyOf(String(form.get('industry') ?? '').trim());
 		const brandName = String(form.get('brandName') ?? '').trim();
 		const description = String(form.get('description') ?? '').trim();
 		const region = String(form.get('region') ?? '').trim();
@@ -33,7 +37,7 @@ export const actions = {
 		const email = String(form.get('email') ?? '').trim().toLowerCase();
 		const password = String(form.get('password') ?? '');
 
-		const values = { brandName, description, region, tourFocus, currency, whatsapp, fullName, email };
+		const values = { industry, brandName, description, region, tourFocus, currency, whatsapp, fullName, email };
 		if (!brandName) return fail(400, { error: 'Please enter your business name.', values });
 		if (!email || !/.+@.+\..+/.test(email)) return fail(400, { error: 'Please enter a valid email address.', values });
 		if (password.length < 8) return fail(400, { error: 'Password must be at least 8 characters.', values });
@@ -46,6 +50,7 @@ export const actions = {
 		// The token carries everything needed to provision the tenant on click.
 		// The password is hashed NOW so plaintext never touches the token/URL.
 		const token = createSignupToken({
+			industry,
 			brandName,
 			description,
 			region,

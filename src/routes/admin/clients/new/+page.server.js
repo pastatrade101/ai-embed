@@ -1,6 +1,7 @@
 import { fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { hashPassword, generatePassword } from '$lib/server/password.js';
+import { industryOf } from '$lib/industries.js';
 
 function slugify(s) {
 	return (s ?? '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -18,7 +19,10 @@ export const actions = {
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		const slug = slugify(String(form.get('slug') ?? '') || name);
-		const business_type = String(form.get('business_type') ?? '').trim() || null;
+		// Industry drives the AI persona/terminology; business_type stays the
+		// free-text human label (defaults to the industry's own when left blank).
+		const ind = industryOf(String(form.get('industry') ?? '').trim());
+		const business_type = String(form.get('business_type') ?? '').trim() || ind.businessType;
 		const business_context = String(form.get('business_context') ?? '').trim() || null;
 		const whatsapp_number = String(form.get('whatsapp_number') ?? '').trim() || null;
 		const lead_email = String(form.get('lead_email') ?? '').trim() || null;
@@ -34,7 +38,7 @@ export const actions = {
 		let opPassword = String(form.get('operator_password') ?? '');
 		const opName = String(form.get('operator_name') ?? '').trim() || null;
 
-		const values = { name, slug, business_type, business_context, whatsapp_number, lead_email, plan: planKey, operator_email: opEmail, operator_name: opName };
+		const values = { name, slug, industry: ind.key, business_type, business_context, whatsapp_number, lead_email, plan: planKey, operator_email: opEmail, operator_name: opName };
 
 		if (!name || !slug) return fail(400, { error: 'Business name and slug are required.', values });
 		if (!opEmail) return fail(400, { error: 'A login email (username) is required — the client signs in with it.', values });
@@ -48,20 +52,26 @@ export const actions = {
 		// Cap follows the chosen plan.
 		const { data: plan } = await supabase.from('plans').select('key, monthly_conversation_cap').eq('key', planKey).maybeSingle();
 
-		const { data: client, error } = await supabase
+		const row = {
+			slug,
+			name,
+			business_type,
+			business_context,
+			whatsapp_number,
+			lead_email,
+			plan: plan?.key ?? planKey,
+			monthly_conversation_cap: plan?.monthly_conversation_cap ?? 30
+		};
+		// Include the industry key when the column exists (migration 016); retry
+		// without it so client creation keeps working pre-migration.
+		let { data: client, error } = await supabase
 			.from('clients')
-			.insert({
-				slug,
-				name,
-				business_type,
-				business_context,
-				whatsapp_number,
-				lead_email,
-				plan: plan?.key ?? planKey,
-				monthly_conversation_cap: plan?.monthly_conversation_cap ?? 30
-			})
+			.insert({ ...row, industry: ind.key })
 			.select('id, slug, name')
 			.single();
+		if (error && error.code !== '23505') {
+			({ data: client, error } = await supabase.from('clients').insert(row).select('id, slug, name').single());
+		}
 
 		if (error) {
 			const msg = error.code === '23505' ? `Slug "${slug}" is already taken.` : error.message;

@@ -7,6 +7,7 @@
 	$: client = data.client;
 	$: stats = data.stats;
 	$: dash = data.dash;
+	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours', conversion: 'booking', conversions: 'bookings' };
 
 	$: firstName = (data.user?.name || client.name || '').trim().split(/\s+/)[0] || 'there';
 	function greetingWord() {
@@ -49,7 +50,7 @@
 	// Milestone celebration (dismissible, client-side only).
 	$: celebration =
 		stats.conversations >= 100
-			? { key: 'c100', text: '100 conversations answered!', sub: 'Your AI is a booking machine.' }
+			? { key: 'c100', text: '100 conversations answered!', sub: `Your AI is a ${terms.conversion} machine.` }
 			: stats.leads >= 10
 				? { key: 'l10', text: '10 leads captured!', sub: 'Momentum is building.' }
 				: stats.leads >= 1
@@ -148,7 +149,7 @@
 	</div>
 	<p class="muted" style="margin:.35rem 0 1rem">
 		{client.is_active
-			? 'Answering customer questions, recommending tours, qualifying leads, and collecting enquiries 24/7 — even while you sleep.'
+			? `Answering customer questions, recommending ${terms.items}, qualifying leads, and collecting enquiries 24/7 — even while you sleep.`
 			: 'Your assistant is paused and not answering visitors. Reactivate it in Settings.'}
 	</p>
 	<div class="status-grid">
@@ -180,7 +181,7 @@
 		{#if dash.pipeline.value > 0}
 			<div class="k">Est. pipeline value</div>
 			<div class="v" style="font-size:1.5rem">~{money(dash.pipeline.value, dash.pipeline.currency)}</div>
-			<div class="foot">from {dash.pipeline.matched} tour-matched {dash.pipeline.matched === 1 ? 'lead' : 'leads'}</div>
+			<div class="foot">from {dash.pipeline.matched} {terms.item}-matched {dash.pipeline.matched === 1 ? 'lead' : 'leads'}</div>
 		{:else}
 			<div class="k">High-intent leads</div>
 			<div class="v">{highIntent}</div>
@@ -206,7 +207,7 @@
 			</div>
 			<div class="insight-tip">
 				<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V17h6v-.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" /></svg>
-				<span>Most interest is in <b>{dash.interests[0].term}</b> — make sure that tour is easy to find and well-described in your knowledge.</span>
+				<span>Most interest is in <b>{dash.interests[0].term}</b> — make sure that {terms.item} is easy to find and well-described in your knowledge.</span>
 			</div>
 		{:else}
 			<p class="muted" style="font-size:.9rem">Not enough conversations yet to spot trends. As customers chat, the topics they care about most will show up here.</p>

@@ -2,6 +2,7 @@ import { supabase } from '$lib/server/supabase.js';
 import { fail } from '@sveltejs/kit';
 import { listTours } from '$lib/server/tours.js';
 import { scoreLead, leadTier, extractLead, leadStage, STAGES, catalogueGaps } from '$lib/server/dashboard.js';
+import { serverIndustry } from '$lib/server/industries.js';
 
 const OPERATOR_STAGES = ['contacted', 'quoted', 'won', 'lost'];
 
@@ -16,19 +17,21 @@ const metaGet = (md, ...keys) => {
 	return null;
 };
 
-/** Recommend a next step from real signals — no fabricated CRM state. */
-function nextAction(lead, detail, score) {
+/** Recommend a next step from real signals — no fabricated CRM state. The
+ *  action copy comes from the tenant's Industry Registry entry (tourism verbatim). */
+function nextAction(lead, detail, score, acts) {
 	const hasPhone = !!lead.whatsapp;
-	if (score >= 78) return detail.tour ? `Send a quote for ${detail.tour}` : 'Send a quote today';
+	if (score >= 78) return detail.tour ? acts.quoteNamed(detail.tour) : acts.quote;
 	if (score >= 55) return hasPhone ? 'Reply on WhatsApp while warm' : detail.email ? 'Reply by email while warm' : 'Reach out while warm';
-	if (!detail.month) return 'Ask when they’d like to travel';
-	if (!detail.tour) return 'Suggest tours that fit their trip';
+	if (!detail.month) return acts.askTiming;
+	if (!detail.tour) return acts.suggestItems;
 	return 'Follow up with options';
 }
 
 export async function load({ locals, parent }) {
 	const clientId = locals.user.client_id;
 	const { client } = await parent();
+	const ind = serverIndustry(client);
 
 	const start = new Date();
 	start.setHours(0, 0, 0, 0);
@@ -76,7 +79,7 @@ export async function load({ locals, parent }) {
 	const leads = (rawLeads ?? []).map((l) => {
 		const score = scoreLead(l);
 		const detail = mergeDetail(l);
-		return { ...l, score, tier: leadTier(score), detail, stage: leadStage(l, detail, score), action: nextAction(l, detail, score) };
+		return { ...l, score, tier: leadTier(score), detail, stage: leadStage(l, detail, score), action: nextAction(l, detail, score, ind.nextActions) };
 	});
 
 	// --- CRM aggregates (all from real, scored data) ---
@@ -102,7 +105,7 @@ export async function load({ locals, parent }) {
 	// Conversation volume (the AI's workload) + opportunities the catalogue misses.
 	const conversations = convs ?? [];
 	const convToday = conversations.filter((c) => isToday(c.created_at)).length;
-	const gaps = catalogueGaps(conversations, tours);
+	const gaps = catalogueGaps(conversations, tours, 3, ind.gapThemes);
 
 	// "Contact first": the strongest warm/hot lead that arrived recently.
 	const priority = [...leads].filter((l) => isWeek(l.created_at) && l.score >= 55).sort((a, b) => b.score - a.score)[0] ?? null;

@@ -8,6 +8,7 @@ import { monthStartISO } from '$lib/server/tenant.js';
 import { listTours, departuresByItem } from '$lib/server/tours.js';
 import { scoreLead, leadTier, leadStage, extractLead, pipeline, catalogueGaps, customerQuestions } from '$lib/server/dashboard.js';
 import { askText, AI, SONNET } from '$lib/server/ai.js';
+import { serverIndustry } from '$lib/server/industries.js';
 
 // Aggregate over the most-recent N leads (plenty for the target market). Exact
 // totals still come from head-count queries so reported numbers are never capped.
@@ -34,7 +35,7 @@ const tally = (arr) => {
 /** Compile a compact, PII-light snapshot of one operator's business. Counts are
  *  EXACT (head-count queries); aggregates are computed over the most-recent
  *  LEAD_SAMPLE / CONV_SAMPLE rows, with the basis surfaced so the model can caveat. */
-export async function analystSnapshot(clientId) {
+export async function analystSnapshot(clientId, ind = serverIndustry(null)) {
 	const monthStart = monthStartISO();
 	const [tourItems, rawLeadsRes, leadTotalRes, leadMonthRes, convRes, convTotalRes, convMonthRes] = await Promise.all([
 		listTours(clientId).then((t) => t ?? []),
@@ -114,32 +115,21 @@ export async function analystSnapshot(clientId) {
 			}))
 		},
 		conversations: { total: convTotal, thisMonth: convThisMonth, analysedConversations: convRows.length, topQuestions: customerQuestions(convRows, 8) },
-		opportunities: catalogueGaps(convRows, tours)
+		opportunities: catalogueGaps(convRows, tours, 3, ind.gapThemes)
 	};
 }
 
-const SYSTEM = `You are the data analyst for a tour operator, embedded in their dashboard. You answer questions about THEIR business using only the JSON snapshot provided.
-
-Rules:
-- Answer ONLY from the DATA below. Never invent numbers, tours, or trends that aren't in it.
-- "leads.total", "leads.thisMonth", "conversations.total" and "conversations.thisMonth" are EXACT counts. Use them for any "how many" question.
-- Breakdowns (byTier, byStage, values, topDestinations/Months/Countries) are computed over the most recent "analysedLeads" leads. If "aggregatesCoverRecentOnly" is true, say these reflect recent leads, not the full history.
-- If the data doesn't cover the question, say so plainly and suggest what to track.
-- Amounts are in the operator's currency (see "currency"). Format money with that currency.
-- Be concise and practical — a busy operator wants the answer and the "so what", not a lecture.
-- When useful, point to a concrete next action grounded in the numbers.
-- Prefer short paragraphs or tight bullet lists. No preamble like "Based on the data".`;
-
-/** Answer one analyst question. Gated + metered via ai.js. */
-export async function askAnalyst(clientId, planKey, question) {
-	const snapshot = await analystSnapshot(clientId);
+/** Answer one analyst question. Gated + metered via ai.js. The analyst's role
+ *  framing comes from the tenant's Industry Registry entry (tourism verbatim). */
+export async function askAnalyst(clientId, planKey, question, ind = serverIndustry(null)) {
+	const snapshot = await analystSnapshot(clientId, ind);
 	const res = await askText({
 		clientId,
 		planKey,
 		feature: AI.DATA_ANALYST,
 		model: SONNET,
 		maxTokens: 1500,
-		system: SYSTEM,
+		system: ind.analystSystem,
 		messages: [{ role: 'user', content: `DATA (this operator only):\n${JSON.stringify(snapshot)}\n\nQUESTION: ${question}` }]
 	});
 	return res;

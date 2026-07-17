@@ -4,6 +4,7 @@ import { listTours } from '$lib/server/tours.js';
 import { catalogueGaps } from '$lib/server/dashboard.js';
 import { FEATURE, planAllows } from '$lib/server/gating.js';
 import { unlockingPlanName } from '$lib/feature-value.js';
+import { serverIndustry } from '$lib/server/industries.js';
 import { quota, AI } from '$lib/server/ai.js';
 import { askAnalyst } from '$lib/server/analyst.js';
 import { researchDraft, saveResearchDraft } from '$lib/server/research.js';
@@ -34,8 +35,11 @@ async function access(clientId, plan) {
 
 export async function load({ locals }) {
 	const clientId = locals.user.client_id;
-	const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+	// select('*') so the optional industry column (migration 016) flows in when
+	// present — absent columns are simply missing, never an error.
+	const { data: c } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
 	const plan = c?.plan ?? 'free';
+	const ind = serverIndustry(c);
 
 	// Light fetch for research topic suggestions (gaps customers ask about) + the
 	// plans that unlock each premium tool, so locked blocks can name the upgrade.
@@ -45,11 +49,11 @@ export async function load({ locals }) {
 		supabase.from('plans').select('name, features, sort, is_active').eq('is_active', true).order('sort')
 	]);
 	const tours = (tourItems ?? []).map((t) => ({ title: t.title, destination: metaGet(t.metadata, 'destination', 'route', 'park', 'location') }));
-	const gaps = catalogueGaps(convs ?? [], tours).map((g) => g.label);
+	const gaps = catalogueGaps(convs ?? [], tours, 3, ind.gapThemes).map((g) => g.label);
 
 	return {
 		access: await access(clientId, plan),
-		suggestions: ['Which tours convert best into leads?', 'Where are my leads dropping off?', 'What’s my potential booking value this month?', 'Which travel month is most in demand?'],
+		suggestions: ind.analystSuggestions,
 		researchTopics: gaps,
 		analystPlan: unlockingPlanName(activePlans, FEATURE.DATA_ANALYST),
 		researchPlan: unlockingPlanName(activePlans, FEATURE.RESEARCH)
@@ -59,7 +63,7 @@ export async function load({ locals }) {
 export const actions = {
 	ask: async ({ request, locals }) => {
 		const clientId = locals.user.client_id;
-		const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+		const { data: c } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
 		const plan = c?.plan ?? 'free';
 		if (!(await planAllows(plan, FEATURE.DATA_ANALYST))) return fail(403, { section: 'analyst', error: 'The AI data analyst isn’t included in your plan — upgrade to use it.' });
 		const form = await request.formData();
@@ -67,7 +71,7 @@ export const actions = {
 		if (!question) return fail(400, { section: 'analyst', error: 'Ask a question about your business.' });
 		let res;
 		try {
-			res = await askAnalyst(clientId, plan, question);
+			res = await askAnalyst(clientId, plan, question, serverIndustry(c));
 		} catch (e) {
 			console.error('[insights/ask]', e?.message ?? e);
 			return fail(502, { section: 'analyst', error: 'The analyst is temporarily unavailable — please try again in a moment.' });
@@ -80,7 +84,7 @@ export const actions = {
 
 	research: async ({ request, locals }) => {
 		const clientId = locals.user.client_id;
-		const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
+		const { data: c } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
 		const plan = c?.plan ?? 'free';
 		if (!(await planAllows(plan, FEATURE.RESEARCH))) return fail(403, { section: 'research', error: 'The AI research assistant isn’t included in your plan — upgrade to use it.' });
 		const form = await request.formData();
@@ -88,7 +92,7 @@ export const actions = {
 		if (!topic) return fail(400, { section: 'research', error: 'Enter a topic to research.' });
 		let res;
 		try {
-			res = await researchDraft(clientId, plan, topic);
+			res = await researchDraft(clientId, plan, topic, serverIndustry(c));
 		} catch (e) {
 			console.error('[insights/research]', e?.message ?? e);
 			return fail(502, { section: 'research', error: 'The research assistant is temporarily unavailable — please try again in a moment.' });

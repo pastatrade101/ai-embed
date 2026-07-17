@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { INDUSTRY_LIST } from '$lib/industries.js';
 	export let data;
 	export let form;
 
@@ -97,7 +98,18 @@
 				</div>
 			</div>
 			<div class="row">
+				<div>
+					<label for="industry">Industry</label>
+					<select id="industry" name="industry">
+						{#each INDUSTRY_LIST as i}
+							<option value={i.key} selected={(form?.values?.industry ?? 'tourism') === i.key}>{i.icon} {i.label}</option>
+						{/each}
+					</select>
+					<div class="hint">Drives the AI persona, terminology and setup.</div>
+				</div>
 				<div><label for="business_type">Business type</label><input id="business_type" name="business_type" value={form?.values?.business_type ?? ''} placeholder="tour operator" /></div>
+			</div>
+			<div class="row">
 				<div><label for="whatsapp_number">WhatsApp number</label><input id="whatsapp_number" name="whatsapp_number" value={form?.values?.whatsapp_number ?? ''} placeholder="+255…" /></div>
 			</div>
 			<div><label for="lead_email">Lead notification email</label><input id="lead_email" name="lead_email" type="email" value={form?.values?.lead_email ?? ''} placeholder="owner@business.com" /></div>

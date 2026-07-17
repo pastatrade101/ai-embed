@@ -1,6 +1,7 @@
 // Turn the raw workspace (conversations, leads, knowledge, tours) into an
 // "AI employee" dashboard — everything derived from EXISTING data, no schema
 // changes. Pure functions so they're easy to reason about and test.
+import { serverIndustry } from './industries.js';
 
 const STOP = new Set([
 	'day', 'days', 'tour', 'tours', 'the', 'and', 'national', 'park', 'trip',
@@ -51,32 +52,16 @@ export function topInterests(conversations, tours, limit = 4) {
 		.map(([k, n]) => ({ term: k.charAt(0).toUpperCase() + k.slice(1), count: n }));
 }
 
-// Common safari/tour experiences customers ask for. If the catalogue doesn't
-// cover one but customers keep asking, that's a revenue opportunity to surface.
-const THEMES = [
-	{ label: 'Hot-air balloon safari', re: /balloon/i },
-	{ label: 'Honeymoon / romantic package', re: /honeymoon|romantic|anniversary/i },
-	{ label: 'Gorilla trekking', re: /gorilla/i },
-	{ label: 'Chimpanzee trekking', re: /chimpanzee|chimp\b/i },
-	{ label: 'Kilimanjaro climb', re: /kilimanjaro|mount meru|mountain climb/i },
-	{ label: 'Diving / snorkelling', re: /scuba|diving|snorkel/i },
-	{ label: 'Walking safari', re: /walking safari|bush walk|guided walk/i },
-	{ label: 'Night game drive', re: /night (drive|safari|game)/i },
-	{ label: 'Cultural / village tour', re: /cultural|maasai(?!\s+mara)|village tour|boma|tribe/i },
-	{ label: 'Family safari', re: /family safari|kid[- ]friendly|child[- ]friendly/i },
-	{ label: 'Birdwatching', re: /bird ?watch|birding/i },
-	{ label: 'Photographic safari', re: /photographic|photography safari/i },
-	{ label: 'Budget / camping safari', re: /budget safari|camping safari|backpack/i }
-];
-
 /**
  * Opportunities: experiences customers ASK about that the catalogue doesn't cover.
- * Pure keyword match against tour titles/destinations vs conversation text.
+ * Pure keyword match against tour titles/destinations vs conversation text. The
+ * demand-signal themes come from the tenant's Industry Registry entry (tourism's
+ * safari list by default; industries without themes return no gaps).
  */
-export function catalogueGaps(conversations, tours, limit = 3) {
+export function catalogueGaps(conversations, tours, limit = 3, themes = serverIndustry(null).gapThemes) {
 	const cat = (tours ?? []).map((t) => `${t.title ?? ''} ${t.destination ?? ''} ${t.season ?? ''}`).join(' ');
 	const out = [];
-	for (const th of THEMES) {
+	for (const th of themes ?? []) {
 		if (th.re.test(cat)) continue; // already offered
 		let count = 0;
 		for (const c of conversations ?? []) if (th.re.test(convText(c))) count++;
@@ -343,12 +328,13 @@ export function customerQuestions(conversations, limit = 6) {
 
 /** Actionable items the operator should review — all derived from real state. */
 export function aiTasks({ client, stats, leads, items }) {
+	const ind = serverIndustry(client);
 	const tasks = [];
 	if (!client.is_active) {
 		tasks.push({ icon: 'pause', text: 'Your assistant is paused — reactivate it to start answering customers.', cta: 'Reactivate', href: '/portal/settings', level: 'danger' });
 	}
 	if ((stats.items ?? 0) === 0) {
-		tasks.push({ icon: 'book', text: "Your assistant has no tours or info yet — it can only greet visitors.", cta: 'Add tours', href: '/portal/knowledge', level: 'warn' });
+		tasks.push({ icon: 'book', text: ind.emptyKnowledgeTask.text, cta: ind.emptyKnowledgeTask.cta, href: '/portal/knowledge', level: 'warn' });
 	}
 	if (!client.whatsapp_number) {
 		tasks.push({ icon: 'phone', text: 'Add a WhatsApp number so the assistant can hand you leads.', cta: 'Add number', href: '/portal/settings', level: 'warn' });

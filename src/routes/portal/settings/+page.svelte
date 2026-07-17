@@ -3,6 +3,8 @@
 	export let data;
 	export let form;
 	$: client = data.client;
+	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours', conversion: 'booking' };
+	const tcap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 	const TONES = ['Friendly', 'Professional', 'Warm', 'Playful', 'Concise'];
 	$: suggestedText = (Array.isArray(client.suggested_questions) ? client.suggested_questions : []).join('\n');
@@ -44,7 +46,7 @@
 	<div class="card grid">
 		<div class="row">
 			<div><label for="name">Business name</label><input id="name" name="name" value={client.name} required /></div>
-			<div><label for="business_type">Business type</label><input id="business_type" name="business_type" value={client.business_type ?? ''} placeholder="tour operator" /></div>
+			<div><label for="business_type">Business type</label><input id="business_type" name="business_type" value={client.business_type ?? ''} placeholder={data.industry?.businessType ?? 'tour operator'} /></div>
 		</div>
 		<div class="row">
 			<div>
@@ -92,13 +94,13 @@
 				</select>
 			</div>
 		</div>
-		<div><label for="welcome_message">Welcome message</label><textarea id="welcome_message" name="welcome_message" style="min-height:70px" placeholder="Habari! 👋 Ask me anything about our tours.">{client.welcome_message ?? ''}</textarea><div class="hint">The first thing visitors see in the chat.</div></div>
+		<div><label for="welcome_message">Welcome message</label><textarea id="welcome_message" name="welcome_message" style="min-height:70px" placeholder={`Habari! 👋 Ask me anything about our ${terms.items}.`}>{client.welcome_message ?? ''}</textarea><div class="hint">The first thing visitors see in the chat.</div></div>
 		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder="A family-run safari operator based in Arusha. Always be encouraging about first-time safaris…">{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
 		<div style="max-width:340px"><label for="languages">Languages</label><input id="languages" name="languages" value={client.languages ?? ''} placeholder="English, Swahili" /></div>
 	</div>
 
-	<!-- Booking ------------------------------------------------------------->
-	<h2 class="section">Booking</h2>
+	<!-- Booking / conversion ------------------------------------------------>
+	<h2 class="section">{tcap(terms.conversion)}</h2>
 	<div class="card grid">
 		<div class="row">
 			<div><label for="default_currency">Currency</label><input id="default_currency" name="default_currency" value={client.default_currency ?? 'USD'} style="max-width:140px" /></div>

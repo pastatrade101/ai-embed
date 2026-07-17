@@ -5,6 +5,7 @@
 	import LeadsTable from '$lib/components/LeadsTable.svelte';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import { readableInk } from '$lib/luminance.js';
+	import { industryOf } from '$lib/industries.js';
 	import { page } from '$app/stores';
 
 	export let data;
@@ -90,7 +91,7 @@
 {/if}
 
 {#if tab === 'knowledge'}
-	<KnowledgeManager items={data.items} departures={data.departures} {form} />
+	<KnowledgeManager items={data.items} departures={data.departures} industry={industryOf(data.client)} {form} />
 {/if}
 
 {#if tab === 'leads'}

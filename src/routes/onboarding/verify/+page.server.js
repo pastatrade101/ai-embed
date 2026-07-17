@@ -6,6 +6,7 @@ import { redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { readSignupToken } from '$lib/server/signup-token.js';
 import { createSessionToken, SESSION_COOKIE, sessionCookieOptions } from '$lib/server/auth.js';
+import { industryOf } from '$lib/industries.js';
 
 const slugify = (s) => (s ?? '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 const randSuffix = () => Math.random().toString(36).slice(2, 6);
@@ -22,6 +23,9 @@ export async function load({ url, cookies, locals }) {
 	if (!brandName || !email || !passwordHash) {
 		return { error: 'This confirmation link is missing information. Please sign up again.' };
 	}
+	// Industry chosen at signup; tokens from before the industry step (or with an
+	// unknown key) resolve to the default (tourism) exactly as before.
+	const ind = industryOf(payload.industry);
 
 	// If they already confirmed (double-click, re-open) or the email got claimed
 	// meanwhile, don't create a duplicate — send them to sign in.
@@ -43,26 +47,35 @@ export async function load({ url, cookies, locals }) {
 	const { data: taken } = await supabase.from('clients').select('id').eq('slug', slug).maybeSingle();
 	if (taken) slug = `${slug}-${randSuffix()}`;
 
-	const context = [description, region ? `Based in ${region}.` : '', tourFocus ? `Tour focus: ${tourFocus}.` : '']
+	const context = [description, region ? `Based in ${region}.` : '', tourFocus ? `${ind.onboarding.contextLabel}: ${tourFocus}.` : '']
 		.filter(Boolean)
 		.join(' ');
 
-	const { data: client, error } = await supabase
+	const row = {
+		slug,
+		name: brandName,
+		business_type: ind.businessType,
+		business_context: context || null,
+		whatsapp_number: whatsapp || null,
+		lead_email: email,
+		default_currency: (String(currency || 'USD').toUpperCase() || 'USD').slice(0, 8),
+		plan: planKey,
+		monthly_conversation_cap: cap,
+		is_active: true
+	};
+	// Include the industry key when the column exists (migration 016); retry
+	// without it ONLY on the missing-column error so signup keeps working on
+	// databases that haven't migrated yet — a transient failure on a migrated DB
+	// must surface rather than silently provisioning the default industry.
+	const missingColumn = (e) => e && (e.code === 'PGRST204' || /industry|schema cache/i.test(e.message ?? ''));
+	let { data: client, error } = await supabase
 		.from('clients')
-		.insert({
-			slug,
-			name: brandName,
-			business_type: 'tour operator',
-			business_context: context || null,
-			whatsapp_number: whatsapp || null,
-			lead_email: email,
-			default_currency: (String(currency || 'USD').toUpperCase() || 'USD').slice(0, 8),
-			plan: planKey,
-			monthly_conversation_cap: cap,
-			is_active: true
-		})
+		.insert({ ...row, industry: ind.key })
 		.select('id')
 		.single();
+	if (missingColumn(error)) {
+		({ data: client, error } = await supabase.from('clients').insert(row).select('id').single());
+	}
 	if (error) {
 		return { error: `We couldn't finish setting up your workspace: ${error.message}. Please try signing up again.` };
 	}

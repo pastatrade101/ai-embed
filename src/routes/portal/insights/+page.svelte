@@ -14,7 +14,7 @@
 	// Editable draft, seeded from the research result.
 	let draftTitle = '';
 	let draftBody = '';
-	let draftCategory = 'Travel guide';
+	let draftCategory = data.industry?.defaultResearchCategory ?? 'Travel guide';
 	let seenDraft = null;
 	$: if (form?.section === 'research' && form?.draft && form.draft !== seenDraft) {
 		seenDraft = form.draft;
@@ -52,7 +52,7 @@
 			.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
 			.replace(/\n{2,}/g, '</p><p>')
 			.replace(/\n/g, '<br>');
-	const CATEGORIES = ['Travel guide', 'FAQ', 'Destination', 'Policy', 'Transport', 'Accommodation'];
+	$: CATEGORIES = data.industry?.researchCategories ?? ['Travel guide', 'FAQ', 'Destination', 'Policy', 'Transport', 'Accommodation'];
 </script>
 
 <div class="page-head">

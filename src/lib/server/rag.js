@@ -7,7 +7,8 @@ import { supabase } from './supabase.js';
 import { embed, embedQuery } from './embeddings.js';
 import { chunkItem } from './knowledge.js';
 import { estimateCost } from './pricing.js';
-import { TOOL_DEFS, runTool } from './tools.js';
+import { runTool } from './tools.js';
+import { serverIndustry } from './industries.js';
 import { FEATURE, planAllows, planUnlocks } from './gating.js';
 import { budgetStatus } from './credits.js';
 import { notifyUsageIfCrossed } from './usage-alerts.js';
@@ -33,15 +34,14 @@ const extractText = (response) =>
  * the next turn can send the summary instead of the full history. Its own
  * (small) token cost is logged to usage_records.
  */
-function summarizeConversation(clientId, conversationId, transcript) {
+function summarizeConversation(clientId, conversationId, transcript, ind = serverIndustry(null)) {
 	if (!conversationId || transcript.length < SUMMARY_THRESHOLD) return;
 	const text = transcript.map((m) => `${m.role}: ${m.content}`).join('\n');
 	anthropic()
 		.messages.create({
 			model: CHAT_MODEL,
 			max_tokens: 300,
-			system:
-				'Summarize this customer chat for the sales team in 3-5 sentences. Capture: what the customer wants, any dates/group size/budget/nationality given, tours or prices discussed, contact details shared, and the next step. Be factual and concise.',
+			system: ind.summarySystem,
 			messages: [{ role: 'user', content: text }]
 		})
 		.then((resp) => {
@@ -81,14 +81,13 @@ const CHAT_MODEL = 'claude-haiku-4-5';
  * Returns a same-length array; already-English text passes through. Pass
  * `clientId` to meter the Claude cost toward the tenant's AI usage.
  */
-export async function translateToEnglish(texts, clientId = null) {
+export async function translateToEnglish(texts, clientId = null, ind = serverIndustry(null)) {
 	const list = (Array.isArray(texts) ? texts : [texts]).map((t) => String(t ?? ''));
 	if (!list.length) return [];
 	const resp = await anthropic().messages.create({
 		model: CHAT_MODEL,
 		max_tokens: 2000,
-		system:
-			'You are a translator for a tour operator reading their chat inbox. Translate each input message into natural English. If a message is already English, return it unchanged. Preserve meaning, names, places, dates and numbers exactly. Return ONLY a JSON array of strings — one per input, in the same order — and nothing else.',
+		system: ind.translateSystem,
 		messages: [{ role: 'user', content: JSON.stringify(list) }]
 	});
 	if (clientId) {
@@ -127,7 +126,7 @@ function anthropic() {
  * every turn of a conversation, so it's marked cacheable — the retrieved
  * CONTEXT (which changes per question) is sent as a separate system block.
  */
-function buildPersona(client) {
+function buildPersona(client, ind) {
 	const persona = client.assistant_name
 		? `You are ${client.assistant_name}, the customer assistant for ${client.name}.`
 		: `You are the customer assistant for ${client.name}.`;
@@ -140,7 +139,7 @@ function buildPersona(client) {
 
 	const fallbackLang = client.languages ? client.languages.split(/[,/]/)[0].trim() : 'English';
 	const langRule =
-		`Detect the language of the customer's latest message and reply ENTIRELY in that language — match it naturally (e.g. German→German, French→French, Italian→Italian, Spanish→Spanish, Dutch→Dutch, Portuguese→Portuguese, Swahili→Swahili, Arabic→Arabic, Chinese→Chinese). Keep tour names, place names and exact prices as given. If a message is too short to tell, reply in ${fallbackLang}.` +
+		`Detect the language of the customer's latest message and reply ENTIRELY in that language — match it naturally (e.g. German→German, French→French, Italian→Italian, Spanish→Spanish, Dutch→Dutch, Portuguese→Portuguese, Swahili→Swahili, Arabic→Arabic, Chinese→Chinese). ${ind.langKeep} If a message is too short to tell, reply in ${fallbackLang}.` +
 		(client.languages ? ` This business primarily serves: ${client.languages}.` : '');
 
 	const escalationRule = client.escalation
@@ -151,6 +150,8 @@ function buildPersona(client) {
 		? "Do not push for contact details unless the customer offers them."
 		: 'On buying intent, invite the customer to share their name and a WhatsApp number and/or email, then call create_lead to save it.';
 
+	// The qualification workflow is the industry's sales/intake script — the one
+	// deeply vertical part of this prompt, so it comes from the Industry Registry.
 	return `${persona}
 ${profile.join('\n')}
 
@@ -161,7 +162,7 @@ RULES — follow these exactly:
 4. Be warm and concise. ${langRule}
 5. ${leadRule}
 
-QUALIFY trip enquiries like a real sales consultant. Over the conversation, naturally gather: travel month or exact dates, number of adults and children, budget, accommodation preference (luxury / mid-range / budget), and where they're travelling from (nationality). Ask only for what's still missing, one or two questions at a time — never fire a checklist. Then call search_tours to recommend fitting options, get_tour_price for the exact price and a group estimate, and search_knowledge for other details. Once you have interest + a name or WhatsApp number, call create_lead — and pass everything you learned (dates, adults, children, budget, nationality, accommodation) in the interest field so the operator gets a complete picture. Never state a price you didn't get from get_tour_price.`;
+${ind.qualify}`;
 }
 
 function contextBlock(chunks) {
@@ -176,9 +177,11 @@ function contextBlock(chunks) {
  */
 export async function answerQuestion({ slug, messages, conversationId = null, source = 'widget', attachment = null, page = null }) {
 	// 1. Resolve the tenant. Reject if inactive or the subscription is canceled.
+	//    select('*') so optional columns (industry, from migration 016) flow in
+	//    when present and are simply absent before the migration — never an error.
 	const { data: client, error } = await supabase
 		.from('clients')
-		.select('id, name, plan, business_context, whatsapp_number, lead_email, brand_color, is_active, subscription_status, monthly_conversation_cap, assistant_name, tone, business_hours, address, languages, escalation, auto_lead_capture')
+		.select('*')
 		.eq('slug', slug)
 		.maybeSingle();
 
@@ -202,7 +205,10 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	const attachmentAllowed = attachment && (await planUnlocks(client.plan, FEATURE.ATTACHMENTS));
 	const toursAllowed = await planAllows(client.plan, FEATURE.TOURS);
 	const summariesAllowed = await planAllows(client.plan, FEATURE.SUMMARIES);
-	const tools = toursAllowed ? TOOL_DEFS : TOOL_DEFS.filter((t) => t.name !== 'search_tours' && t.name !== 'get_tour_price');
+	// The toolset is the industry's (tourism = the original four defs); the
+	// structured-catalogue tools stay behind the same plan feature as before.
+	const ind = serverIndustry(client);
+	const tools = toursAllowed ? ind.tools : ind.tools.filter((t) => t.name !== 'search_tours' && t.name !== 'get_tour_price');
 
 	// 1b. Resolve the conversation. A known id → we're continuing (append + reuse
 	//     its summary). Unknown/absent → a new conversation.
@@ -267,7 +273,7 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	// 4. Run the agent loop: the model answers, and may call tools
 	//    (search_knowledge, create_lead) which the backend executes tenant-scoped.
 	const system = [
-		{ type: 'text', text: buildPersona(client), cache_control: { type: 'ephemeral' } },
+		{ type: 'text', text: buildPersona(client, ind), cache_control: { type: 'ephemeral' } },
 		{ type: 'text', text: contextBlock(chunks) }
 	];
 	if (convoSummary) {
@@ -411,7 +417,7 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 			if (uErr) supabase.from('usage_records').insert(usageRow).then(() => {});
 		});
 	// Rolling summary needs a persisted conversation to attach to.
-	if (convId && summariesAllowed) summarizeConversation(client.id, convId, fullTranscript);
+	if (convId && summariesAllowed) summarizeConversation(client.id, convId, fullTranscript, ind);
 
 	return {
 		answer,

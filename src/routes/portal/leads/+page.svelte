@@ -5,6 +5,7 @@
 	export let data;
 	export let form;
 	$: ({ leads, stats, summary, insights, stageCounts, gaps, pipelineReady, client } = data);
+	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours', conversion: 'booking', conversions: 'bookings' };
 
 	let q = '';
 	let filter = 'all';
@@ -115,7 +116,7 @@
 <div class="page-head">
 	<div>
 		<h1>Leads</h1>
-		<div class="sub">Your AI’s pipeline of potential bookings — who to contact first, and what to say next.</div>
+		<div class="sub">Your AI’s pipeline of potential {terms.conversions} — who to contact first, and what to say next.</div>
 	</div>
 </div>
 
@@ -148,7 +149,7 @@
 		<div class="kpi money">
 			<span class="kpi-l">Potential pipeline</span>
 			<span class="kpi-v">{stats.pipelineValue ? money(stats.pipelineValue) : '—'}</span>
-			<span class="kpi-s">{stats.matched} tour-matched</span>
+			<span class="kpi-s">{stats.matched} {terms.item}-matched</span>
 		</div>
 		<div class="kpi win">
 			<span class="kpi-l">Booked value</span>

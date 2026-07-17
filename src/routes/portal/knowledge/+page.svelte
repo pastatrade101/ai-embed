@@ -12,7 +12,7 @@
 	</div>
 </div>
 
-<KnowledgeManager items={data.items} departures={data.departures} questions={data.questions} slug={data.client.slug} {form} />
+<KnowledgeManager items={data.items} departures={data.departures} questions={data.questions} slug={data.client.slug} industry={data.industry} {form} />
 
 <div style="margin-top:1.5rem">
 	<WebsiteSync websiteUrl={data.websiteUrl} items={data.items} health={data.websiteHealth} conflicts={data.conflicts} autoSync={data.autoSync} {form} />

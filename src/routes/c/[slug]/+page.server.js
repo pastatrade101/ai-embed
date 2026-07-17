@@ -7,6 +7,7 @@ import { supabase } from '$lib/server/supabase.js';
 import { listTours, departuresByItem } from '$lib/server/tours.js';
 import { FEATURE, planUnlocks } from '$lib/server/gating.js';
 import { suggestionChips } from '$lib/server/suggest.js';
+import { serverIndustry } from '$lib/server/industries.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -41,11 +42,11 @@ function firstPara(body) {
 }
 
 export async function load({ params, url }) {
+	// select('*') so the optional industry column (migration 016) flows in when
+	// present — absent columns are simply missing, never an error.
 	const { data: client } = await supabase
 		.from('clients')
-		.select(
-			'id, slug, name, plan, logo_url, brand_color, whatsapp_number, contact_email, phone, address, business_hours, languages, assistant_name, welcome_message, suggested_questions, business_context, is_active, subscription_status'
-		)
+		.select('*')
 		.eq('slug', params.slug)
 		.maybeSingle();
 
@@ -97,7 +98,7 @@ export async function load({ params, url }) {
 			languages: client.languages ?? null,
 			assistantName: client.assistant_name ?? null,
 			welcome: client.welcome_message ?? null,
-			suggestions: suggestionChips(client.suggested_questions, tours),
+			suggestions: suggestionChips(client.suggested_questions, tours, serverIndustry(client)),
 			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
 			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
 		},

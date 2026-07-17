@@ -1,17 +1,23 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { tick } from 'svelte';
+	import { INDUSTRIES } from '$lib/industries.js';
 	export let items = [];
 	export let departures = {};
 	export let questions = [];
 	export let slug = '';
 	export let form = null;
+	// Industry config drives categories, placeholders and the availability panel.
+	// Defaults to tourism so existing usage renders exactly as before.
+	export let industry = INDUSTRIES.tourism;
 
-	const isTour = (item) => (item.category ?? '').toLowerCase().includes('tour');
+	// Date-level availability applies only to the industry's schedulable category
+	// (tourism: items whose category contains "tour" — the original behaviour).
+	$: isTour = (item) => !!industry.scheduleCategoryMatch && (item.category ?? '').toLowerCase().includes(industry.scheduleCategoryMatch);
 	const depsOf = (item) => departures[item.id] ?? [];
 
 	// Quick-add categories (the stored category is free text; these just pre-fill).
-	const ADD_TYPES = ['Tour', 'Destination', 'Day Trip', 'Climb', 'Accommodation', 'Transport', 'FAQ', 'Policy', 'Travel Tip'];
+	$: ADD_TYPES = industry.knowledgeTypes;
 
 	let search = '';
 	let filter = 'all';
@@ -126,15 +132,14 @@
 		}
 	};
 
-	const csvExample = `title,category,price,currency,body,duration,group_size,includes,best_season
-"5-Day Serengeti Safari",tour,1450,USD,"Northern circuit itinerary…","5 days","max 6","park fees, meals, guide","Jun–Oct"`;
+	$: csvExample = industry.kb.csvExample;
 </script>
 
 <!-- Toolbar: search + filters + add ---------------------------------------->
 <div class="kb-toolbar">
 	<div class="kb-search">
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-		<input type="text" bind:value={search} placeholder="Search tours, FAQs, destinations…" aria-label="Search knowledge" />
+		<input type="text" bind:value={search} placeholder={industry.kb.searchPlaceholder} aria-label="Search knowledge" />
 	</div>
 	<div class="kb-actions">
 		{#if slug}<a class="btn ghost sm" href={`/c/${slug}`} target="_blank" rel="noopener">Test your AI</a>{/if}
@@ -199,8 +204,8 @@
 		</div>
 		<form class="grid" method="POST" action="?/addItem" use:enhance={addEnhance} style="margin-top:.8rem">
 			<div class="row">
-				<div><label for="new-title">Name</label><input id="new-title" name="title" bind:value={newTitle} required placeholder="e.g. 5-Day Serengeti & Ngorongoro Safari" /></div>
-				<div><label for="new-cat">Category</label><input id="new-cat" name="category" bind:value={newCategory} placeholder="Tour" /></div>
+				<div><label for="new-title">Name</label><input id="new-title" name="title" bind:value={newTitle} required placeholder={industry.kb.titlePlaceholder} /></div>
+				<div><label for="new-cat">Category</label><input id="new-cat" name="category" bind:value={newCategory} placeholder={industry.kb.categoryPlaceholder} /></div>
 			</div>
 			<div class="row">
 				<div><label for="new-price">Price (optional)</label><input id="new-price" name="price_amount" bind:value={newPrice} inputmode="decimal" placeholder="1450" /></div>
@@ -216,8 +221,8 @@
 					</div>
 				</div>
 			</div>
-			<div><label for="new-details">Key details (one per line)</label><textarea id="new-details" name="details" bind:value={newDetails} style="min-height:88px" placeholder={'Duration: 5 days\nGroup size: max 6\nIncludes: park fees, meals, guide\nBest season: Jun–Oct'}></textarea></div>
-			<div><label for="new-body">Description</label><textarea id="new-body" name="body" bind:value={newBody} placeholder="Full itinerary, what's included, fitness level, best months…"></textarea></div>
+			<div><label for="new-details">Key details (one per line)</label><textarea id="new-details" name="details" bind:value={newDetails} style="min-height:88px" placeholder={industry.kb.detailsPlaceholder}></textarea></div>
+			<div><label for="new-body">Description</label><textarea id="new-body" name="body" bind:value={newBody} placeholder={industry.kb.bodyPlaceholder}></textarea></div>
 			<div><button type="submit">Add to catalogue</button></div>
 		</form>
 	</div>
@@ -227,11 +232,11 @@
 {#if items.length === 0}
 	<div class="card empty">
 		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-		<h3>Your catalogue is empty</h3>
-		<p>Your AI can only recommend tours and answer questions that exist here. Add your first item to get started.</p>
+		<h3>{industry.kb.emptyTitle}</h3>
+		<p>{industry.kb.emptyText}</p>
 		<div class="rowflex" style="justify-content:center;gap:.5rem">
-			<button class="sm" type="button" on:click={() => startAdd('Tour')}>Add a tour</button>
-			<button class="ghost sm" type="button" on:click={() => (showImport = true)}>Import tours</button>
+			<button class="sm" type="button" on:click={() => startAdd(industry.knowledgeTypes[0])}>{industry.kb.addFirstCta}</button>
+			<button class="ghost sm" type="button" on:click={() => (showImport = true)}>{industry.kb.importCta}</button>
 		</div>
 	</div>
 {:else if filtered.length === 0}
@@ -341,11 +346,11 @@
 	<div class="rowflex" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
 		<div>
 			<strong>Import many at once</strong>
-			<div class="muted" style="font-size:.84rem">Have a spreadsheet? Paste a CSV to add lots of tours in one go.</div>
+			<div class="muted" style="font-size:.84rem">{industry.kb.importHint}</div>
 		</div>
 		<div class="rowflex">
 			<a class="btn ghost sm" href="/knowledge-template.csv" download>CSV template</a>
-			<button type="button" class="ghost sm" on:click={() => (showImport = !showImport)}>{showImport ? 'Hide' : 'Import tours'}</button>
+			<button type="button" class="ghost sm" on:click={() => (showImport = !showImport)}>{showImport ? 'Hide' : industry.kb.importCta}</button>
 		</div>
 	</div>
 	{#if showImport}

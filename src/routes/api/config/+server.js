@@ -6,6 +6,7 @@ import { preflight, jsonCors } from '$lib/server/cors.js';
 import { FEATURE, planAllows, planUnlocks } from '$lib/server/gating.js';
 import { listTours } from '$lib/server/tours.js';
 import { suggestionChips } from '$lib/server/suggest.js';
+import { serverIndustry } from '$lib/server/industries.js';
 
 const metaDest = (md) => {
 	if (!md || typeof md !== 'object') return null;
@@ -26,9 +27,11 @@ export async function GET({ url }) {
 	const slug = url.searchParams.get('client');
 	if (!slug) return jsonCors({ error: 'client is required' }, 400);
 
+	// select('*') so the optional industry column (migration 016) flows in when
+	// present — absent columns are simply missing, never an error.
 	const { data: client } = await supabase
 		.from('clients')
-		.select('id, name, plan, assistant_name, logo_url, brand_color, whatsapp_number, welcome_message, suggested_questions, auto_lead_capture, is_active, subscription_status')
+		.select('*')
 		.eq('slug', slug)
 		.maybeSingle();
 
@@ -61,7 +64,7 @@ export async function GET({ url }) {
 		brand: client.brand_color ?? '#0f6e56',
 		whatsapp: client.whatsapp_number ?? null,
 		welcome: client.welcome_message ?? null,
-		suggestions: suggestionChips(client.suggested_questions, tours),
+		suggestions: suggestionChips(client.suggested_questions, tours, serverIndustry(client)),
 		autoLeadCapture: client.auto_lead_capture !== false,
 		hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
 	});
