@@ -40,11 +40,13 @@
 	const toggle = (u) => (selectedUrls = selectedUrls.includes(u) ? selectedUrls.filter((x) => x !== u) : [...selectedUrls, u]);
 	const toggleAll = () => (selectedUrls = allSelected ? [] : scan.pages.map((p) => p.url));
 
+	let deep = false; // which button was pressed (for the label + spinner)
 	const scanSubmit = () => {
 		scanning = true;
 		return async ({ update }) => {
 			await update();
 			scanning = false;
+			deep = false;
 		};
 	};
 	const importSubmit = () => {
@@ -137,8 +139,10 @@
 
 	<form method="POST" action="?/scanWebsite" use:enhance={scanSubmit} class="ws-scan">
 		<input name="url" type="url" bind:value={url} placeholder="https://yourbusiness.com" autocomplete="url" />
-		<button class="btn" type="submit" disabled={scanning || !url.trim()}>{scanning ? 'Scanning…' : 'Scan website'}</button>
+		<button class="btn" type="submit" disabled={scanning || !url.trim()} on:click={() => (deep = false)}>{scanning && !deep ? 'Scanning…' : 'Scan website'}</button>
+		<button class="btn ghost" type="submit" name="deep" value="1" disabled={scanning || !url.trim()} on:click={() => (deep = true)} title="Follows links deep into your site to find every tour & itinerary page — thorough, takes up to a minute.">{scanning && deep ? 'Deep scanning…' : 'Deep scan'}</button>
 	</form>
+	<p class="ws-hint">Use <b>Deep scan</b> if a normal scan misses tours — it crawls the whole site (not just the sitemap) to find every itinerary page.</p>
 
 	{#if form?.section === 'website' && form?.error}
 		<div class="notice err">{form.error}</div>
@@ -300,6 +304,11 @@
 	.ws-scan input {
 		flex: 1;
 		min-width: 220px;
+	}
+	.ws-hint {
+		margin: 0.5rem 0 0;
+		font-size: 0.8rem;
+		color: var(--muted);
 	}
 	.ws-health {
 		display: flex;

@@ -74,7 +74,8 @@ export const actions = {
 		}
 		const form = await request.formData();
 		const url = String(form.get('url') ?? '').trim();
-		const result = await scanWebsite(url);
+		const deep = String(form.get('deep') ?? '') === '1';
+		const result = await scanWebsite(url, { deep });
 		if (result.error) return fail(400, { section: 'website', error: result.error });
 		// Remember the address so we can prefill it next time.
 		await supabase.from('clients').update({ website_url: result.origin }).eq('id', clientId);

@@ -99,7 +99,12 @@ async function fetchText(url, timeout = 9000) {
 				continue;
 			}
 			if (!res.ok) return null;
-			return await res.text();
+			// Cap body size so one huge/hostile page can't spike memory (worse under
+			// the crawler's concurrency). Skip on a large declared length; hard-cap the
+			// buffered text as a backstop.
+			if (Number(res.headers.get('content-length') || 0) > 6_000_000) return null;
+			const body = await res.text();
+			return body.length > 6_000_000 ? body.slice(0, 6_000_000) : body;
 		}
 		return null; // too many redirects
 	} catch {
@@ -154,14 +159,14 @@ async function discoverFromSitemaps(origin) {
 	const queue = [...new Set(start)];
 	const seen = new Set();
 	const pages = new Set();
-	let fetched = 0;
-	while (queue.length && fetched < 12 && pages.size < 300) {
+	let attempts = 0; // bound total fetches (incl. failures), not just successes
+	while (queue.length && attempts < 15 && pages.size < 300) {
 		const sm = queue.shift();
 		if (seen.has(sm)) continue;
 		seen.add(sm);
+		attempts++;
 		const xml = await fetchText(sm, 8000);
 		if (!xml) continue;
-		fetched++;
 		const isIndex = /<sitemapindex/i.test(xml);
 		for (const loc of extractLocs(xml)) {
 			if (isIndex || /\.xml(\?|$)/i.test(loc)) {
@@ -174,22 +179,78 @@ async function discoverFromSitemaps(origin) {
 	return [...pages];
 }
 
-// Fallback when there's no sitemap: same-origin links off the homepage.
-async function discoverFromHomepage(url) {
-	const html = await fetchText(url.href);
-	if (!html) return [];
-	const hrefs = new Set();
-	const re = /<a[^>]+href=["']([^"']+)["']/gi;
-	let m;
-	while ((m = re.exec(html)) !== null) {
+// Normalise a URL for dedup: drop the fragment and common tracking params so the
+// same page under ?utm_*/fbclid/etc. isn't crawled or listed multiple times.
+function normUrl(u) {
+	try {
+		const url = new URL(u);
+		url.hash = '';
+		for (const k of [...url.searchParams.keys()]) {
+			if (/^(utm_|fbclid|gclid|mc_|igshid|ref_)/i.test(k) || k.toLowerCase() === 'ref') url.searchParams.delete(k);
+		}
+		return url.href;
+	} catch {
+		return String(u).split('#')[0];
+	}
+}
+
+// Rank URLs so a bounded crawl spends its budget on itinerary-like pages and the
+// index pages that link to them, before generic pages.
+function crawlPriority(url) {
+	const s = url.toLowerCase();
+	if (/(itinerar|\bsafari|\btour\b|package|expedition|excursion|\d+[-\s]?day|day[-\s]?(trip|tour)|holiday|adventure|\btrek|climb|honeymoon|gorilla|migration)/.test(s)) return 3;
+	if (/\/(tours?|safaris?|packages?|itinerar\w*|destinations?|trips?|experiences?|holidays?|adventures?)\/?$/.test(s)) return 2; // index/listing pages
+	return 1;
+}
+
+// Deep discovery: a bounded, same-origin breadth-first crawl that follows links
+// several levels in — so itinerary pages reachable only from a /tours listing
+// (never the homepage) are found even when the site has no sitemap. Reuses the
+// SSRF-guarded fetchText, stays on-origin, skips non-content, and is bounded by
+// page count, depth, and a wall-clock budget so it always terminates.
+async function crawlSite(base, { maxPages = 150, maxDepth = 3, timeBudgetMs = 30000, concurrency = 6, seeds = [] } = {}) {
+	const origin = base.origin;
+	const seen = new Set();
+	const content = new Set();
+	const frontier = [];
+	const enqueue = (u, depth) => {
+		const clean = normUrl(u);
+		if (seen.has(clean) || isNonContent(clean)) return;
+		seen.add(clean);
+		frontier.push({ url: clean, depth });
+	};
+	enqueue(`${origin}/`, 0);
+	for (const s of seeds) {
 		try {
-			const abs = new URL(m[1], url.href);
-			if (abs.origin === url.origin) hrefs.add(abs.href.split('#')[0]);
+			if (new URL(s).origin === origin) enqueue(s, 1);
 		} catch {
-			/* ignore bad hrefs */
+			/* ignore bad seed */
 		}
 	}
-	return [...hrefs];
+
+	const deadline = Date.now() + timeBudgetMs;
+	while (frontier.length && content.size < maxPages && Date.now() < deadline) {
+		// Fetch the highest-priority, shallowest URLs first.
+		frontier.sort((a, b) => crawlPriority(b.url) - crawlPriority(a.url) || a.depth - b.depth);
+		const batch = frontier.splice(0, concurrency);
+		const fetched = await Promise.all(batch.map((it) => fetchText(it.url, 8000).then((html) => ({ ...it, html }))));
+		for (const { url, depth, html } of fetched) {
+			if (!html) continue;
+			content.add(url);
+			if (depth >= maxDepth) continue;
+			const re = /<a[^>]+href=["']([^"']+)["']/gi;
+			let m;
+			while ((m = re.exec(html)) !== null) {
+				try {
+					const abs = new URL(m[1], url);
+					if (abs.origin === origin) enqueue(abs.href, depth + 1);
+				} catch {
+					/* bad href */
+				}
+			}
+		}
+	}
+	return [...content];
 }
 
 function isNonContent(url) {
@@ -376,22 +437,43 @@ export async function resolveConflict(clientId, { action, websiteId, knowledgeId
  * Fast scan: discover pages and group them, WITHOUT downloading every page —
  * so the operator gets an instant "23 pages found · 9 tours…" preview.
  */
-export async function scanWebsite(input, { max = 60 } = {}) {
+export async function scanWebsite(input, { max = 60, deep = false } = {}) {
 	const base = normalizeBase(input);
 	if (!base) return { error: 'Please enter a valid website address, e.g. https://yourbusiness.com' };
 
-	let urls = await discoverFromSitemaps(base.origin);
-	let via = 'sitemap';
-	if (!urls.length) {
-		urls = await discoverFromHomepage(base);
-		via = 'links';
-	}
-	urls.unshift(`${base.origin}/`);
-	urls = [...new Set(urls.map((u) => u.split('#')[0]))].filter((u) => !isNonContent(u)).slice(0, max);
+	// Deep scan casts a much wider net; the fast scan stays capped for speed.
+	const cap = deep ? Math.max(max, 250) : max;
 
+	let urls;
+	let via;
+	if (deep) {
+		// Crawl the whole site AND read the sitemap, then merge — so we catch pages
+		// the sitemap omits and pages no sitemap lists.
+		const [sitemapUrls, crawledUrls] = await Promise.all([
+			discoverFromSitemaps(base.origin),
+			crawlSite(base, { maxPages: cap, maxDepth: 3, timeBudgetMs: 30000 })
+		]);
+		urls = [...sitemapUrls, ...crawledUrls];
+		via = 'deep';
+	} else {
+		urls = await discoverFromSitemaps(base.origin);
+		via = 'sitemap';
+		if (!urls.length) {
+			// No sitemap → a quick 2-level crawl (better than homepage-only).
+			urls = await crawlSite(base, { maxPages: cap, maxDepth: 2, timeBudgetMs: 15000 });
+			via = 'links';
+		}
+	}
+	const home = `${base.origin}/`;
+	urls = [...new Set(urls.map(normUrl))].filter((u) => !isNonContent(u));
 	if (!urls.length) {
 		return { error: "We couldn't find any pages on that website. Double-check the address and try again." };
 	}
+	if (!urls.includes(home)) urls.unshift(home);
+	// Rank so the homepage stays first and itinerary/tour pages survive the cap —
+	// never truncated in favour of generic pages the crawl/sitemap also returned.
+	urls.sort((a, b) => (a === home ? -1 : b === home ? 1 : crawlPriority(b) - crawlPriority(a)));
+	urls = urls.slice(0, cap);
 
 	const pages = urls.map((u) => ({ url: u, label: prettyLabel(u), category: categorize(u) }));
 	const counts = {};
