@@ -558,8 +558,11 @@
 			'.mk-input{font-size:16px}' + // 16px stops iOS zoom-on-focus
 			'.mk-ta{max-height:140px}' +
 			'.mk-send-round{width:44px;height:44px}' +
-			'.mk-fab{width:54px;height:54px}' +
-			'.mk-fab-pill{width:auto;height:52px}' +
+			'.mk-fab{width:52px;height:52px}' +
+			// Mobile: a compact icon-only circle (no label) that sits like a native
+			// WhatsApp-style floating button.
+			'.mk-fab-pill{width:52px;height:52px;border-radius:50%;padding:0;gap:0}' +
+			'.mk-fab-label{display:none}' +
 			// The full-screen panel has its own header ✕ — hide the redundant floating
 			// close button (the open-state FAB) so it doesn't peek behind the header.
 			'.mk-fab:not(.mk-fab-pill){display:none}' +

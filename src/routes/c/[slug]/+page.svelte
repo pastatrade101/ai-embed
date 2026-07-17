@@ -781,61 +781,44 @@
 					<button type="button" class="att-x" on:click={clearAttachment} aria-label="Remove attachment">✕</button>
 				</div>
 			{/if}
+			<!-- ChatGPT-style: text on top, a slim control row below -->
 			<form class="bar" on:submit={onSubmit} data-no-busy>
-				{#if allowAttachments}
-					<input type="file" bind:this={fileEl} accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" on:change={onPickFile} hidden />
-					<button type="button" class="ic-btn" on:click={openFilePicker} aria-label="Attach" title="Attach a photo or PDF">
-						<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
-							><path
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								d="M21.4 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.41-1.41l7.78-7.78"
-							/></svg
-						>
-					</button>
-				{/if}
-
 				<textarea
 					bind:this={taEl}
 					bind:value={input}
 					on:input={autogrow}
 					on:keydown={onKeydown}
 					rows="1"
-					placeholder={started ? `Message ${assistantName}…` : 'Ask about tours, dates, prices…'}
+					placeholder={started ? `Message ${assistantName}…` : `Ask ${assistantName}…`}
 				></textarea>
 
-				{#if voiceOK}
-					<button
-						type="button"
-						class="ic-btn mic"
-						class:live={listening}
-						on:click={toggleVoice}
-						aria-label="Voice input"
-						title="Speak your question"
-					>
-						<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
-							><path
-								fill="currentColor"
-								d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z"
-							/><path
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								d="M5 11a7 7 0 0014 0M12 18v3"
-							/></svg
-						>
-					</button>
-				{/if}
+				<div class="bar-row">
+					<div class="bar-left">
+						{#if allowAttachments}
+							<input type="file" bind:this={fileEl} accept="image/png,image/jpeg,image/webp,image/gif,application/pdf" on:change={onPickFile} hidden />
+							<button type="button" class="ic-btn" on:click={openFilePicker} aria-label="Attach" title="Attach a photo or PDF">
+								<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+									><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M21.4 11.05l-8.49 8.49a5 5 0 01-7.07-7.07l8.49-8.49a3 3 0 014.24 4.24l-8.49 8.49a1 1 0 01-1.41-1.41l7.78-7.78" /></svg
+								>
+							</button>
+						{/if}
+					</div>
 
-				<button type="submit" class="send" class:ready={(input.trim() || attachment) && !busy} disabled={(!input.trim() && !attachment) || busy} aria-label="Send">
-					<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
-						><path fill="currentColor" d="M3.4 20.4l17.45-8.3a1 1 0 000-1.8L3.4 2A.98.98 0 002 2.9L2 9.12c0 .5.37.93.87 1L15 12 2.87 13.88c-.5.08-.87.5-.87 1V21c0 .68.7 1.15 1.4.4z" /></svg
-					>
-				</button>
+					<div class="bar-right">
+						{#if voiceOK}
+							<button type="button" class="ic-btn mic" class:live={listening} on:click={toggleVoice} aria-label="Voice input" title="Speak your question">
+								<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+									><path fill="currentColor" d="M12 15a3 3 0 003-3V6a3 3 0 00-6 0v6a3 3 0 003 3z" /><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M5 11a7 7 0 0014 0M12 18v3" /></svg
+								>
+							</button>
+						{/if}
+						<button type="submit" class="send" class:ready={(input.trim() || attachment) && !busy} disabled={(!input.trim() && !attachment) || busy} aria-label="Send">
+							<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"
+								><path fill="currentColor" d="M3.4 20.4l17.45-8.3a1 1 0 000-1.8L3.4 2A.98.98 0 002 2.9L2 9.12c0 .5.37.93.87 1L15 12 2.87 13.88c-.5.08-.87.5-.87 1V21c0 .68.7 1.15 1.4.4z" /></svg
+							>
+						</button>
+					</div>
+				</div>
 			</form>
 			<p class="fineprint">
 				{#if telLink}<a href={telLink}>Call</a> ·{/if}
@@ -951,6 +934,7 @@
 	.concierge :global(textarea) {
 		background: transparent;
 		color: inherit;
+		min-height: 0; /* app.css sets textarea{min-height:130px} — neutralise it here */
 	}
 
 	*,
@@ -1759,11 +1743,12 @@
 	}
 	.bar {
 		display: flex;
-		align-items: flex-end;
-		gap: 6px;
-		padding: 8px 8px 8px 10px;
+		flex-direction: column; /* ChatGPT layout: text on top, controls row below */
+		align-items: stretch;
+		gap: 4px;
+		padding: 10px 14px 8px;
 		border: 1px solid var(--hair);
-		border-radius: 24px;
+		border-radius: 26px;
 		background: var(--surface);
 		box-shadow: var(--shadow-lg);
 		transition: border-color 0.18s;
@@ -1772,7 +1757,7 @@
 		border-color: var(--brand-line);
 	}
 	.bar textarea {
-		flex: 1;
+		width: 100%;
 		border: 0;
 		outline: none;
 		resize: none;
@@ -1782,7 +1767,19 @@
 		font-size: 15.5px;
 		line-height: 1.5;
 		max-height: 180px;
-		padding: 8px 4px;
+		padding: 6px 2px 2px;
+	}
+	.bar-row {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.bar-left,
+	.bar-right {
+		display: flex;
+		align-items: center;
+		gap: 2px;
 	}
 	.bar textarea::placeholder {
 		color: var(--muted);
