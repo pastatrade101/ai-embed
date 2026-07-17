@@ -511,7 +511,7 @@
 		--line: rgba(18, 53, 40, 0.12);
 		background: var(--bg);
 		color: var(--ink);
-		font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+		font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		letter-spacing: -0.011em;
 		min-height: 100vh;
@@ -909,6 +909,16 @@
 	}
 	.center-row {
 		justify-content: center;
+	}
+	/* Full-width, stacked hero CTAs on phones for easy tapping. */
+	@media (max-width: 560px) {
+		.hero .cta-row {
+			flex-direction: column;
+			align-items: stretch;
+		}
+		.hero .cta-row .btn {
+			width: 100%;
+		}
 	}
 	.trust {
 		margin-top: 1.6rem;

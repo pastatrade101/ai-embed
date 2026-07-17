@@ -43,7 +43,7 @@
 		background: radial-gradient(80% 60% at 80% -10%, rgba(224, 178, 76, 0.14), transparent 55%),
 			linear-gradient(170deg, var(--forest), var(--forest-2) 70%, #0a231b);
 		color: var(--cream);
-		font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+		font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		letter-spacing: -0.011em;
 	}
