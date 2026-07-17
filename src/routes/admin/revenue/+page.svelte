@@ -142,12 +142,16 @@
 		display: flex;
 		gap: 1.2rem;
 		align-items: center;
+		/* On narrow screens the donut centres and the legend drops below it
+		   full-width, so the right-aligned prices never overflow the card. */
+		flex-wrap: wrap;
+		justify-content: center;
 	}
 	.mix-legend {
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-		min-width: 0;
+		min-width: 200px;
 		flex: 1;
 	}
 	.lg-row {
@@ -215,8 +219,11 @@
 		transition: width 0.5s ease;
 	}
 	.bv {
-		width: 62px;
+		/* Size to the value (TZS figures run well past a fixed 62px) so it never
+		   overflows the card; the flexible bar track shrinks to make room. */
+		min-width: 62px;
 		flex: none;
+		white-space: nowrap;
 		text-align: right;
 		font-size: 0.82rem;
 		color: var(--strong);
@@ -224,7 +231,8 @@
 	}
 	.bars-foot {
 		display: flex;
-		gap: 1.4rem;
+		flex-wrap: wrap;
+		gap: 0.7rem 1.4rem;
 		margin-top: 0.9rem;
 		padding-top: 0.8rem;
 		border-top: 1px solid var(--edge);
@@ -232,6 +240,9 @@
 	.bars-foot div {
 		font-size: 0.8rem;
 		color: var(--muted);
+	}
+	.bars-foot b {
+		overflow-wrap: anywhere;
 	}
 	.bars-foot b {
 		color: var(--strong);
@@ -267,5 +278,16 @@
 		text-align: center;
 		padding: 1.4rem;
 		font-size: 0.88rem;
+	}
+	.mt-v {
+		overflow-wrap: anywhere;
+	}
+	@media (max-width: 560px) {
+		.mt-v {
+			font-size: 1.1rem;
+		}
+		.bars-foot {
+			gap: 0.6rem 1rem;
+		}
 	}
 </style>
