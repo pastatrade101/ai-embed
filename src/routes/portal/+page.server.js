@@ -1,7 +1,10 @@
-import { loadWorkspace } from '$lib/server/tenant.js';
+import { loadWorkspace, monthStartISO } from '$lib/server/tenant.js';
 import { supabase } from '$lib/server/supabase.js';
 import { listTours } from '$lib/server/tours.js';
 import { scoreLead, leadTier, topInterests, pipeline, activityFeed, aiTasks } from '$lib/server/dashboard.js';
+import { usageSummary } from '$lib/server/credits.js';
+import { growthAdvisor } from '$lib/server/growth-advisor.js';
+import { gatingOn } from '$lib/server/gating.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -23,10 +26,12 @@ export async function load({ locals, parent }) {
 	start.setHours(0, 0, 0, 0);
 	const dayISO = start.toISOString();
 
-	const [{ count: convToday }, { count: leadsToday }, tourItems] = await Promise.all([
+	const [{ count: convToday }, { count: leadsToday }, tourItems, plansRes, credits] = await Promise.all([
 		supabase.from('conversations').select('*', { count: 'exact', head: true }).eq('client_id', clientId).gte('created_at', dayISO),
 		supabase.from('leads').select('*', { count: 'exact', head: true }).eq('client_id', clientId).gte('created_at', dayISO),
-		listTours(clientId)
+		listTours(clientId),
+		supabase.from('plans').select('*').eq('is_active', true).order('sort'),
+		usageSummary(clientId, client.plan)
 	]);
 
 	// Structured tours (existing data) for topic + pipeline derivation.
@@ -44,6 +49,28 @@ export async function load({ locals, parent }) {
 		return { ...l, score, tier: leadTier(score) };
 	});
 
+	// AI Growth Advisor — a subtle upgrade nudge, only when there's real reason to.
+	const monthStart = monthStartISO();
+	const monthLeads = scoredLeads.filter((l) => l.created_at >= monthStart);
+	const qualifiedMonth = monthLeads.filter((l) => l.tier?.cls === 'hot' || l.tier?.cls === 'warm').length;
+	const activePlans = plansRes.data ?? [];
+	let currentPlan = activePlans.find((p) => p.key === client.plan) ?? null;
+	if (!currentPlan) {
+		const { data: cp } = await supabase.from('plans').select('*').eq('key', client.plan).maybeSingle();
+		currentPlan = cp ?? null;
+	}
+	const advisor = growthAdvisor({
+		client,
+		plans: activePlans,
+		currentPlan,
+		credits,
+		convMonth: ws.stats?.conversationsMonth ?? 0,
+		leadsMonth: monthLeads.length,
+		qualified: qualifiedMonth,
+		itemsCount: ws.stats?.items ?? 0,
+		gatingOn: gatingOn()
+	});
+
 	const dash = {
 		convToday: convToday ?? 0,
 		leadsToday: leadsToday ?? 0,
@@ -53,7 +80,11 @@ export async function load({ locals, parent }) {
 		interests: topInterests(ws.conversations, tours),
 		pipeline: pipeline(scoredLeads, tours),
 		activity: activityFeed(ws.conversations, ws.leads),
-		tasks: aiTasks({ client, stats: ws.stats, leads: ws.leads, items: ws.items })
+		tasks: aiTasks({ client, stats: ws.stats, leads: ws.leads, items: ws.items }),
+		advisor:
+			advisor.nudge && advisor.recommended
+				? { headline: advisor.headline, topReason: advisor.reasons[0] ?? null, plan: { key: advisor.recommended.key, name: advisor.recommended.name }, strong: advisor.strong }
+				: null
 	};
 
 	return { ...ws, leads: scoredLeads, dash };

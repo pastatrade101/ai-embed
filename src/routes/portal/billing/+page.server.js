@@ -1,14 +1,18 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
-import { conversationsThisMonth, usageThisMonth } from '$lib/server/tenant.js';
+import { conversationsThisMonth, usageThisMonth, monthStartISO } from '$lib/server/tenant.js';
 import { usageSummary, CREDIT_PACKS, AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
+import { scoreLead, leadTier } from '$lib/server/dashboard.js';
+import { growthAdvisor } from '$lib/server/growth-advisor.js';
+import { gatingOn } from '$lib/server/gating.js';
 import { getPaymentProvider, paymentsEnabled } from '$lib/server/payments/index.js';
 import { activateClientPlan, creditClientPack } from '$lib/server/payments/activate.js';
 
 export async function load({ parent }) {
 	const { client } = await parent();
 	const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-	const [plansRes, used, usage, credits, pendingRes] = await Promise.all([
+	const monthStart = monthStartISO();
+	const [plansRes, used, usage, credits, pendingRes, leadsRes, itemsRes] = await Promise.all([
 		supabase.from('plans').select('*').eq('is_active', true).order('sort'),
 		conversationsThisMonth(client.id),
 		usageThisMonth(client.id),
@@ -21,15 +25,46 @@ export async function load({ parent }) {
 			.gte('created_at', since)
 			.order('created_at', { ascending: false })
 			.limit(1)
-			.maybeSingle()
+			.maybeSingle(),
+		// This-month leads (for qualified-lead reasoning) + knowledge count — real signals for the advisor.
+		supabase.from('leads').select('whatsapp, email, interest, transcript, created_at').eq('client_id', client.id).gte('created_at', monthStart),
+		supabase.from('knowledge_items').select('id', { count: 'exact', head: true }).eq('client_id', client.id)
 	]);
 	const plans = plansRes.data ?? [];
+	const leadsThisMonth = leadsRes.data ?? [];
+	const qualified = leadsThisMonth.filter((l) => {
+		const cls = leadTier(scoreLead(l)).cls;
+		return cls === 'hot' || cls === 'warm';
+	}).length;
+
+	// Resolve the tenant's REAL plan even if it's been deactivated for new signups,
+	// so the advisor never mistakes a grandfathered premium tenant for a downgrade.
+	let currentPlan = plans.find((p) => p.key === client.plan) ?? null;
+	if (!currentPlan) {
+		const { data: cp } = await supabase.from('plans').select('*').eq('key', client.plan).maybeSingle();
+		currentPlan = cp ?? null;
+	}
+
+	const advisor = growthAdvisor({
+		client,
+		plans,
+		currentPlan,
+		credits,
+		convMonth: used,
+		leadsMonth: leadsThisMonth.length,
+		qualified,
+		itemsCount: itemsRes.count ?? 0,
+		cpc: AVG_COST_PER_CONVERSATION,
+		gatingOn: gatingOn()
+	});
+
 	return {
 		plans,
-		currentPlan: plans.find((p) => p.key === client.plan) ?? null,
+		currentPlan,
 		usedThisMonth: used,
 		usage,
 		credits,
+		advisor,
 		creditPacks: CREDIT_PACKS.map((p) => ({ ...p, conversations: Math.round(p.budget / AVG_COST_PER_CONVERSATION) })),
 		costPerConversation: AVG_COST_PER_CONVERSATION,
 		paymentsEnabled: paymentsEnabled(),

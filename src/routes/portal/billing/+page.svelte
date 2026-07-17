@@ -5,6 +5,7 @@
 	export let form;
 	$: client = data.client;
 	$: credits = data.credits;
+	$: advisor = data.advisor;
 	// AI Usage (credit) bar — the friendly, budget-based view.
 	$: barPct = Math.min(100, credits?.pct ?? 0);
 	$: barClass = barPct >= 100 ? 'over' : barPct >= 80 ? 'warn' : '';
@@ -116,6 +117,77 @@
 	<div class="soft warn">You've nearly used this month's AI allowance ({credits.pct}%). To avoid any slowdown for your customers, <a href="#plans">upgrade your plan</a>.</div>
 {:else if credits.status === 'grace' || credits.status === 'exhausted'}
 	<div class="soft danger">You've reached your monthly AI allowance. Your assistant is still running on a grace allowance so live chats aren't interrupted — <a href="#plans">upgrade your plan</a> to restore full capacity.</div>
+{/if}
+
+<!-- AI Growth Advisor: a personalised, real-data upgrade recommendation. Only shows
+	 when there's a higher tier and something concrete to gain — never a nag. -->
+{#if advisor?.recommended && (advisor.strong || advisor.reasons.length)}
+	<h2 class="section">Recommended for you</h2>
+	<div class="card advisor" class:strong={advisor.strong}>
+		<div class="adv-head">
+			<span class="adv-spark" aria-hidden="true">✦</span>
+			<div class="adv-lead">
+				<div class="adv-eyebrow">AI Growth Advisor</div>
+				<div class="adv-headline">{advisor.headline}</div>
+			</div>
+			<div class="adv-plan">
+				<div class="adv-plan-name">{advisor.recommended.name}</div>
+				<div class="adv-plan-price">
+					{#if Number(advisor.recommended.price_amount) > 0}{advisor.recommended.price_currency} {Number(advisor.recommended.price_amount).toLocaleString()}<span>/mo</span>{:else}Free{/if}
+				</div>
+			</div>
+		</div>
+
+		{#if advisor.reasons.length}
+			<ul class="adv-reasons">
+				{#each advisor.reasons as r}<li><span class="adv-dot"></span>{r}</li>{/each}
+			</ul>
+		{/if}
+
+		{#if advisor.limits.length}
+			<div class="adv-limits">
+				{#each advisor.limits as m}
+					<div class="adv-limit">
+						<div class="adv-limit-top"><span>{m.label}</span><span class="mono">{m.display}</span></div>
+						<div class="adv-meter {m.cls}"><span style={`width:${Math.min(100, m.pct)}%`}></span></div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		{#if advisor.unlocks.length}
+			<div class="adv-sub">What {advisor.recommended.name} adds</div>
+			<div class="adv-unlocks">
+				{#each advisor.unlocks as u}
+					<div class="adv-unlock">
+						<svg class="adv-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
+						<div><div class="adv-unlock-f">{u.feature}</div>{#if u.why}<div class="adv-unlock-w">{u.why}</div>{/if}</div>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<div class="adv-foot">
+			{#if advisor.impact.length}
+				<div class="adv-impact">
+					{#each advisor.impact as im}
+						<div class="adv-imp"><b>{im.value}</b><span>{im.label}{#if im.sub} · {im.sub}{/if}</span></div>
+					{/each}
+				</div>
+			{/if}
+			<div class="adv-cta">
+				{#if data.paymentsEnabled}
+					<form method="POST" action="?/checkout">
+						<input type="hidden" name="plan" value={advisor.recommended.key} />
+						<button class="btn" type="submit">Upgrade to {advisor.recommended.name}</button>
+					</form>
+				{:else}
+					<a class="btn" href="#plans">See {advisor.recommended.name}</a>
+				{/if}
+				<a class="btn ghost" href="#plans">Compare plans</a>
+			</div>
+		</div>
+	</div>
 {/if}
 
 <h2 class="section">AI usage</h2>
@@ -239,6 +311,190 @@
 {/if}
 
 <style>
+	/* --- AI Growth Advisor --- */
+	.advisor {
+		border: 1px solid var(--edge);
+		background: linear-gradient(135deg, rgba(var(--gold-rgb), 0.07), transparent 55%), rgba(var(--panel-rgb), 0.72);
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		padding: 1.35rem;
+	}
+	.advisor.strong {
+		border-color: rgba(var(--gold-rgb), 0.5);
+		box-shadow: 0 0 0 1px rgba(var(--gold-rgb), 0.22), var(--shadow);
+	}
+	.adv-head {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.8rem;
+		flex-wrap: wrap;
+	}
+	.adv-spark {
+		color: var(--mint);
+		font-size: 1.2rem;
+		line-height: 1.2;
+	}
+	.adv-lead {
+		flex: 1;
+		min-width: 220px;
+	}
+	.adv-eyebrow {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--mint);
+	}
+	.adv-headline {
+		font-size: 1.05rem;
+		font-weight: 700;
+		color: var(--strong);
+		line-height: 1.35;
+		margin-top: 0.2rem;
+	}
+	.adv-plan {
+		text-align: right;
+		flex: none;
+	}
+	.adv-plan-name {
+		font-weight: 700;
+		color: var(--strong);
+	}
+	.adv-plan-price {
+		font-size: 1.25rem;
+		font-weight: 800;
+		color: var(--strong);
+		letter-spacing: -0.02em;
+	}
+	.adv-plan-price span {
+		font-size: 0.78rem;
+		font-weight: 500;
+		color: var(--faint);
+	}
+	.adv-reasons {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+	.adv-reasons li {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.6rem;
+		font-size: 0.9rem;
+		color: var(--body);
+		line-height: 1.45;
+	}
+	.adv-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--gold, #e0b24c);
+		flex: none;
+		margin-top: 0.45rem;
+	}
+	.adv-limits {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+		gap: 0.8rem 1.4rem;
+	}
+	.adv-limit-top {
+		display: flex;
+		justify-content: space-between;
+		align-items: baseline;
+		font-size: 0.82rem;
+		color: var(--muted);
+		margin-bottom: 0.35rem;
+	}
+	.adv-meter {
+		height: 8px;
+		border-radius: 999px;
+		background: var(--panel-2);
+		overflow: hidden;
+	}
+	.adv-meter span {
+		display: block;
+		height: 100%;
+		border-radius: 999px;
+		background: var(--mint);
+	}
+	.adv-meter.amber span {
+		background: var(--warn, #c79a2e);
+	}
+	.adv-meter.red span {
+		background: var(--danger, #c84646);
+	}
+	.adv-sub {
+		font-size: 0.72rem;
+		font-weight: 700;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.adv-unlocks {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 0.7rem 1.2rem;
+		margin-top: -0.5rem;
+	}
+	.adv-unlock {
+		display: flex;
+		gap: 0.5rem;
+		align-items: flex-start;
+	}
+	.adv-check {
+		width: 15px;
+		height: 15px;
+		color: var(--mint);
+		flex: none;
+		margin-top: 2px;
+	}
+	.adv-unlock-f {
+		font-size: 0.88rem;
+		font-weight: 600;
+		color: var(--strong);
+	}
+	.adv-unlock-w {
+		font-size: 0.8rem;
+		color: var(--muted);
+		line-height: 1.4;
+	}
+	.adv-foot {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+		border-top: 1px solid var(--edge);
+		padding-top: 1rem;
+	}
+	.adv-impact {
+		display: flex;
+		gap: 1.4rem;
+		flex-wrap: wrap;
+	}
+	.adv-imp b {
+		display: block;
+		font-size: 1.05rem;
+		font-weight: 800;
+		color: var(--strong);
+		letter-spacing: -0.01em;
+	}
+	.adv-imp span {
+		font-size: 0.74rem;
+		color: var(--muted);
+	}
+	.adv-cta {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.adv-cta form {
+		margin: 0;
+	}
 	.plans-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));

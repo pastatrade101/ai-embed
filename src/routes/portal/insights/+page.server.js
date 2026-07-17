@@ -3,6 +3,7 @@ import { supabase } from '$lib/server/supabase.js';
 import { listTours } from '$lib/server/tours.js';
 import { catalogueGaps } from '$lib/server/dashboard.js';
 import { FEATURE, planAllows } from '$lib/server/gating.js';
+import { unlockingPlanName } from '$lib/feature-value.js';
 import { quota, AI } from '$lib/server/ai.js';
 import { askAnalyst } from '$lib/server/analyst.js';
 import { researchDraft, saveResearchDraft } from '$lib/server/research.js';
@@ -36,10 +37,12 @@ export async function load({ locals }) {
 	const { data: c } = await supabase.from('clients').select('plan').eq('id', clientId).maybeSingle();
 	const plan = c?.plan ?? 'free';
 
-	// Light fetch for research topic suggestions (gaps customers ask about).
-	const [tourItems, { data: convs }] = await Promise.all([
+	// Light fetch for research topic suggestions (gaps customers ask about) + the
+	// plans that unlock each premium tool, so locked blocks can name the upgrade.
+	const [tourItems, { data: convs }, { data: activePlans }] = await Promise.all([
 		listTours(clientId),
-		supabase.from('conversations').select('messages').eq('client_id', clientId).order('created_at', { ascending: false }).limit(120)
+		supabase.from('conversations').select('messages').eq('client_id', clientId).order('created_at', { ascending: false }).limit(120),
+		supabase.from('plans').select('name, features, sort, is_active').eq('is_active', true).order('sort')
 	]);
 	const tours = (tourItems ?? []).map((t) => ({ title: t.title, destination: metaGet(t.metadata, 'destination', 'route', 'park', 'location') }));
 	const gaps = catalogueGaps(convs ?? [], tours).map((g) => g.label);
@@ -47,7 +50,9 @@ export async function load({ locals }) {
 	return {
 		access: await access(clientId, plan),
 		suggestions: ['Which tours convert best into leads?', 'Where are my leads dropping off?', 'What’s my potential booking value this month?', 'Which travel month is most in demand?'],
-		researchTopics: gaps
+		researchTopics: gaps,
+		analystPlan: unlockingPlanName(activePlans, FEATURE.DATA_ANALYST),
+		researchPlan: unlockingPlanName(activePlans, FEATURE.RESEARCH)
 	};
 }
 

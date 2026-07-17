@@ -70,6 +70,23 @@
 		} catch (e) {}
 	}
 
+	// Growth nudge — subtle upgrade suggestion, dismissible per recommended plan.
+	$: growthAdv = dash.advisor;
+	let growthDismissed = new Set();
+	onMount(() => {
+		try {
+			growthDismissed = new Set(JSON.parse(localStorage.getItem('mk_growth_dismissed') || '[]'));
+		} catch (e) {}
+	});
+	$: showGrowth = growthAdv && !growthDismissed.has(growthAdv.plan.key);
+	function dismissGrowth() {
+		if (!growthAdv) return;
+		growthDismissed = new Set([...growthDismissed, growthAdv.plan.key]);
+		try {
+			localStorage.setItem('mk_growth_dismissed', JSON.stringify([...growthDismissed]));
+		} catch (e) {}
+	}
+
 	// Website embed (kept, secondary).
 	const embedSnippet = () => `<script src="${$page.url.origin}/widget.js" data-client="${client.slug}"><\/script>`;
 	let showEmbed = false;
@@ -106,6 +123,21 @@
 			<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
 		</button>
 	</div>
+{/if}
+
+<!-- Growth nudge: subtle, dismissible upgrade suggestion driven by real usage. -->
+{#if showGrowth}
+	<a class="growth-nudge" class:strong={growthAdv.strong} href="/portal/billing">
+		<span class="gn-spark" aria-hidden="true">✦</span>
+		<div class="gn-body">
+			<b>{growthAdv.headline}</b>
+			{#if growthAdv.topReason}<span class="gn-reason">{growthAdv.topReason}</span>{/if}
+		</div>
+		<span class="gn-cta">See {growthAdv.plan.name} →</span>
+		<button class="gn-x" type="button" on:click|preventDefault|stopPropagation={dismissGrowth} aria-label="Dismiss">
+			<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+		</button>
+	</a>
 {/if}
 
 <!-- 1. AI status -->
@@ -358,6 +390,75 @@
 	.celebrate-x:hover {
 		background: rgba(var(--fg-rgb), 0.06);
 		color: var(--strong);
+	}
+
+	/* Growth nudge */
+	.growth-nudge {
+		display: flex;
+		align-items: center;
+		gap: 0.8rem;
+		padding: 0.8rem 1rem;
+		margin-bottom: 1rem;
+		border-radius: 14px;
+		background: linear-gradient(90deg, rgba(var(--gold-rgb), 0.1), transparent 70%), var(--panel-2);
+		border: 1px solid var(--edge);
+		text-decoration: none;
+		color: inherit;
+		transition: border-color 0.16s, transform 0.16s;
+	}
+	.growth-nudge:hover {
+		border-color: rgba(var(--gold-rgb), 0.45);
+		transform: translateY(-1px);
+	}
+	.growth-nudge.strong {
+		border-color: rgba(var(--gold-rgb), 0.4);
+	}
+	.gn-spark {
+		color: var(--mint);
+		font-size: 1.1rem;
+		flex: none;
+	}
+	.gn-body {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.1rem;
+	}
+	.gn-body b {
+		color: var(--strong);
+		font-size: 0.92rem;
+		font-weight: 650;
+	}
+	.gn-reason {
+		font-size: 0.82rem;
+		color: var(--muted);
+	}
+	.gn-cta {
+		flex: none;
+		font-size: 0.84rem;
+		font-weight: 650;
+		color: var(--mint);
+		white-space: nowrap;
+	}
+	.gn-x {
+		flex: none;
+		background: transparent;
+		border: 0;
+		color: var(--muted);
+		padding: 0.2rem;
+		border-radius: 7px;
+		cursor: pointer;
+		display: inline-flex;
+	}
+	.gn-x:hover {
+		background: rgba(var(--fg-rgb), 0.06);
+		color: var(--strong);
+	}
+	@media (max-width: 640px) {
+		.gn-cta {
+			display: none;
+		}
 	}
 
 	.ai-status-head {

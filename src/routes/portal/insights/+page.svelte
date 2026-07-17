@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import LockedFeature from '$lib/components/LockedFeature.svelte';
 	export let data;
 	export let form;
 	$: ({ access, suggestions, researchTopics } = data);
@@ -74,7 +75,7 @@
 	</div>
 
 	{#if !access.analyst.allowed || access.analyst.quota.limit === 0}
-		<div class="upsell">The AI data analyst isn’t available on your current plan. <a href="/portal/billing">Upgrade</a> to unlock it.</div>
+		<LockedFeature feature="AI data analyst" planName={data.analystPlan} />
 	{:else}
 		<form method="POST" action="?/ask" use:enhance={askSubmit} class="ask">
 			<input name="question" bind:value={question} placeholder="e.g. Which tours convert best? Where are leads dropping off?" autocomplete="off" />
@@ -115,7 +116,7 @@
 	</div>
 
 	{#if !access.research.allowed || access.research.quota.limit === 0}
-		<div class="upsell">The AI research assistant isn’t available on your current plan. <a href="/portal/billing">Upgrade</a> to unlock it.</div>
+		<LockedFeature feature="AI research assistant" planName={data.researchPlan} />
 	{:else}
 		<form method="POST" action="?/research" use:enhance={researchSubmit} class="ask">
 			<input name="topic" bind:value={topic} placeholder="e.g. Hot-air balloon safaris, Tanzania visa on arrival, best time for the migration" autocomplete="off" />
