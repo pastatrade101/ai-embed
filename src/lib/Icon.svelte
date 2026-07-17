@@ -53,5 +53,11 @@
 		<line x1="12" y1="19" x2="12" y2="5" /><polyline points="5 12 12 5 19 12" />
 	{:else if name === 'check'}
 		<polyline points="20 6 9 17 4 12" />
+	{:else if name === 'search'}
+		<circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+	{:else if name === 'refresh'}
+		<polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+	{:else if name === 'languages'}
+		<path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
 	{/if}
 </svg>

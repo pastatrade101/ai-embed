@@ -16,15 +16,16 @@
 	const capabilities = [
 		'Recommend the perfect safari',
 		'Answer questions instantly',
-		'Explain itineraries',
+		'Build day-by-day itineraries',
 		'Compare tour packages',
-		'Explain pricing',
-		'Check departures',
+		'Explain pricing & inclusions',
+		'Check live departures',
 		'Recommend upgrades',
-		'Collect traveller information',
+		'Reply in the customer’s language',
+		'Read photos & PDFs',
 		'Qualify serious buyers',
 		'Capture leads automatically',
-		'Transfer directly to WhatsApp'
+		'Hand off to WhatsApp with full context'
 	];
 	const steps = [
 		{ n: '01', t: 'Create your AI assistant', d: 'Set it up in minutes — no code, no technical skills.' },
@@ -64,10 +65,13 @@
 		};
 	});
 	const faqs = [
-		{ q: 'Do I need a website?', a: 'No. Makutano AI creates a hosted AI page automatically — just share the link or QR code.' },
-		{ q: 'Can customers still reach me on WhatsApp?', a: 'Yes. The AI hands booking-ready customers directly to your WhatsApp.' },
-		{ q: 'Can I upload my existing itineraries?', a: 'Yes. Import from CSV or JSON, or simply paste your existing content.' },
-		{ q: 'Does the AI use my own prices?', a: 'Yes. It answers from your verified catalogue — not generic internet knowledge.' },
+		{ q: 'Is this just a chatbot?', a: 'No. Alongside the customer-facing assistant, you get an AI analyst that answers questions about your business from your real numbers, an AI researcher that drafts new knowledge from the web for you to approve, automatic website sync, and a scored sales pipeline.' },
+		{ q: 'Do I need a website?', a: 'No. Makutano AI creates a hosted AI page automatically — just share the link or QR code. If you do have a website, it can scan and import your tours for you.' },
+		{ q: 'Does the AI use my own prices?', a: 'Yes. It answers only from your verified catalogue — never generic internet knowledge — so every price, date and detail is accurate.' },
+		{ q: 'Can customers still reach me on WhatsApp?', a: 'Yes. The AI hands booking-ready customers directly to your WhatsApp, carrying the full conversation so you pick up right where it left off.' },
+		{ q: 'What languages does it speak?', a: 'It replies in the customer’s language automatically, and can read photos and PDFs they send.' },
+		{ q: 'How do I add my tours?', a: 'Import from CSV, JSON or PDF, paste your content, or point it at your website and let it import automatically. The AI organises everything.' },
+		{ q: 'How much does the AI cost to run?', a: 'Every plan includes a generous monthly AI allowance shown as simple usage — no tokens to think about — with clear forecasts and top-ups if you ever need more.' },
 		{ q: 'How long does setup take?', a: 'Most operators are live in less than 10 minutes.' }
 	];
 
@@ -75,7 +79,7 @@
 	const SITE = 'Makutano AI';
 	const SEO_TITLE = 'Makutano AI — AI Booking Assistant for Tour Operators';
 	const SEO_DESC =
-		'AI booking assistant for tour operators: instantly answer customer questions, recommend tours, qualify leads and hand booking-ready customers to your WhatsApp — 24/7, no website needed.';
+		'The complete AI team for tour operators: an assistant that answers customers, recommends tours and qualifies leads 24/7 — plus an AI analyst that reads your numbers, an AI researcher that fills knowledge gaps, website auto-sync and a sales pipeline. No website needed.';
 	$: seoOrigin = data.origin ?? 'https://ai.makutano.co.tz';
 	$: canonicalUrl = `${seoOrigin}/`;
 	$: ogImage = `${seoOrigin}/og-image.png`;
@@ -245,6 +249,34 @@
 		</div>
 	</section>
 
+	<!-- AI TEAM -->
+	<section class="team">
+		<div class="wrap">
+			<div class="head-narrow">
+				<div class="label">More than a chatbot</div>
+				<h2 class="dark">One subscription. A whole AI team working your bookings.</h2>
+				<p class="muted">Makutano AI isn't a single bot — it's several specialists, each doing a job you'd otherwise hire for.</p>
+			</div>
+			<div class="roles">
+				<div class="role card">
+					<div class="role-ico"><Icon name="bot" size={24} /></div>
+					<h3>Your AI salesperson</h3>
+					<p>Answers every customer in seconds, recommends the right tour from your own catalogue, explains pricing and availability, qualifies the serious buyers and hands them to WhatsApp with the full conversation — day and night.</p>
+				</div>
+				<div class="role card">
+					<div class="role-ico"><Icon name="bar-chart" size={24} /></div>
+					<h3>Your AI analyst</h3>
+					<p>Ask it anything about your business and it answers from your real numbers — top tours, conversion, potential booking value, which month is in demand, where enquiries stall — and flags the catalogue gaps quietly costing you bookings.</p>
+				</div>
+				<div class="role card">
+					<div class="role-ico"><Icon name="search" size={24} /></div>
+					<h3>Your AI researcher</h3>
+					<p>Point it at a question customers keep asking and it researches the web, drafts a knowledge entry for you to approve, and keeps your website content in sync — so your assistant only ever gets sharper.</p>
+				</div>
+			</div>
+		</div>
+	</section>
+
 	<!-- HOW IT WORKS -->
 	<section id="how" class="how">
 		<div class="wrap">
@@ -284,9 +316,13 @@
 				<div class="b b-card"><div class="b-ico"><Icon name="book-open" size={22} /></div><h3>AI Knowledge</h3><p>Upload once. The AI learns tours, prices, destinations, policies, FAQs, accommodation, transfers & travel tips.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="calendar" size={22} /></div><h3>Departure Management</h3><p>"Do you have departures next month?" The AI checks your real schedule before answering.</p></div>
 				<div class="b b-gold"><div class="b-ico b-ico-ink"><Icon name="message-circle" size={26} /></div><h3>WhatsApp Handoff</h3><p>Booking-ready customers land directly in your WhatsApp. No copying. No exporting. No CRM headaches.</p></div>
-				<div class="b b-card b-wide"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>AI Lead Qualification</h3><p>Know the budget, dates, group size, destination, interests & buying intent — before you reply.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>Lead Dashboard</h3><p>Track new enquiries, qualified leads, potential bookings, follow-ups & interests in one place.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="globe" size={22} /></div><h3>Hosted AI Page</h3><p>No website? We create a professional AI booking page for your business. Just share the link.</p></div>
+				<div class="b b-card b-wide"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>AI Lead Qualification</h3><p>Budget, dates, group size, destination, interests & buying intent — extracted automatically into a clean lead record before you even reply.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>AI Data Analyst</h3><p>Ask your business anything — "Which tours convert best?", "Where are leads dropping off?" — answered from your real numbers, never guessed.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="search" size={22} /></div><h3>AI Research Assistant</h3><p>Point it at a topic customers keep asking about; it researches the web and drafts a ready-to-publish knowledge entry for you to approve.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="refresh" size={22} /></div><h3>Website Sync</h3><p>Connect your website and it imports your tours & pages automatically — deep-scanning every itinerary — and keeps your AI in sync as things change.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>Sales Pipeline & Revenue</h3><p>Every enquiry scored and staged automatically — track pipeline value, conversion and booked revenue in one clear dashboard.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="languages" size={22} /></div><h3>Speaks Their Language</h3><p>Replies in each customer's own language, and reads photos & PDFs they send — a receipt, a passport, a screenshot of another quote.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="globe" size={22} /></div><h3>Hosted AI Page</h3><p>No website? We create a professional AI booking page for your business — with rich tour, itinerary & pricing cards. Just share the link.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="qr" size={22} /></div><h3>QR Code Booking</h3><p>Print your QR on safari vehicles, hotels, flyers & cards. Visitors scan and start chatting.</p></div>
 			</div>
 		</div>
@@ -1204,6 +1240,49 @@
 		.b-wide {
 			grid-column: span 3;
 		}
+	}
+
+	/* AI team (light) */
+	.roles {
+		margin-top: 3rem;
+		display: grid;
+		gap: 1rem;
+		grid-template-columns: 1fr;
+	}
+	@media (min-width: 800px) {
+		.roles {
+			grid-template-columns: repeat(3, 1fr);
+		}
+	}
+	.role {
+		padding: 1.8rem;
+		transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+	}
+	.role:hover {
+		transform: translateY(-3px);
+		border-color: rgba(224, 178, 76, 0.5);
+		box-shadow: 0 14px 34px -16px rgba(18, 53, 40, 0.28);
+	}
+	.role-ico {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 48px;
+		height: 48px;
+		border-radius: 14px;
+		background: rgba(224, 178, 76, 0.14);
+		color: var(--gold);
+		border: 1px solid rgba(224, 178, 76, 0.28);
+	}
+	.role h3 {
+		margin: 1.1rem 0 0.5rem;
+		font-size: 1.25rem;
+		color: var(--ink);
+	}
+	.role p {
+		margin: 0;
+		color: var(--muted);
+		line-height: 1.6;
 	}
 
 	/* Built for operators (dark) */
