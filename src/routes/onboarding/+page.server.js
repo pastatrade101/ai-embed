@@ -7,7 +7,7 @@ import { fail, redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { hashPassword } from '$lib/server/password.js';
 import { createSignupToken } from '$lib/server/signup-token.js';
-import { sendEmail } from '$lib/server/email.js';
+import { sendEmail, brandedEmail, escapeHtml } from '$lib/server/email.js';
 import { industryKeyOf } from '$lib/industries.js';
 
 export function load({ locals }) {
@@ -66,6 +66,7 @@ export const actions = {
 		const res = await sendEmail({
 			to: email,
 			subject: 'Confirm your email to finish setting up Makutano',
+			// Plain-text fallback for clients that don't render HTML.
 			text: [
 				`Hi${fullName ? ' ' + fullName : ''},`,
 				'',
@@ -77,7 +78,17 @@ export const actions = {
 				"This link expires in 24 hours. If you didn't request this, you can safely ignore this email.",
 				'',
 				'— Makutano AI'
-			].join('\n')
+			].join('\n'),
+			html: brandedEmail({
+				preheader: `You're one click away from launching your AI assistant for ${brandName}.`,
+				heading: 'Confirm your email',
+				body: [
+					`Hi${fullName ? ' ' + escapeHtml(fullName) : ''},`,
+					`You're one click away from launching your AI assistant for <strong>${escapeHtml(brandName)}</strong>. Confirm your email address to activate your workspace.`
+				],
+				button: { label: 'Confirm your email address', url: link },
+				footer: "This link expires in 24 hours. If you didn't request this, you can safely ignore this email.<br>— Makutano AI"
+			})
 		});
 
 		// If the email couldn't be delivered (Resend unconfigured, or a send
