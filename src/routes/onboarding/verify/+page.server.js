@@ -30,7 +30,10 @@ export async function load({ url, cookies, locals }) {
 	// If they already confirmed (double-click, re-open) or the email got claimed
 	// meanwhile, don't create a duplicate — send them to sign in.
 	const { data: existing } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
-	if (existing) throw redirect(303, '/login?verified=1');
+	if (existing) {
+		console.log(`[verify] ${email} already has an account — redirecting to /login?verified=1 (this is the expected "email already registered" path, not an error).`);
+		throw redirect(303, '/login?verified=1');
+	}
 
 	// New tenants start on the free/default plan.
 	const { data: plan } = await supabase
@@ -99,6 +102,7 @@ export async function load({ url, cookies, locals }) {
 	}
 
 	// Email confirmed and tenant live — sign them in.
+	console.log(`[verify] provisioned ${slug} (industry ${ind.key}) for ${email}; session set (secure=${url.protocol === 'https:'}) → /portal. If the browser lands on /login instead, the session cookie was dropped (check ORIGIN / that the browser scheme is https).`);
 	cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions(url));
 	throw redirect(303, '/portal');
 }
