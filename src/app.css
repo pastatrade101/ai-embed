@@ -1095,14 +1095,16 @@ button.sm,
 .code-block {
 	white-space: pre-wrap;
 	background: #07130d;
-	color: var(--soft);
+	/* The background is always dark, so use a FIXED light text colour — never a
+	   theme variable (which flips dark in light mode → unreadable dark-on-dark). */
+	color: #dbe7e1;
 	padding: 0.9rem 1rem;
 	border-radius: 12px;
-	border: 1px solid var(--edge);
+	border: 1px solid rgba(226, 235, 229, 0.14);
 	overflow: auto;
-	font-size: 0.8rem;
+	font-size: 0.82rem;
 	font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-	line-height: 1.5;
+	line-height: 1.55;
 }
 
 .chat-log {
