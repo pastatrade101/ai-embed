@@ -14,6 +14,17 @@
 	$: client = data.client;
 	let tab = 'overview';
 
+	// Plan capacity ≈ conversations from the AI budget — the same basis the
+	// operator billing and pricing pages use, so every screen shows one number.
+	const nf = (n) => Number(n ?? 0).toLocaleString();
+	const planConversations = (p) => {
+		const cpc = data.costPerConversation || 0.004;
+		const budget = Number(p?.included_ai_budget) || 0;
+		return budget > 0 ? Math.round(budget / cpc) : Number(p?.monthly_conversation_cap) || 0;
+	};
+	const planPrice = (p) => (Number(p.price_amount) > 0 ? `${p.price_currency} ${nf(p.price_amount)}/mo` : 'Free');
+	$: currentPlanObj = data.plans.find((p) => p.key === client.plan) ?? null;
+
 	const fmtDate = (s) => (s ? new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(s)) : '—');
 	const initials = (n) => (n ?? '?').split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
@@ -64,12 +75,12 @@
 			<div style="flex:1;min-width:240px">
 				<label for="cp-plan">Assign plan</label>
 				<select id="cp-plan" name="plan">
-					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {p.price_amount > 0 ? `${p.price_currency} ${p.price_amount}/mo` : 'Free'} · {p.monthly_conversation_cap} conv{p.is_default ? ' · default' : ''}</option>{/each}
+					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {planPrice(p)} · ≈ {nf(planConversations(p))} conv{p.is_default ? ' · default' : ''}</option>{/each}
 				</select>
 			</div>
 			<button type="submit">Apply plan</button>
 		</form>
-		<div class="hint">Currently <b>{data.plans.find((p) => p.key === client.plan)?.name ?? client.plan}</b> · {client.monthly_conversation_cap} conversations / mo · {client.subscription_status}.</div>
+		<div class="hint">Currently <b>{currentPlanObj?.name ?? client.plan}</b> · ≈ {nf(planConversations(currentPlanObj))} conversations / mo · {client.subscription_status}.</div>
 	</div>
 
 	<div class="card">
@@ -125,7 +136,7 @@
 			<div>
 				<label for="s-plan">Plan</label>
 				<select id="s-plan" name="plan">
-					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {p.price_currency} {p.price_amount}/mo · {p.monthly_conversation_cap} conv</option>{/each}
+					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {planPrice(p)} · ≈ {nf(planConversations(p))} conv</option>{/each}
 				</select>
 				<div class="hint">Changing the plan updates the monthly conversation cap.</div>
 			</div>

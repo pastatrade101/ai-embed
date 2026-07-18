@@ -1,6 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { hashPassword } from '$lib/server/password.js';
+import { AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
 import {
 	getClientBySlug,
 	loadWorkspace,
@@ -26,7 +27,7 @@ export async function load({ params }) {
 		supabase.from('plans').select('*').order('sort'),
 		supabase.from('users').select('id, email, name, role, last_login_at, created_at').eq('client_id', client.id).order('created_at')
 	]);
-	return { client, ...workspace, plans: plansRes.data ?? [], operators: usersRes.data ?? [] };
+	return { client, ...workspace, plans: plansRes.data ?? [], operators: usersRes.data ?? [], costPerConversation: AVG_COST_PER_CONVERSATION };
 }
 
 export const actions = {
