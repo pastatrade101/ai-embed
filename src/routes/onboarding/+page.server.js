@@ -80,10 +80,14 @@ export const actions = {
 			].join('\n')
 		});
 
-		// Surface the link server-side so verification is testable without a
-		// mailbox (dev, or if Resend is unconfigured). Never sent to the client.
-		if (!res.ok) console.log(`[signup] verification link for ${email}: ${link}`);
+		// If the email couldn't be delivered (Resend unconfigured, or a send
+		// error), signup must not dead-end: log the link server-side AND return it
+		// so the person who just filled in the form can confirm directly. When
+		// email works, `delivered` is true and no link is exposed — the secure
+		// email-only flow. The moment Resend is configured, the fallback vanishes.
+		const delivered = res.ok === true;
+		if (!delivered) console.log(`[signup] verification link for ${email}: ${link}`);
 
-		return { sent: true, email };
+		return { sent: true, email, delivered, verifyLink: delivered ? null : link };
 	}
 };

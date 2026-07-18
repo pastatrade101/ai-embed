@@ -100,15 +100,27 @@
 	{#if form?.sent}
 		<div class="sent-wrap">
 			<div class="sent-card">
-				<div class="sent-mark">✉️</div>
-				<div class="eyebrow">Almost there</div>
-				<h1>Check your inbox</h1>
-				<p class="desc">We sent a confirmation link to <b>{form.email}</b>. Click it to activate your workspace and go straight to your dashboard.</p>
-				<ul class="sent-tips">
-					<li>The link expires in 24&nbsp;hours.</li>
-					<li>Can't find it? Check spam or promotions.</li>
-					<li>Your account isn't created until you confirm.</li>
-				</ul>
+				{#if form.delivered}
+					<div class="sent-mark">✉️</div>
+					<div class="eyebrow">Almost there</div>
+					<h1>Check your inbox</h1>
+					<p class="desc">We sent a confirmation link to <b>{form.email}</b>. Click it to activate your workspace and go straight to your dashboard.</p>
+					<ul class="sent-tips">
+						<li>The link expires in 24&nbsp;hours.</li>
+						<li>Can't find it? Check spam or promotions.</li>
+						<li>Your account isn't created until you confirm.</li>
+					</ul>
+				{:else}
+					<div class="sent-mark">✅</div>
+					<div class="eyebrow">Almost there</div>
+					<h1>One click to finish</h1>
+					<p class="desc">Your details are ready for <b>{form.email}</b>. Confirm below to activate your workspace and go straight to your dashboard.</p>
+					<a class="confirm-btn" href={form.verifyLink}>Confirm &amp; go to my dashboard →</a>
+					<ul class="sent-tips">
+						<li>This link expires in 24&nbsp;hours.</li>
+						<li>Your account isn't created until you confirm.</li>
+					</ul>
+				{/if}
 				<p class="sent-foot">Wrong email? <a href="/onboarding">Start over</a> · Already confirmed? <a href="/login">Sign in</a></p>
 			</div>
 		</div>
@@ -710,6 +722,25 @@
 	.sent-card .desc {
 		margin-top: 0.75rem;
 		color: rgba(247, 242, 232, 0.7);
+	}
+	.confirm-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		margin: 1.5rem 0 0;
+		background: var(--gold);
+		color: var(--gold-ink);
+		border-radius: 999px;
+		padding: 0.9rem 1.7rem;
+		font-size: 0.95rem;
+		font-weight: 700;
+		text-decoration: none;
+		transition: background 0.15s, transform 0.15s;
+	}
+	.confirm-btn:hover {
+		background: var(--gold-soft);
+		transform: translateY(-1px);
 	}
 	.sent-tips {
 		margin: 1.75rem 0 0;
