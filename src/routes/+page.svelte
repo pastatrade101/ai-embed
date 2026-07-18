@@ -2,9 +2,25 @@
 	// Public marketing landing page. Self-contained forest/gold/cream theme so it
 	// doesn't inherit the dark admin app.css. All CTAs lead to the existing /login.
 	import Icon from '$lib/Icon.svelte';
+	import { onMount } from 'svelte';
+	import { env } from '$env/dynamic/public';
 
 	const LOGIN = '/login';
 	const ONBOARD = '/onboarding';
+
+	// Dogfood the product: embed our own AI assistant on the marketing site so it
+	// can answer questions about Makutano and convert visitors. Point
+	// PUBLIC_SITE_ASSISTANT_SLUG at a Makutano tenant (industry: ICT / Tech Agency
+	// or Other Business) that has the product knowledge imported. Inert until set.
+	onMount(() => {
+		const slug = env.PUBLIC_SITE_ASSISTANT_SLUG;
+		if (!slug) return;
+		const s = document.createElement('script');
+		s.src = '/widget.js';
+		s.async = true;
+		s.setAttribute('data-client', slug);
+		document.body.appendChild(s);
+	});
 
 	const unanswered = [
 		'How much is a 5-day Serengeti safari?',
