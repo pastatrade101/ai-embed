@@ -63,13 +63,15 @@ export const actions = {
 			monthly_conversation_cap: plan?.monthly_conversation_cap ?? 30
 		};
 		// Include the industry key when the column exists (migration 016); retry
-		// without it so client creation keeps working pre-migration.
+		// without it ONLY on the missing-column error so creation keeps working
+		// pre-migration, without masking a transient error on a migrated DB.
+		const missingColumn = (e) => e && (e.code === 'PGRST204' || /industry|schema cache/i.test(e.message ?? ''));
 		let { data: client, error } = await supabase
 			.from('clients')
 			.insert({ ...row, industry: ind.key })
 			.select('id, slug, name')
 			.single();
-		if (error && error.code !== '23505') {
+		if (missingColumn(error)) {
 			({ data: client, error } = await supabase.from('clients').insert(row).select('id, slug, name').single());
 		}
 
