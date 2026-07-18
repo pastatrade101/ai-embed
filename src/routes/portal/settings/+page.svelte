@@ -1,5 +1,6 @@
 <script>
 	import { enhance } from '$app/forms';
+	import { GREETING_MAX } from '$lib/greeting.js';
 	export let data;
 	export let form;
 	$: client = data.client;
@@ -8,6 +9,18 @@
 
 	const TONES = ['Friendly', 'Professional', 'Warm', 'Playful', 'Concise'];
 	$: suggestedText = (Array.isArray(client.suggested_questions) ? client.suggested_questions : []).join('\n');
+
+	// Greeting bubble — bound so we can show a live character counter, but
+	// re-seeded from the server whenever the saved value changes (after a save +
+	// invalidation) so the field/counter reflect the normalized, persisted text
+	// like the one-way-bound fields do — and reveal a dropped save.
+	let greetingMsg = data.client?.greeting_message ?? '';
+	let greetingSrc = data.client?.greeting_message ?? '';
+	$: if ((data.client?.greeting_message ?? '') !== greetingSrc) {
+		greetingSrc = data.client?.greeting_message ?? '';
+		greetingMsg = greetingSrc;
+	}
+	$: greetingLen = greetingMsg.length;
 
 	// Logo: pick a file from the computer (uploads to storage) or paste a URL.
 	let logoUrl = data.client?.logo_url ?? '';
@@ -94,7 +107,14 @@
 				</select>
 			</div>
 		</div>
-		<div><label for="welcome_message">Welcome message</label><textarea id="welcome_message" name="welcome_message" style="min-height:70px" placeholder={`Habari! 👋 Ask me anything about our ${terms.items}.`}>{client.welcome_message ?? ''}</textarea><div class="hint">The first thing visitors see in the chat.</div></div>
+		<div><label for="welcome_message">Welcome message</label><textarea id="welcome_message" name="welcome_message" style="min-height:70px" placeholder={`Habari! 👋 Ask me anything about our ${terms.items}.`}>{client.welcome_message ?? ''}</textarea><div class="hint">The first thing visitors see <em>inside</em> the chat.</div></div>
+		<div>
+			<label for="greeting_message">Greeting bubble</label>
+			<input type="hidden" name="_greeting_enabled" value="1" />
+			<label class="toggle-row"><input type="checkbox" name="greeting_enabled" checked={client.greeting_enabled !== false} /> Invite visitors to chat with a greeting bubble</label>
+			<input id="greeting_message" name="greeting_message" maxlength={GREETING_MAX} bind:value={greetingMsg} placeholder={`Hi 👋 Looking for the perfect ${terms.item}?`} />
+			<div class="hint">Pops up beside the chat button after a short pause. Leave blank for smart greetings that adapt to the page and time of day. <span class="counter" class:over={greetingLen > GREETING_MAX - 15}>{greetingLen}/{GREETING_MAX}</span></div>
+		</div>
 		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder="A family-run safari operator based in Arusha. Always be encouraging about first-time safaris…">{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
 		<div style="max-width:340px"><label for="languages">Languages</label><input id="languages" name="languages" value={client.languages ?? ''} placeholder="English, Swahili" /></div>
 	</div>
@@ -145,6 +165,25 @@
 </form>
 
 <style>
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin: 0.1rem 0 0.5rem;
+		font-weight: 500;
+	}
+	.toggle-row input {
+		width: auto;
+	}
+	.counter {
+		float: right;
+		font-variant-numeric: tabular-nums;
+		color: var(--muted);
+	}
+	.counter.over {
+		color: #c2410c;
+		font-weight: 600;
+	}
 	.logo-field {
 		display: flex;
 		gap: 0.7rem;

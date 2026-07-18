@@ -72,6 +72,8 @@
 	var greetTimers = { next: null, collapse: null };
 	var lastActivity = Date.now();
 	var returningVisitor = false;
+	var customGreeting = null; // operator's own line (from /api/config) — wins when set
+	var greetingEnabledCfg = true; // operator on/off toggle (from /api/config)
 	// Industry base greetings — neutral, configurable; the widget serves every vertical.
 	var INDUSTRY_GREET = {
 		tourism: 'Planning your next adventure?',
@@ -142,6 +144,8 @@
 				if (cfg.autoLeadCapture === false) autoLeadCapture = false;
 				hideBranding = cfg.hideBranding === true;
 				if (cfg.industry) industry = cfg.industry;
+				if (cfg.greeting) customGreeting = String(cfg.greeting).slice(0, 160);
+				if (cfg.greetingEnabled === false) greetingEnabledCfg = false;
 				render();
 				startGreeting();
 			})
@@ -180,6 +184,7 @@
 		return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 	}
 	function greetingText() {
+		if (customGreeting) return customGreeting; // operator override — shown verbatim
 		var page = pageGreeting();
 		if (page) return page;
 		if (returningVisitor) return 'Welcome back 👋 Need anything today?';
@@ -187,7 +192,7 @@
 	}
 
 	function startGreeting() {
-		if (!GREET_ENABLED || greetStopped) return;
+		if (!GREET_ENABLED || !greetingEnabledCfg || greetStopped) return;
 		if (lsGet('_dismissed') === '1') return; // respected across visits
 		returningVisitor = lsGet('_seen') === '1';
 		lsSet('_seen', '1');

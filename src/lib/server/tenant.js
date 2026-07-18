@@ -7,6 +7,7 @@ import { reingestItem } from './rag.js';
 import { parseDetails, parseKnowledgeInput } from './knowledge.js';
 import { departuresByItem } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
+import { clampGreeting } from '$lib/greeting.js';
 
 const ITEM_COLS = 'id, client_id, title, body, category, price_amount, price_currency, metadata';
 
@@ -355,6 +356,12 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 			.slice(0, 8);
 	}
 
+	// Greeting bubble: a custom line (normalised + length-capped) and an on/off
+	// toggle. The hidden `_greeting_enabled` marker tells us the checkbox is on
+	// the form (an unchecked box submits nothing on its own).
+	if (form.has('greeting_message')) patch.greeting_message = clampGreeting(form.get('greeting_message'));
+	if (form.has('_greeting_enabled')) patch.greeting_enabled = form.get('greeting_enabled') === 'on';
+
 	if (allowAdmin) {
 		// The admin settings form always carries the is_active checkbox, so an
 		// unchecked box (which submits nothing) correctly means "paused".
@@ -374,7 +381,22 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 
 	if (Object.keys(patch).length === 0) return { section: 'client', ok: 'No changes to save.' };
 
-	const { error } = await supabase.from('clients').update(patch).eq('id', clientId);
+	let { error } = await supabase.from('clients').update(patch).eq('id', clientId);
+	// Fail open if migration 017 (greeting columns) hasn't run yet: drop the
+	// greeting fields and save everything else, so settings still work. We flag
+	// it so we don't falsely report the greeting change as saved.
+	let greetingDeferred = false;
+	if (error && /greeting/i.test(error.message) && ('greeting_message' in patch || 'greeting_enabled' in patch)) {
+		greetingDeferred = true;
+		delete patch.greeting_message;
+		delete patch.greeting_enabled;
+		if (Object.keys(patch).length === 0) return { section: 'client', ok: GREETING_DEFERRED_MSG };
+		({ error } = await supabase.from('clients').update(patch).eq('id', clientId));
+	}
 	if (error) return fail(400, { section: 'client', error: error.message });
-	return { section: 'client', ok: 'Settings saved.' };
+	return { section: 'client', ok: greetingDeferred ? GREETING_DEFERRED_MSG : 'Settings saved.' };
 }
+
+// Shown when everything but the greeting saved (greeting columns not migrated
+// yet) — so the operator isn't misled into thinking the bubble change applied.
+const GREETING_DEFERRED_MSG = 'Settings saved — the greeting bubble isn’t active on your account yet; it’ll apply after a pending system update.';

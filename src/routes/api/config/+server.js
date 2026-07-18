@@ -8,6 +8,7 @@ import { listTours } from '$lib/server/tours.js';
 import { suggestionChips } from '$lib/server/suggest.js';
 import { serverIndustry } from '$lib/server/industries.js';
 import { industryKeyOf } from '$lib/industries.js';
+import { clampGreeting } from '$lib/greeting.js';
 
 const metaDest = (md) => {
 	if (!md || typeof md !== 'object') return null;
@@ -67,6 +68,10 @@ export async function GET({ url }) {
 		welcome: client.welcome_message ?? null,
 		suggestions: suggestionChips(client.suggested_questions, tours, serverIndustry(client)),
 		industry: industryKeyOf(client),
+		// Custom greeting bubble (null → widget uses its smart context-aware
+		// greetings). greeting_enabled defaults on when the column is absent.
+		greeting: clampGreeting(client.greeting_message),
+		greetingEnabled: client.greeting_enabled !== false,
 		autoLeadCapture: client.auto_lead_capture !== false,
 		hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
 	});
