@@ -7,6 +7,7 @@ import { FEATURE, planAllows, planUnlocks } from '$lib/server/gating.js';
 import { listTours } from '$lib/server/tours.js';
 import { suggestionChips } from '$lib/server/suggest.js';
 import { serverIndustry } from '$lib/server/industries.js';
+import { industryKeyOf } from '$lib/industries.js';
 
 const metaDest = (md) => {
 	if (!md || typeof md !== 'object') return null;
@@ -65,6 +66,7 @@ export async function GET({ url }) {
 		whatsapp: client.whatsapp_number ?? null,
 		welcome: client.welcome_message ?? null,
 		suggestions: suggestionChips(client.suggested_questions, tours, serverIndustry(client)),
+		industry: industryKeyOf(client),
 		autoLeadCapture: client.auto_lead_capture !== false,
 		hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE)
 	});

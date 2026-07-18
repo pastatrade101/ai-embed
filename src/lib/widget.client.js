@@ -57,6 +57,33 @@
 	var hideBranding = false;
 	var assistantName = null;
 	var logo = null;
+	var industry = 'tourism'; // from /api/config; drives the greeting
+
+	// --- Greeting concierge state ------------------------------------------
+	// A living, non-annoying introduction: after a short idle, the icon does one
+	// gentle bounce and a speech bubble slides out; it auto-collapses, repeats a
+	// couple of times, then rests. Fully client-side; respects reduced-motion,
+	// stops on any interaction, and remembers a dismissal.
+	var GREET_ENABLED = !(script && script.getAttribute && /^(off|false|0|no)$/i.test(script.getAttribute('data-greeting') || ''));
+	var GK = 'mk_greet_' + CLIENT;
+	var greetNode = null,
+		greetShown = false,
+		greetStopped = false;
+	var greetTimers = { next: null, collapse: null };
+	var lastActivity = Date.now();
+	var returningVisitor = false;
+	// Industry base greetings — neutral, configurable; the widget serves every vertical.
+	var INDUSTRY_GREET = {
+		tourism: 'Planning your next adventure?',
+		hotel: 'Looking for the perfect stay?',
+		healthcare: 'How may I assist you today?',
+		education: 'Need help finding the right programme?',
+		government: 'Which service can I help you find?',
+		retail: 'Looking for the perfect product?',
+		realestate: 'Looking for the right property?',
+		restaurant: 'Need help with the menu or a reservation?',
+		services: 'How can we help you today?'
+	};
 
 	// Persist the conversation so a page reload doesn't lose it (2h TTL).
 	var STORE_KEY = 'mk_chat_' + CLIENT;
@@ -114,9 +141,126 @@
 				suggestions = Array.isArray(cfg.suggestions) ? cfg.suggestions : [];
 				if (cfg.autoLeadCapture === false) autoLeadCapture = false;
 				hideBranding = cfg.hideBranding === true;
+				if (cfg.industry) industry = cfg.industry;
 				render();
+				startGreeting();
 			})
 			.catch(function () {});
+	}
+
+	// --- greeting concierge -------------------------------------------------
+	function lsGet(k) { try { return localStorage.getItem(GK + k); } catch (e) { return null; } }
+	function lsSet(k, v) { try { localStorage.setItem(GK + k, v); } catch (e) {} }
+	function ssGet(k) { try { return sessionStorage.getItem(GK + k); } catch (e) { return null; } }
+	function ssSet(k, v) { try { sessionStorage.setItem(GK + k, v); } catch (e) {} }
+	function reducedMotion() { try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } }
+	function sessCycles() { return parseInt(ssGet('_cyc') || '0', 10) || 0; }
+	function onCheckout() { return /(checkout|payment|\/pay(\b|ment)|\/cart|billing|order-?confirm)/i.test(location.pathname + location.search); }
+	function isTypingOrForm() {
+		var a = document.activeElement;
+		if (!a) return false;
+		var tag = (a.tagName || '').toLowerCase();
+		return tag === 'input' || tag === 'textarea' || tag === 'select' || a.isContentEditable === true;
+	}
+	function bumpActivity() { lastActivity = Date.now(); }
+
+	// Page-context greeting (most specific wins). Returns null → fall through.
+	function pageGreeting() {
+		var s = ((location.pathname || '') + ' ' + (document.title || '')).toLowerCase();
+		if (onCheckout()) return 'Have any questions before completing your purchase?';
+		if (/pric|plan\b/.test(s)) return 'Need help choosing the right plan?';
+		if (/demo|tour\b|trial/.test(s)) return 'Would you like a quick tour?';
+		if (/feature|solution|product/.test(s)) return 'Want to see how we can help?';
+		if (/contact|reach|get-in-touch/.test(s)) return 'Have questions before contacting us?';
+		if (/faq|knowledge|help|support|docs|guide/.test(s)) return 'Need help finding information?';
+		return null;
+	}
+	function timeHi() {
+		var h = new Date().getHours();
+		return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+	}
+	function greetingText() {
+		var page = pageGreeting();
+		if (page) return page;
+		if (returningVisitor) return 'Welcome back 👋 Need anything today?';
+		return timeHi() + ' 👋 ' + (INDUSTRY_GREET[industry] || 'How can I help today?');
+	}
+
+	function startGreeting() {
+		if (!GREET_ENABLED || greetStopped) return;
+		if (lsGet('_dismissed') === '1') return; // respected across visits
+		returningVisitor = lsGet('_seen') === '1';
+		lsSet('_seen', '1');
+		if (onCheckout()) return; // never interrupt a purchase
+		if (sessCycles() >= 3) return; // at most a few teasers per session
+		// Track host-page activity so we only greet when the visitor is idle.
+		window.addEventListener('scroll', bumpActivity, { passive: true });
+		window.addEventListener('keydown', bumpActivity, true);
+		window.addEventListener('pointerdown', bumpActivity, true);
+		armGreeting(3500 + Math.floor(Math.random() * 1500)); // first: 3.5–5s
+	}
+	function canGreetNow() {
+		if (greetStopped || open || greetShown) return false;
+		if (sessCycles() >= 3 || onCheckout()) return false;
+		if (isTypingOrForm()) return false;
+		if (Date.now() - lastActivity < 2500) return false; // recently scrolling/typing
+		return true;
+	}
+	function armGreeting(delay) {
+		clearTimeout(greetTimers.next);
+		greetTimers.next = setTimeout(tryGreet, delay);
+	}
+	function tryGreet() {
+		if (greetStopped) return;
+		if (canGreetNow()) showGreeting();
+		else armGreeting(1800); // wait for the visitor to settle
+	}
+	function showGreeting() {
+		if (greetStopped || open) return;
+		greetShown = true;
+		ssSet('_cyc', String(sessCycles() + 1));
+		buildGreetNode(greetingText());
+		clearTimeout(greetTimers.collapse);
+		greetTimers.collapse = setTimeout(collapseGreeting, 6000); // visible 6s
+	}
+	function collapseGreeting() {
+		removeGreetNode();
+		greetShown = false;
+		if (greetStopped) return;
+		if (sessCycles() >= 3) { greetStopped = true; return; }
+		armGreeting(45000 + Math.floor(Math.random() * 45000)); // 45–90s until next
+	}
+	// Stop all greeting activity. dismissed=true persists across visits.
+	function stopGreeting(dismissed) {
+		greetStopped = true;
+		clearTimeout(greetTimers.next);
+		clearTimeout(greetTimers.collapse);
+		removeGreetNode();
+		greetShown = false;
+		if (dismissed) lsSet('_dismissed', '1');
+	}
+	function buildGreetNode(text) {
+		removeGreetNode();
+		var g = document.createElement('div');
+		g.className = 'mk-greet';
+		g.innerHTML = '<span class="mk-greet-text"></span><button class="mk-greet-x" type="button" aria-label="Dismiss">' + svgXsmall() + '</button>';
+		g.querySelector('.mk-greet-text').textContent = text;
+		g.querySelector('.mk-greet-text').addEventListener('click', function () { stopGreeting(false); if (!open) toggle(); });
+		g.querySelector('.mk-greet-x').addEventListener('click', function (e) { e.stopPropagation(); stopGreeting(true); });
+		container.appendChild(g);
+		greetNode = g;
+		// One gentle bounce of the icon (skipped under reduced motion).
+		var fab = container.querySelector('.mk-fab');
+		if (fab && !reducedMotion()) { fab.classList.remove('mk-bounce'); void fab.offsetWidth; fab.classList.add('mk-bounce'); }
+		// Trigger the width/opacity expand on the next frame.
+		requestAnimationFrame(function () { requestAnimationFrame(function () { if (greetNode === g) g.classList.add('mk-greet-on'); }); });
+	}
+	function removeGreetNode() {
+		if (!greetNode) return;
+		var g = greetNode;
+		greetNode = null;
+		g.classList.remove('mk-greet-on');
+		setTimeout(function () { try { g.remove(); } catch (e) {} }, 420);
 	}
 
 	// --- rendering ----------------------------------------------------------
@@ -125,7 +269,7 @@
 		container.innerHTML =
 			(open
 				? '<button class="mk-fab" aria-label="Close">' + svgClose() + '</button>'
-				: '<button class="mk-fab mk-fab-pill" aria-label="Chat with the AI Assistant">' + svgChat() + '<span class="mk-fab-label">AI Assistant</span></button>') +
+				: '<button class="mk-fab" aria-label="Chat with the AI Assistant">' + svgChat() + '</button>') +
 			(open ? panel() : '');
 		container.querySelector('.mk-fab').addEventListener('click', toggle);
 
@@ -304,7 +448,7 @@
 
 	function toggle() {
 		open = !open;
-		if (open) lockScroll();
+		if (open) { lockScroll(); stopGreeting(false); }
 		else unlockScroll();
 		render();
 	}
@@ -347,6 +491,7 @@
 	function sendText(q) {
 		q = (q || '').trim();
 		if (busy || !q) return;
+		stopGreeting(false);
 		messages.push({ role: 'user', content: q });
 		busy = true;
 		startThinking();
@@ -509,6 +654,9 @@
 	function svgClose() {
 		return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
 	}
+	function svgXsmall() {
+		return '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+	}
 	function svgSend() {
 		return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4z"/></svg>';
 	}
@@ -526,6 +674,16 @@
 			'.mk-fab:hover{transform:scale(1.06)}' +
 			'.mk-fab-pill{width:auto;height:56px;border-radius:28px;padding:0 20px 0 15px;gap:9px}' +
 			'.mk-fab-label{font-weight:700;font-size:.95em;white-space:nowrap;line-height:1}' +
+			// Greeting concierge — a speech bubble that expands horizontally out of
+			// the icon (width + opacity), auto-collapses, and rests. Elegant + minimal.
+			'.mk-greet{position:absolute;bottom:8px;right:70px;box-sizing:border-box;width:max-content;max-width:0;opacity:0;transform:translateX(10px);overflow:hidden;display:flex;align-items:center;gap:6px;background:#fff;color:#1c2b26;border:1px solid #e6ece8;border-radius:22px;box-shadow:0 8px 26px rgba(0,0,0,.16);padding:0;pointer-events:none;transition:max-width .5s cubic-bezier(.22,.7,.2,1),opacity .35s ease,transform .5s cubic-bezier(.22,.7,.2,1),padding .5s cubic-bezier(.22,.7,.2,1)}' +
+			'.mk-greet-on{max-width:270px;opacity:1;transform:none;padding:9px 8px 9px 15px;pointer-events:auto}' +
+			'.mk-greet-text{font-size:.9em;font-weight:600;line-height:1.32;cursor:pointer;white-space:normal}' +
+			'.mk-greet-x{flex:none;width:22px;height:22px;border-radius:50%;border:0;background:rgba(0,0,0,.05);color:#6b7c75;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}' +
+			'.mk-greet-x:hover{background:rgba(0,0,0,.11);color:#1c2b26}' +
+			'.mk-bounce{animation:mkbounce .75s cubic-bezier(.28,.84,.42,1)}' +
+			'@keyframes mkbounce{0%,100%{transform:translateY(0)}25%{transform:translateY(-8px)}45%{transform:translateY(0)}62%{transform:translateY(-4px)}80%{transform:translateY(0)}}' +
+			'@media (prefers-reduced-motion:reduce){.mk-greet{transition:opacity .2s ease}.mk-bounce{animation:none}}' +
 			'.mk-panel{position:absolute;bottom:70px;right:0;width:392px;max-width:calc(100vw - 24px);height:620px;max-height:calc(100vh - 96px);background:#fff;border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.3);display:flex;flex-direction:column;overflow:hidden}' +
 			'.mk-head{background:var(--mk-brand);color:#fff;padding:.7em .85em;display:flex;align-items:center;justify-content:space-between;gap:.5em}' +
 			'.mk-head-id{display:flex;align-items:center;gap:.55em;min-width:0}' +
@@ -593,6 +751,10 @@
 			// iOS zoom-on-focus.
 			'@media (max-width:480px){' +
 			'.mk{bottom:16px;right:16px}' +
+			// Mobile: compact greeting that never crowds the screen or hides page buttons.
+			'.mk-greet{right:62px;bottom:6px}' +
+			'.mk-greet-on{max-width:190px;padding:8px 7px 8px 13px}' +
+			'.mk-greet-text{font-size:13px}' +
 			'.mk-panel{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;max-width:none;max-height:none;border-radius:0;padding-bottom:env(safe-area-inset-bottom)}' +
 			// Slightly more compact on small screens so nothing feels oversized.
 			'.mk-head{padding:calc(.8em + env(safe-area-inset-top)) 14px .8em}' +
