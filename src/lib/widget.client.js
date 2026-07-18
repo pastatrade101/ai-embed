@@ -40,6 +40,12 @@
 	var name = null;
 	var open = false;
 	var busy = false;
+	// Claude-style "working" feedback: a cycling status line + shimmer skeleton,
+	// so the customer sees the assistant taking action rather than a bare bouncing
+	// dot. Industry-neutral phrases (the widget serves every vertical).
+	var THINKING = ['Reading your message…', 'Searching the knowledge base…', 'Checking the details…', 'Putting together an answer…'];
+	var thinkIx = 0;
+	var thinkTimer = null;
 	var leadCaptured = false;
 	var leadOpen = false; // the optional contact form is open
 	var capturePrompted = false;
@@ -188,7 +194,10 @@
 					.join('')
 			: '<div class="mk-msg mk-assistant">' + md(greeting) + '</div>' + chips();
 
-		if (busy) body += '<div class="mk-msg mk-assistant mk-typing"><span></span><span></span><span></span></div>';
+		if (busy)
+			body +=
+				'<div class="mk-think"><span class="mk-think-dots"><i></i><i></i><i></i></span><span class="mk-think-phrase">' + esc(THINKING[thinkIx]) + '</span></div>' +
+				'<div class="mk-msg mk-assistant mk-skel"><span class="mk-skel-line" style="width:92%"></span><span class="mk-skel-line" style="width:100%"></span><span class="mk-skel-line" style="width:58%"></span></div>';
 
 		// Footer: the chat input is ALWAYS present so the customer can keep
 		// replying. Lead capture is optional and non-blocking.
@@ -314,11 +323,33 @@
 		return { url: location.href.slice(0, 500), title: (document.title || '').slice(0, 200), excerpt: text };
 	}
 
+	// Cycle the "working" status phrase in place (no full re-render, so the input
+	// and scroll stay put). Re-triggers the fade each time via a reflow.
+	function startThinking() {
+		thinkIx = 0;
+		clearInterval(thinkTimer);
+		thinkTimer = setInterval(function () {
+			thinkIx = (thinkIx + 1) % THINKING.length;
+			var el = container.querySelector('.mk-think-phrase');
+			if (el) {
+				el.textContent = THINKING[thinkIx];
+				el.style.animation = 'none';
+				void el.offsetWidth;
+				el.style.animation = 'mkfade .35s ease both';
+			}
+		}, 1700);
+	}
+	function stopThinking() {
+		clearInterval(thinkTimer);
+		thinkTimer = null;
+	}
+
 	function sendText(q) {
 		q = (q || '').trim();
 		if (busy || !q) return;
 		messages.push({ role: 'user', content: q });
 		busy = true;
+		startThinking();
 		render();
 
 		fetch(API + '/api/chat', {
@@ -329,6 +360,7 @@
 			.then(function (r) { return r.json(); })
 			.then(function (data) {
 				busy = false;
+				stopThinking();
 				if (data && data.conversationId) conversationId = data.conversationId;
 				if (data && data.answer) {
 					messages.push({ role: 'assistant', content: data.answer });
@@ -347,6 +379,7 @@
 				render();			})
 			.catch(function () {
 				busy = false;
+				stopThinking();
 				messages.push({ role: 'assistant', content: 'Connection problem. Please try again.' });
 				render();			});
 	}
@@ -524,10 +557,19 @@
 			'.mk-log>.mk-msg:last-child{animation:mkin .26s ease}' +
 			'@keyframes mkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
 			'@media (prefers-reduced-motion:reduce){.mk-log>.mk-msg:last-child{animation:none}}' +
-			'.mk-typing{display:flex;gap:4px;align-items:center}' +
-			'.mk-typing span{width:6px;height:6px;border-radius:50%;background:#9aa;animation:mkb 1s infinite}' +
-			'.mk-typing span:nth-child(2){animation-delay:.15s}.mk-typing span:nth-child(3){animation-delay:.3s}' +
-			'@keyframes mkb{0%,60%,100%{opacity:.3}30%{opacity:1}}' +
+			// "Working" feedback — a cycling status line + a shimmering answer
+			// skeleton (Claude style), instead of a bare bouncing dot.
+			'.mk-think{align-self:flex-start;display:flex;align-items:center;gap:7px;font-size:.8em;color:#6f7a74;padding:2px 2px 1px}' +
+			'.mk-think-dots{display:inline-flex;gap:3px}' +
+			'.mk-think-dots i{width:5px;height:5px;border-radius:50%;background:var(--mk-brand);animation:mkpulse 1.2s infinite ease-in-out}' +
+			'.mk-think-dots i:nth-child(2){animation-delay:.16s}.mk-think-dots i:nth-child(3){animation-delay:.32s}' +
+			'@keyframes mkpulse{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}' +
+			'.mk-think-phrase{font-weight:500;animation:mkfade .35s ease both}' +
+			'@keyframes mkfade{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}' +
+			'.mk-skel{display:flex;flex-direction:column;gap:7px;min-width:150px}' +
+			'.mk-skel-line{height:9px;border-radius:5px;background:linear-gradient(90deg,#eef1ef 25%,#dfe6e1 37%,#eef1ef 63%);background-size:400% 100%;animation:mkshim 1.3s ease infinite}' +
+			'@keyframes mkshim{0%{background-position:100% 0}100%{background-position:-100% 0}}' +
+			'@media (prefers-reduced-motion:reduce){.mk-skel-line{animation:none}.mk-think-dots i{animation:none;opacity:.6}}' +
 			'.mk-form{display:flex;gap:.5em;padding:.6em;border-top:1px solid #e2e8e4;background:#fff;align-items:flex-end}' +
 			'.mk-ta{box-sizing:border-box;min-height:40px;resize:none;max-height:120px;overflow-y:auto;line-height:1.4;border-radius:20px;padding:.6em .85em}' +
 			'.mk-lead-form{display:flex;flex-direction:column;gap:.45em;padding:.7em;border-top:1px solid #e2e8e4;background:#fff}' +
