@@ -19,22 +19,24 @@ export const HAIKU = 'claude-haiku-4-5';
 export const SONNET = 'claude-sonnet-5';
 
 // Metered feature keys (stored in usage_records.feature).
-export const AI = { DATA_ANALYST: 'data_analyst', RESEARCH: 'research', LEAD_EXTRACT: 'lead_extract' };
+export const AI = { DATA_ANALYST: 'data_analyst', RESEARCH: 'research', LEAD_EXTRACT: 'lead_extract', PROPOSAL: 'proposal' };
 
 // Monthly per-tier limits. Cheap Haiku lead-enrichment is available from starter up;
 // the Sonnet agents (analyst, research) are growth+ premium features — their quotas
 // here MUST match the plan gating in db/013 (growth + pro get the feature labels), so
 // ACCESS and QUOTA agree: a tier with 0 quota also lacks the feature, and vice-versa.
+// AI proposal drafting is available on every tier (a small free trial allowance) —
+// operators can always write proposals by hand; the AI draft is the convenience.
 const QUOTAS = {
-	free: { data_analyst: 0, research: 0, lead_extract: 0 },
-	starter: { data_analyst: 0, research: 0, lead_extract: 300 },
-	growth: { data_analyst: 150, research: 12, lead_extract: 2000 },
-	pro: { data_analyst: 600, research: 50, lead_extract: 10000 }
+	free: { data_analyst: 0, research: 0, lead_extract: 0, proposal: 10 },
+	starter: { data_analyst: 0, research: 0, lead_extract: 300, proposal: 60 },
+	growth: { data_analyst: 150, research: 12, lead_extract: 2000, proposal: 300 },
+	pro: { data_analyst: 600, research: 50, lead_extract: 10000, proposal: 1500 }
 };
 // Unknown / custom (admin-created) plans are cost-safe by default: no paid Sonnet
 // agents until the plan is explicitly mapped above. Cheap Haiku lead enrichment
 // stays modestly available so lead capture still enriches.
-const DEFAULT_QUOTA = { data_analyst: 0, research: 0, lead_extract: 500 };
+const DEFAULT_QUOTA = { data_analyst: 0, research: 0, lead_extract: 500, proposal: 30 };
 
 export function quotaLimit(planKey, feature) {
 	const q = QUOTAS[planKey] ?? DEFAULT_QUOTA;

@@ -302,6 +302,13 @@
 								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
 							</a>
 						{/if}
+						<form method="POST" action="/portal/proposals?/create" title="Create a proposal for this lead">
+							<input type="hidden" name="lead_id" value={l.id} />
+							<button class="btn ghost" type="submit" aria-label="Create proposal">
+								<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
+								Proposal
+							</button>
+						</form>
 						<form method="POST" action="?/setStatus" use:enhance={() => stageSubmit(l.id)} class="stage-form">
 							<input type="hidden" name="id" value={l.id} />
 							<label class="stage-set">

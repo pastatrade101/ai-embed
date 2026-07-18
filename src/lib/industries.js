@@ -403,3 +403,65 @@ export function industryKeyOf(clientOrKey) {
 export function industryOf(clientOrKey) {
 	return INDUSTRIES[industryKeyOf(clientOrKey)];
 }
+
+// ---- Proposal Engine config -------------------------------------------------
+// One reusable engine, configured per industry. The engine never branches on a
+// doc type or industry name — it reads this config. Every label here is data.
+
+/** All document types the engine supports (key → display label). */
+export const PROPOSAL_DOC_TYPES = {
+	quotation: 'Quotation',
+	proposal: 'Proposal',
+	estimate: 'Estimate',
+	offer: 'Offer',
+	booking: 'Booking Summary',
+	invoice: 'Invoice',
+	payment_request: 'Payment Request',
+	agreement: 'Service Agreement',
+	contract: 'Contract Draft',
+	custom: 'Custom Document'
+};
+
+// The headline name each industry gives its primary sales document, plus which
+// document types its picker offers (first = default). Industry-agnostic: unknown
+// industries fall back to the neutral 'services' set.
+const PROPOSAL_DOC_LABEL = {
+	tourism: 'Quotation',
+	hotel: 'Booking Proposal',
+	healthcare: 'Treatment Estimate',
+	education: 'Fee Estimate',
+	government: 'Service Proposal',
+	retail: 'Product Offer',
+	realestate: 'Property Proposal',
+	restaurant: 'Catering Quote',
+	ictagency: 'Project Proposal',
+	services: 'Proposal'
+};
+const PROPOSAL_DOC_TYPES_BY_INDUSTRY = {
+	tourism: ['quotation', 'proposal', 'invoice', 'custom'],
+	hotel: ['booking', 'quotation', 'invoice', 'custom'],
+	healthcare: ['estimate', 'invoice', 'custom'],
+	education: ['estimate', 'offer', 'invoice', 'custom'],
+	government: ['proposal', 'estimate', 'custom'],
+	retail: ['offer', 'quotation', 'invoice', 'custom'],
+	realestate: ['proposal', 'offer', 'agreement', 'custom'],
+	restaurant: ['quotation', 'booking', 'invoice', 'custom'],
+	ictagency: ['proposal', 'quotation', 'estimate', 'agreement', 'contract', 'invoice', 'custom'],
+	services: ['proposal', 'quotation', 'estimate', 'invoice', 'custom']
+};
+const PROPOSAL_DEFAULT_TERMS =
+	'This document is valid until the expiry date shown above. All prices are quoted in the stated currency and are subject to availability and confirmation. Taxes apply where relevant. Please get in touch if you have any questions — we’re happy to help.';
+
+/** Proposal config for a client/industry: available doc types, default type,
+ *  the industry’s headline label, and sensible default terms. */
+export function proposalConfig(clientOrKey) {
+	const key = industryKeyOf(clientOrKey);
+	const keys = PROPOSAL_DOC_TYPES_BY_INDUSTRY[key] ?? PROPOSAL_DOC_TYPES_BY_INDUSTRY.services;
+	const docTypes = keys.map((k) => ({ key: k, label: PROPOSAL_DOC_TYPES[k] ?? k }));
+	return {
+		docTypes,
+		defaultDocType: docTypes[0].key,
+		docLabel: PROPOSAL_DOC_LABEL[key] ?? 'Proposal',
+		defaultTerms: PROPOSAL_DEFAULT_TERMS
+	};
+}

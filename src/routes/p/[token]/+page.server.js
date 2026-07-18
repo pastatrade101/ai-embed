@@ -1,0 +1,77 @@
+// Public hosted proposal page — /p/<token>. No auth; the token is the secret.
+// Shows the branded document, records a view, and lets the customer accept or
+// decline. Mobile-friendly. Fails cleanly if migration 018 hasn't run.
+import { error } from '@sveltejs/kit';
+import { supabase } from '$lib/server/supabase.js';
+import { getProposalByToken, recordView, respondByToken } from '$lib/server/proposals.js';
+import { proposalConfig } from '$lib/industries.js';
+
+async function brandingFor(clientId) {
+	const { data } = await supabase
+		.from('clients')
+		.select('name, logo_url, brand_color, whatsapp_number, contact_email, phone, industry, is_active')
+		.eq('id', clientId)
+		.maybeSingle();
+	return data ?? null;
+}
+
+const isExpired = (p) => p.valid_until && !['accepted', 'declined'].includes(p.status) && new Date(p.valid_until) < new Date(new Date().toDateString());
+
+export async function load({ params, url }) {
+	const { proposal, tableMissing } = await getProposalByToken(params.token);
+	if (tableMissing || !proposal) throw error(404, 'This proposal is not available.');
+
+	const client = await brandingFor(proposal.client_id);
+	if (!client) throw error(404, 'This proposal is not available.');
+
+	const cfg = proposalConfig(client);
+	// Count the view (best-effort) unless the operator is previewing (?preview=1).
+	if (url.searchParams.get('preview') !== '1') {
+		await recordView(proposal, { ref: url.searchParams.get('ref') || null });
+	}
+
+	const brand = client.brand_color || '#0f6e56';
+	return {
+		proposal: {
+			id: proposal.id,
+			number: proposal.number,
+			docType: proposal.doc_type,
+			docLabel: (cfg.docTypes.find((d) => d.key === proposal.doc_type) || {}).label || cfg.docLabel,
+			status: isExpired(proposal) ? 'expired' : proposal.status,
+			title: proposal.title,
+			customerName: proposal.customer_name,
+			currency: proposal.currency,
+			intro: proposal.intro,
+			summary: proposal.summary,
+			terms: proposal.terms,
+			lineItems: Array.isArray(proposal.line_items) ? proposal.line_items : [],
+			subtotal: proposal.subtotal,
+			discount: proposal.discount,
+			tax: proposal.tax,
+			total: proposal.total,
+			validUntil: proposal.valid_until,
+			createdAt: proposal.created_at,
+			token: proposal.public_token
+		},
+		business: {
+			name: client.name,
+			logo: client.logo_url || null,
+			brand,
+			whatsapp: client.whatsapp_number || null,
+			email: client.contact_email || null,
+			phone: client.phone || null
+		},
+		origin: url.origin
+	};
+}
+
+export const actions = {
+	respond: async ({ params, request }) => {
+		const form = await request.formData();
+		const decision = String(form.get('decision') ?? '');
+		if (!['accept', 'decline'].includes(decision)) return { ok: false, error: 'Invalid choice.' };
+		const res = await respondByToken(params.token, decision);
+		if (!res.ok) return { ok: false, error: 'Could not record your response.' };
+		return { ok: true, decision, already: res.already ?? false };
+	}
+};
