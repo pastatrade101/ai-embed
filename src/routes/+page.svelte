@@ -930,6 +930,7 @@
 
 	/* Shared section rhythm */
 	.why,
+	.team,
 	.how,
 	.features,
 	.nowebsite,
@@ -943,6 +944,7 @@
 	}
 	@media (min-width: 860px) {
 		.why,
+		.team,
 		.how,
 		.features,
 		.nowebsite,
@@ -954,6 +956,10 @@
 		.final {
 			padding: 8rem 0;
 		}
+	}
+	/* Cream band, same as .how directly below it (dark heading + white cards). */
+	.team {
+		background: var(--bg);
 	}
 	.grid-2 {
 		display: grid;
