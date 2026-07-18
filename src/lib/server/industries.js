@@ -316,6 +316,11 @@ const SERVER = {
 		qualifyFields: 'what they would like to order or book, date and time, number of guests, and any dietary preferences',
 		researchDomain: 'menus, prices, opening hours'
 	}),
+	ictagency: genericServer(INDUSTRIES.ictagency, {
+		persona: 'a knowledgeable solutions consultant',
+		qualifyFields: 'what they want to build or fix, their timeline, their budget, and any existing systems or requirements',
+		researchDomain: 'technologies, pricing, project timelines'
+	}),
 	services: genericServer(INDUSTRIES.services, {
 		persona: 'a professional, helpful assistant',
 		qualifyFields: 'what they need, their timeline, and any relevant details about their situation',

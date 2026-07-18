@@ -84,6 +84,7 @@
 		retail: 'Looking for the perfect product?',
 		realestate: 'Looking for the right property?',
 		restaurant: 'Need help with the menu or a reservation?',
+		ictagency: 'Looking to build or fix something?',
 		services: 'How can we help you today?'
 	};
 

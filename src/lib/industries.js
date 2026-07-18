@@ -291,6 +291,37 @@ export const INDUSTRIES = {
 		}
 	},
 
+	ictagency: {
+		key: 'ictagency',
+		label: 'ICT / Tech Agency',
+		icon: '💻',
+		tagline: 'Software, web, IT support & digital services',
+		businessType: 'tech agency',
+		terms: { item: 'service', items: 'services', catalogue: 'services & pricing', conversion: 'enquiry', conversions: 'enquiries', customer: 'client', schedule: 'availability' },
+		knowledgeTypes: ['Service', 'Solution', 'Package', 'Technology', 'Pricing', 'Portfolio', 'Support', 'FAQ', 'Policy'],
+		researchCategories: ['Guide', 'FAQ', 'Service', 'Technology', 'Process', 'Policy'],
+		defaultResearchCategory: 'Guide',
+		scheduleCategoryMatch: null,
+		onboarding: {
+			businessHeading: 'Tell us about your agency',
+			namePlaceholder: 'e.g. Nexus Tech Solutions',
+			descPlaceholder: 'Describe your services, the tech you work with, and who you build for…',
+			offeringsLabel: 'Your services',
+			offeringsHint: 'What you offer',
+			offeringsHeading: 'What tech services do you offer?',
+			offeringsDesc: 'Pick everything that applies — you can add full details later.',
+			focusLabel: 'Service focus',
+			focusOptions: ['Web development', 'Mobile apps', 'Software development', 'IT support', 'Cloud & hosting', 'Cybersecurity', 'Networking', 'Digital marketing', 'Data & AI', 'Hardware supply'],
+			suggestions: [
+				'A software agency in Dar es Salaam building web and mobile apps for SMEs',
+				'An IT support company offering managed services, networking and cloud setup',
+				'A digital agency doing web design, branding and social media marketing'
+			],
+			uploadNote: 'CSV, JSON, or paste your services — add them from your dashboard once you’re in.',
+			contextLabel: 'Service focus'
+		}
+	},
+
 	services: {
 		key: 'services',
 		label: 'Other Business',
@@ -333,6 +364,7 @@ const KB_EXAMPLES = {
 	retail: { title: 'Leather Handbag — Classic', details: 'Price: TZS 85,000\nColours: black, tan\nDelivery: 1–2 days in Dar\nReturns: 7 days' },
 	realestate: { title: '3-Bedroom Apartment, Masaki', details: 'Rent: USD 1,200/month\nBedrooms: 3\nParking: 2 cars\nAvailable: from June' },
 	restaurant: { title: 'Grilled Seafood Platter', details: 'Price: TZS 45,000\nServes: 2\nAvailable: daily from 5pm\nContains: prawns, calamari, fish' },
+	ictagency: { title: 'Business Website — Starter Package', details: 'Price: from TZS 1,200,000\nTimeline: 2–3 weeks\nIncludes: 5 pages, hosting setup, WhatsApp integration\nSupport: 3 months' },
 	services: { title: 'Company Registration Package', details: 'Price: from TZS 300,000\nTimeline: 7 working days\nIncludes: name search, BRELA filing\nRequirement: IDs of directors' }
 };
 
