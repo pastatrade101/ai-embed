@@ -28,9 +28,20 @@
 		.map((w) => w[0])
 		.join('')
 		.toUpperCase();
+	// ---- Industry-aware copy (tourism verbatim; others derive from terms) -----
+	$: ind = data?.industry;
+	$: terms = ind?.terms ?? { item: 'tour', items: 'tours', customer: 'traveller', conversion: 'booking' };
+	$: isTourism = (ind?.key ?? 'tourism') === 'tourism';
+	$: deskLabel = isTourism ? 'Private travel desk' : 'Online assistant';
+	$: featuredLabel = isTourism ? 'Featured journeys' : `Featured ${terms.items}`;
+	$: heroSub = isTourism
+		? "Ask anything — routes, seasons, prices, availability. I'll craft options and hold your dates the moment you're ready."
+		: `Ask anything about our ${terms.items} — prices, options and details. I'll help you find the right fit and put you in touch with the team.`;
 	$: greeting =
 		client.welcome ||
-		`Hello — I'm ${assistantName}, your private travel guide for ${client.name || 'our journeys'}.`;
+		(isTourism
+			? `Hello — I'm ${assistantName}, your private travel guide for ${client.name || 'our journeys'}.`
+			: `Hello — I'm ${assistantName}, here to help with ${client.name ? client.name + '’s' : 'our'} ${terms.items}.`);
 	$: suggestions =
 		Array.isArray(client.suggestions) && client.suggestions.length
 			? client.suggestions.slice(0, 6)
@@ -40,19 +51,29 @@
 
 	// ---- SEO / social share (each operator's page is indexable on its own) ----
 	const clip = (s, n = 158) => (s && s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s || '');
+	const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+	// schema.org type per industry (tourism keeps TravelAgency verbatim).
+	const SCHEMA_TYPE = { tourism: 'TravelAgency', hotel: 'LodgingBusiness', healthcare: 'MedicalOrganization', education: 'EducationalOrganization', government: 'GovernmentOrganization', retail: 'Store', realestate: 'RealEstateAgent', restaurant: 'Restaurant', ictagency: 'Organization', services: 'LocalBusiness' };
+	$: schemaType = SCHEMA_TYPE[ind?.key] ?? 'LocalBusiness';
 	$: seoOrigin = data?.origin ?? '';
 	$: canonicalUrl = client.slug ? `${seoOrigin}/c/${client.slug}` : '';
-	$: seoTitle = client.name ? `${client.name} — Tours & bookings` : 'Tours & bookings';
+	$: seoTitle = client.name
+		? `${client.name} — ${isTourism ? 'Tours & bookings' : cap(terms.items)}`
+		: isTourism
+			? 'Tours & bookings'
+			: 'AI assistant';
 	$: seoDesc = clip(
 		data?.description ||
-			(client.name
-				? `Explore ${client.name}'s tours and plan your trip — ask about prices, itineraries, departures and availability, 24/7.`
-				: 'Explore tours and plan your trip with our AI travel assistant, 24/7.')
+			(isTourism
+				? client.name
+					? `Explore ${client.name}'s tours and plan your trip — ask about prices, itineraries, departures and availability, 24/7.`
+					: 'Explore tours and plan your trip with our AI travel assistant, 24/7.'
+				: `Ask ${client.name || 'us'} about ${terms.items}, prices and details — answered instantly by AI, 24/7.`)
 	);
 	$: ogImage = client.logo || (seoOrigin ? `${seoOrigin}/og-image.png` : '');
 	$: jsonLd = JSON.stringify({
 		'@context': 'https://schema.org',
-		'@type': 'TravelAgency',
+		'@type': schemaType,
 		name: client.name,
 		url: canonicalUrl,
 		description: seoDesc,
@@ -71,12 +92,9 @@
 			: {})
 	});
 
-	const DEFAULT_SUGGESTIONS = [
-		'Design a 7-day safari for two',
-		'Best time for the Great Migration',
-		'Family-friendly tours under $2,500',
-		'What should I pack?'
-	];
+	$: DEFAULT_SUGGESTIONS = isTourism
+		? ['Design a 7-day safari for two', 'Best time for the Great Migration', 'Family-friendly tours under $2,500', 'What should I pack?']
+		: [`What ${terms.items} do you offer?`, 'What are your prices?', 'How do I get started?', 'How can you help me?'];
 
 	// ---- Contrast helper (readable ink on an arbitrary brand color) ----------
 	function readableInk(hex) {
@@ -194,13 +212,9 @@
 	}
 
 	// ---- Thinking phrases (contextual, cycling) ------------------------------
-	const THINKING = [
-		'Searching tours…',
-		'Checking live availability…',
-		'Building your itinerary…',
-		'Comparing seasons…',
-		'Finding the best value…'
-	];
+	$: THINKING = isTourism
+		? ['Searching tours…', 'Checking live availability…', 'Building your itinerary…', 'Comparing seasons…', 'Finding the best value…']
+		: ['Reading your question…', 'Checking the details…', 'Putting together options…', 'Searching the knowledge base…', 'Finding the best fit…'];
 	let thinkIx = 0;
 	let thinkTimer = null;
 	function startThinking(seed) {
@@ -254,7 +268,7 @@
 				...messages,
 				{
 					role: 'assistant',
-					content: d?.answer || "I'm sorry — I couldn't reach the itinerary desk just now. Please try again.",
+					content: d?.answer || "I'm sorry — I couldn't reach the assistant just now. Please try again.",
 					id: ++uid
 				}
 			];
@@ -536,12 +550,9 @@
 			{#if !started}
 				<!-- HERO welcome, living inside the empty thread ------------------>
 				<section class="welcome">
-					<p class="eyebrow">{assistantName} · Private travel desk</p>
+					<p class="eyebrow">{assistantName} · {deskLabel}</p>
 					<h1 class="hello">{greeting}</h1>
-					<p class="sub">
-						Ask anything — routes, seasons, prices, availability. I'll craft options and hold your
-						dates the moment you're ready.
-					</p>
+					<p class="sub">{heroSub}</p>
 
 					<div class="chips">
 						{#each suggestions as s}
@@ -564,7 +575,7 @@
 					<!-- Featured tours (proactive) ------------------------------->
 					{#if toursLoading}
 						<div class="featured">
-							<div class="feat-head"><span class="label">Featured journeys</span></div>
+							<div class="feat-head"><span class="label">{featuredLabel}</span></div>
 							<div class="feat-grid">
 								{#each Array(3) as _}
 									<div class="skel-card">
@@ -582,7 +593,7 @@
 						</div>
 					{:else if featured.length}
 						<div class="featured">
-							<div class="feat-head"><span class="label">Featured journeys</span></div>
+							<div class="feat-head"><span class="label">{featuredLabel}</span></div>
 							<div class="feat-grid">
 								{#each featured as t}
 									<article class="tour-card feat">
@@ -638,7 +649,7 @@
 														{#if b.tour.duration}<span class="tc-badge">{b.tour.duration}</span>{/if}
 													</div>
 													<div class="tc-body">
-														<h3 class="tc-title">{b.tour.title || 'Custom journey'}</h3>
+														<h3 class="tc-title">{b.tour.title || (isTourism ? 'Custom journey' : cap(terms.item))}</h3>
 														{#if b.tour.summary}<p class="tc-sum">{b.tour.summary}</p>{/if}
 														<div class="tc-meta">
 															{#if b.tour.season}<span class="tc-tag">
@@ -824,7 +835,7 @@
 				{#if telLink}<a href={telLink}>Call</a> ·{/if}
 				{#if client.email}<a href={'mailto:' + client.email}>Email</a> ·{/if}
 				{#if mapLink}<a href={mapLink} target="_blank" rel="noopener">Visit</a> ·{/if}
-				<span>Responses are AI-generated · confirm details before booking</span>
+				<span>Responses are AI-generated · confirm details before you {isTourism ? 'book' : 'proceed'}</span>
 					{#if !client.hideBranding}<span> · <a href="https://ai.makutano.co.tz" target="_blank" rel="noopener">Powered by Makutano</a></span>{/if}
 			</p>
 		</div>
@@ -832,7 +843,7 @@
 
 	<!-- Persistent booking action (mobile-reachable) -------------------------->
 	{#if waLink}
-		<a class="fab" href={waContextLink} target="_blank" rel="noopener" aria-label="Book on WhatsApp">
+		<a class="fab" href={waContextLink} target="_blank" rel="noopener" aria-label="Chat on WhatsApp">
 			<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"
 				><path
 					fill="currentColor"

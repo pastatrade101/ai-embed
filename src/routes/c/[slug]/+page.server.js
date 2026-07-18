@@ -8,6 +8,7 @@ import { listTours, departuresByItem } from '$lib/server/tours.js';
 import { FEATURE, planUnlocks } from '$lib/server/gating.js';
 import { suggestionChips } from '$lib/server/suggest.js';
 import { serverIndustry } from '$lib/server/industries.js';
+import { industryOf } from '$lib/industries.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -102,6 +103,9 @@ export async function load({ params, url }) {
 			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
 			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
 		},
+		// Client-safe industry entry so the hosted page speaks the tenant's language
+		// (tourism keeps its original copy verbatim; others derive from terms).
+		industry: industryOf(client),
 		tours,
 		// SEO: the operator's own description + absolute origin for canonical/OG.
 		description: (client.business_context ?? '').trim() || null,
