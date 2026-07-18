@@ -4,6 +4,7 @@
 	export let data;
 	export let form;
 	$: ({ access, suggestions, researchTopics } = data);
+	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours' };
 
 	let question = '';
 	let asking = false;
@@ -67,7 +68,7 @@
 	<div class="ai-head">
 		<div>
 			<h3>Ask your data <span class="pill">Premium</span></h3>
-			<p class="muted">Questions about your leads, tours, pipeline and conversations — answered from your real numbers, never invented.</p>
+			<p class="muted">Questions about your leads, {terms.items}, pipeline and conversations — answered from your real numbers, never invented.</p>
 		</div>
 		{#if access.analyst.allowed}
 			<div class="quota" class:low={access.analyst.quota.remaining === 0}>{access.analyst.quota.remaining}/{access.analyst.quota.limit} left</div>
@@ -78,7 +79,7 @@
 		<LockedFeature feature="AI data analyst" planName={data.analystPlan} />
 	{:else}
 		<form method="POST" action="?/ask" use:enhance={askSubmit} class="ask">
-			<input name="question" bind:value={question} placeholder="e.g. Which tours convert best? Where are leads dropping off?" autocomplete="off" />
+			<input name="question" bind:value={question} placeholder={`e.g. Which ${terms.items} convert best? Where are leads dropping off?`} autocomplete="off" />
 			<button class="btn" type="submit" disabled={asking || !question.trim() || access.analyst.quota.remaining === 0}>{asking ? 'Analysing…' : 'Ask'}</button>
 		</form>
 		<div class="chips">
@@ -119,7 +120,7 @@
 		<LockedFeature feature="AI research assistant" planName={data.researchPlan} />
 	{:else}
 		<form method="POST" action="?/research" use:enhance={researchSubmit} class="ask">
-			<input name="topic" bind:value={topic} placeholder="e.g. Hot-air balloon safaris, Tanzania visa on arrival, best time for the migration" autocomplete="off" />
+			<input name="topic" bind:value={topic} placeholder={`e.g. a ${terms.item}, a common question, or a topic your ${terms.customer ?? 'customer'}s ask about`} autocomplete="off" />
 			<button class="btn" type="submit" disabled={researching || !topic.trim() || access.research.quota.remaining === 0}>{researching ? 'Researching…' : 'Draft'}</button>
 		</form>
 		{#if researchTopics?.length}

@@ -140,9 +140,9 @@
 	<form method="POST" action="?/scanWebsite" use:enhance={scanSubmit} class="ws-scan">
 		<input name="url" type="url" bind:value={url} placeholder="https://yourbusiness.com" autocomplete="url" />
 		<button class="btn" type="submit" disabled={scanning || !url.trim()} on:click={() => (deep = false)}>{scanning && !deep ? 'Scanning…' : 'Scan website'}</button>
-		<button class="btn ghost" type="submit" name="deep" value="1" disabled={scanning || !url.trim()} on:click={() => (deep = true)} title="Follows links deep into your site to find every tour & itinerary page — thorough, takes up to a minute.">{scanning && deep ? 'Deep scanning…' : 'Deep scan'}</button>
+		<button class="btn ghost" type="submit" name="deep" value="1" disabled={scanning || !url.trim()} on:click={() => (deep = true)} title="Follows links deep into your site to find every content page — thorough, takes up to a minute.">{scanning && deep ? 'Deep scanning…' : 'Deep scan'}</button>
 	</form>
-	<p class="ws-hint">Use <b>Deep scan</b> if a normal scan misses tours — it crawls the whole site (not just the sitemap) to find every itinerary page.</p>
+	<p class="ws-hint">Use <b>Deep scan</b> if a normal scan misses pages — it crawls the whole site (not just the sitemap) to find every page.</p>
 
 	{#if form?.section === 'website' && form?.error}
 		<div class="notice err">{form.error}</div>

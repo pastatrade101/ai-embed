@@ -3,6 +3,7 @@
 	import ShareCard from '$lib/components/ShareCard.svelte';
 	export let data; // data.client from the portal layout (select *)
 	$: client = data.client;
+	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours' };
 
 	// All step fields live in one form and stay in the DOM (hidden via CSS) so a
 	// single submit patches everything. Prefilled from current values.
@@ -153,7 +154,7 @@
 						</div>
 					</div>
 					<label for="wz-welcome">Welcome message (optional)</label>
-					<textarea id="wz-welcome" name="welcome_message" bind:value={welcome_message} rows="3" placeholder="Hi! 👋 Ask me anything about our tours and I'll help you book."></textarea>
+					<textarea id="wz-welcome" name="welcome_message" bind:value={welcome_message} rows="3" placeholder={`Hi! 👋 Ask me anything about our ${terms.items} and I'll help you.`}></textarea>
 				</section>
 
 				<div class="wz-nav">
@@ -190,7 +191,7 @@
 				<a class="btn ghost" href="/portal">Go to dashboard</a>
 			{:else}
 				<a class="btn" href="/portal">Go to dashboard</a>
-				<a class="btn ghost" href="/portal/knowledge">Add more tours</a>
+				<a class="btn ghost" href="/portal/knowledge">Add more {terms.items}</a>
 			{/if}
 		</div>
 	{/if}

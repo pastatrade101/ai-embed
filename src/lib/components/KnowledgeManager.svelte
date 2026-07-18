@@ -144,7 +144,7 @@
 	<div class="kb-actions">
 		{#if slug}<a class="btn ghost sm" href={`/c/${slug}`} target="_blank" rel="noopener">Test your AI</a>{/if}
 			<form method="POST" action="?/resync" use:enhance style="display:inline">
-				<button class="btn ghost sm" type="submit" title="Re-embed any tours that failed to sync (e.g. after a rate-limited import). Safe to click — it never duplicates.">Re-sync AI</button>
+				<button class="btn ghost sm" type="submit" title={`Re-embed any ${industry.terms.items} that failed to sync (e.g. after a rate-limited import). Safe to click — it never duplicates.`}>Re-sync AI</button>
 			</form>
 		<div class="add-wrap">
 			<button class="sm add-btn" on:click={() => (addMenuOpen = !addMenuOpen)} aria-expanded={addMenuOpen}>

@@ -115,7 +115,7 @@
 			<input id="greeting_message" name="greeting_message" maxlength={GREETING_MAX} bind:value={greetingMsg} placeholder={`Hi 👋 Looking for the perfect ${terms.item}?`} />
 			<div class="hint">Pops up beside the chat button after a short pause. Leave blank for smart greetings that adapt to the page and time of day. <span class="counter" class:over={greetingLen > GREETING_MAX - 15}>{greetingLen}/{GREETING_MAX}</span></div>
 		</div>
-		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder="A family-run safari operator based in Arusha. Always be encouraging about first-time safaris…">{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
+		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder={data.industry?.onboarding?.suggestions?.[0] ?? 'Describe your business and how the assistant should answer…'}>{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
 		<div style="max-width:340px"><label for="languages">Languages</label><input id="languages" name="languages" value={client.languages ?? ''} placeholder="English, Swahili" /></div>
 	</div>
 
@@ -158,7 +158,7 @@
 
 		<div><label for="escalation">Escalation</label><textarea id="escalation" name="escalation" style="min-height:70px" placeholder="If a visitor needs a human or asks something you can't answer, share the WhatsApp number and invite them to message the team directly.">{client.escalation ?? ''}</textarea><div class="hint">What the assistant should do when it can't help.</div></div>
 
-		<div><label for="suggested_questions">Suggested questions (one per line, up to 6)</label><textarea id="suggested_questions" name="suggested_questions" style="min-height:90px" placeholder={"What safaris do you offer?\nHow much is a 3-day trip?\nDo you do Kilimanjaro climbs?"}>{suggestedText}</textarea><div class="hint">Shown as clickable chips in the chat to get visitors started.</div></div>
+		<div><label for="suggested_questions">Suggested questions (one per line, up to 6)</label><textarea id="suggested_questions" name="suggested_questions" style="min-height:90px" placeholder={`What ${terms.items} do you offer?\nWhat are your prices?\nHow do I get started?`}>{suggestedText}</textarea><div class="hint">Shown as clickable chips in the chat to get visitors started.</div></div>
 	</div>
 
 	<div style="margin-top:1.2rem"><button type="submit">Save all settings</button></div>

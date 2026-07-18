@@ -3,9 +3,13 @@
 	// account state (no extra table) so it stays honest and self-updating. Shows a
 	// full checklist while there's work left, and collapses to a slim success
 	// banner once everything's done so it never nags a set-up operator.
+	import { industryOf } from '$lib/industries.js';
 	export let client;
 	export let stats;
 
+	// Industry terminology (tours / services / rooms / products…) — tourism keeps
+	// the original wording verbatim.
+	$: terms = industryOf(client).terms;
 	$: hostedUrl = `/c/${client.slug}`;
 	$: steps = [
 		{
@@ -22,10 +26,10 @@
 		},
 		{
 			done: (stats?.items ?? 0) > 0,
-			label: 'Add your tours & info',
+			label: `Add your ${terms.items} & info`,
 			hint: 'The knowledge your assistant answers from',
 			href: '/portal/knowledge',
-			cta: 'Add tours'
+			cta: `Add ${terms.items}`
 		},
 		{
 			done: !!(client.logo_url || client.welcome_message || client.assistant_name),
