@@ -21,6 +21,7 @@ import {
 	growthSeries,
 	platformInsight
 } from '$lib/server/admin.js';
+import { industryRollups, execSummary, platformInsights } from '$lib/server/admin-intelligence.js';
 
 const DAY = 86400000;
 
@@ -54,12 +55,12 @@ export async function adminSnapshot({ locals }) {
 		const [clientsRes, convRes, leadRes, itemRes, usageRes, usersRes, payAttRes, payEvtRes] = await Promise.all([
 			supabase
 				.from('clients')
-				.select('id, slug, name, business_type, plan, subscription_status, is_active, brand_color, logo_url, monthly_conversation_cap, plan_renews_at, website_url, created_at')
+				.select('*')
 				.order('created_at', { ascending: false }),
 			supabase.from('conversations').select('client_id, created_at'),
 			supabase.from('leads').select('client_id, name, whatsapp, email, interest, transcript, created_at').order('created_at', { ascending: false }).limit(500),
 			supabase.from('knowledge_items').select('client_id, updated_at'),
-			supabase.from('usage_records').select('client_id, model, input_tokens, cached_tokens, output_tokens, estimated_cost, created_at').gte('created_at', since),
+			supabase.from('usage_records').select('*').gte('created_at', since),
 			supabase.from('users').select('name, role, client_id, last_login_at'),
 			supabase.from('payment_attempts').select('*').order('created_at', { ascending: false }).limit(50),
 			supabase.from('payment_events').select('event_type, created_at').order('created_at', { ascending: false }).limit(50)
@@ -163,13 +164,21 @@ export async function adminSnapshot({ locals }) {
 
 		const superName = (usersRes.data ?? []).find((u) => u.role === 'super_admin')?.name || locals.user?.name || null;
 
+		// Command-center intelligence — per-industry rollups, executive summary,
+		// and a deterministic platform-insight feed. All real, all derived here.
+		const billing = { failedPayments, upcomingRenewals, trialing, pastDue, canceled, mrr: rev.mrr, arr: rev.arr, currency: rev.currency };
+		const industries = industryRollups(clients, plans, spend.costByClient);
+
 		return {
 			superName,
 			totals,
 			revenue: rev,
 			spend,
 			health,
-			billing: { failedPayments, upcomingRenewals, trialing, pastDue, canceled, mrr: rev.mrr, arr: rev.arr, currency: rev.currency },
+			billing,
+			industries,
+			execSummary: execSummary({ totals, revenue: rev, spend, billing }),
+			platformInsights: platformInsights({ clients, revenue: rev, spend, industries, totals, billing }),
 			attention: attention(clients),
 			opportunities: opportunities(clients, plans),
 			activity: activity(convRes.data, leadRes.data, clients),

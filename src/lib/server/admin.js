@@ -185,6 +185,7 @@ export function aiSpend(usageRows, nameById = {}) {
 	let cachedTok = 0;
 	const byModel = new Map();
 	const byTenant = new Map();
+	const byFeature = new Map();
 	for (const r of rows) {
 		const c = Number(r.estimated_cost) || 0;
 		cost += c;
@@ -198,6 +199,14 @@ export function aiSpend(usageRows, nameById = {}) {
 		m.calls += 1;
 		byModel.set(r.model, m);
 		byTenant.set(r.client_id, (byTenant.get(r.client_id) ?? 0) + c);
+		// Feature attribution (widget / hosted / embedding / knowledge_index /
+		// website_sync / summary / translate / data_analyst / research / …). The
+		// column is optional (migration 014) — untagged rows group under 'other'.
+		const feat = r.feature || 'other';
+		const fb = byFeature.get(feat) ?? { feature: feat, cost: 0, calls: 0 };
+		fb.cost += c;
+		fb.calls += 1;
+		byFeature.set(feat, fb);
 	}
 	// Straight-line projection of this month's spend to the full month.
 	const now = new Date();
@@ -208,6 +217,10 @@ export function aiSpend(usageRows, nameById = {}) {
 		.map(([id, c]) => ({ id, name: nameById[id] ?? 'Unknown', cost: c }))
 		.sort((a, b) => b.cost - a.cost)
 		.slice(0, 6);
+	// Cache hit rate: cached input tokens as a share of all input read. High is
+	// good — it means prompt caching is saving money on the stable persona block.
+	const totalInput = inTok + cachedTok;
+	const cacheHitRate = totalInput > 0 ? Math.round((cachedTok / totalInput) * 100) : 0;
 	return {
 		tracked: rows.length > 0,
 		cost,
@@ -218,7 +231,15 @@ export function aiSpend(usageRows, nameById = {}) {
 		inputTokens: inTok,
 		outputTokens: outTok,
 		cachedTokens: cachedTok,
+		cacheHitRate,
+		// Avg over non-cached input only, so it stays consistent with `inputTokens`
+		// (avg × turns ≈ inputTokens). Cache volume is surfaced separately.
+		avgInputTokens: rows.length ? Math.round(inTok / rows.length) : 0,
+		avgOutputTokens: rows.length ? Math.round(outTok / rows.length) : 0,
 		byModel: [...byModel.values()].sort((a, b) => b.cost - a.cost),
+		byFeature: [...byFeature.values()].sort((a, b) => b.cost - a.cost),
+		// Per-tenant AI cost this month (for industry rollups + client cards).
+		costByClient: Object.fromEntries(byTenant),
 		topSpenders
 	};
 }
