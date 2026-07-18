@@ -99,6 +99,6 @@ export async function load({ url, cookies, locals }) {
 	}
 
 	// Email confirmed and tenant live — sign them in.
-	cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions());
+	cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions(url));
 	throw redirect(303, '/portal');
 }

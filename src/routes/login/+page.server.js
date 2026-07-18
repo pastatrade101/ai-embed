@@ -23,7 +23,7 @@ export const actions = {
 		const user = await authenticate(email, password);
 		if (!user) return fail(400, { error: 'Invalid email or password.', email });
 
-		cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions());
+		cookies.set(SESSION_COOKIE, createSessionToken(user.id), sessionCookieOptions(url));
 
 		const next = url.searchParams.get('next');
 		const home = user.role === 'super_admin' ? '/admin' : '/portal';

@@ -38,13 +38,21 @@ export function readSessionToken(token) {
 	return Buffer.from(uidB64, 'base64url').toString();
 }
 
-/** Cookie options for setting the session. */
-export function sessionCookieOptions() {
+/**
+ * Cookie options for setting the session. Pass the request `url` so `secure`
+ * tracks the browser's actual scheme: a `Secure` cookie is silently DROPPED by
+ * the browser on a plain-HTTP origin (any non-localhost), which bounces the user
+ * straight back to /login right after they sign in or verify their email. Behind
+ * a reverse proxy, `url.protocol` reflects HTTPS when ORIGIN / X-Forwarded-Proto
+ * is honoured. Falling back to NODE_ENV keeps older callers working.
+ */
+export function sessionCookieOptions(url) {
+	const secure = url ? url.protocol === 'https:' : env.NODE_ENV === 'production';
 	return {
 		path: '/',
 		httpOnly: true,
 		sameSite: 'lax',
-		secure: !env.NODE_ENV || env.NODE_ENV === 'production',
+		secure,
 		maxAge: TTL_MS / 1000
 	};
 }
