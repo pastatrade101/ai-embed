@@ -48,6 +48,23 @@
 		greeting = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 	});
 
+	// Minimal, safe markdown → HTML for the copilot answer. Escapes first, so the
+	// model can't inject raw HTML; then renders **bold**, bullet lists and paras.
+	function md(s) {
+		const esc = (s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').trim();
+		return esc
+			.split(/\n{2,}/)
+			.map((block) => {
+				const lines = block.split('\n');
+				if (lines.length && lines.every((l) => /^\s*[-*]\s+/.test(l))) {
+					return '<ul>' + lines.map((l) => '<li>' + l.replace(/^\s*[-*]\s+/, '') + '</li>').join('') + '</ul>';
+				}
+				return '<p>' + block.replace(/\n/g, '<br>') + '</p>';
+			})
+			.join('')
+			.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+	}
+
 	// Copilot
 	let question = '';
 	let asking = false;
@@ -113,7 +130,7 @@
 		{#if form?.answer}
 			<div class="cop-answer">
 				<div class="cop-q">{form.question}</div>
-				<div class="cop-a">{form.answer}</div>
+				<div class="cop-a">{@html md(form.answer)}</div>
 			</div>
 		{/if}
 	</div>
@@ -398,7 +415,26 @@
 		font-size: 0.92rem;
 		color: var(--body);
 		line-height: 1.55;
-		white-space: pre-wrap;
+	}
+	.cop-a :global(p) {
+		margin: 0 0 0.6rem;
+	}
+	.cop-a :global(p:last-child) {
+		margin-bottom: 0;
+	}
+	.cop-a :global(strong) {
+		color: var(--strong);
+		font-weight: 700;
+	}
+	.cop-a :global(ul) {
+		margin: 0 0 0.6rem;
+		padding-left: 1.15rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.cop-a :global(li) {
+		line-height: 1.5;
 	}
 
 	/* KPI clusters */
