@@ -273,7 +273,7 @@
 		container.style.setProperty('--mk-brand', brand);
 		container.innerHTML =
 			(open
-				? '<button class="mk-fab" aria-label="Close">' + svgClose() + '</button>'
+				? '<button class="mk-fab mk-fab-close" aria-label="Close">' + svgClose() + '</button>'
 				: '<button class="mk-fab" aria-label="Chat with the AI Assistant">' + svgChat() + '</button>') +
 			(open ? panel() : '');
 		container.querySelector('.mk-fab').addEventListener('click', toggle);
@@ -780,7 +780,8 @@
 			'.mk-fab-label{display:none}' +
 			// The full-screen panel has its own header ✕ — hide the redundant floating
 			// close button (the open-state FAB) so it doesn't peek behind the header.
-			'.mk-fab:not(.mk-fab-pill){display:none}' +
+			// Scoped to .mk-fab-close so the resting launcher circle stays visible.
+			'.mk-fab-close{display:none}' +
 			'}'
 		);
 	}
