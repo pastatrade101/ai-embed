@@ -37,7 +37,7 @@
 	// Rounded to match the platform-intelligence + industries "≥80% of cap"
 	// convention (avoids two tiles on the same screen disagreeing by one).
 	$: nearCap = clients.filter((c) => {
-		const cap = Number(c.monthly_conversation_cap) || 0;
+		const cap = Number(c.aiCapacity) || Number(c.monthly_conversation_cap) || 0;
 		return cap > 0 && Math.round(((c.conversationsMonth ?? 0) / cap) * 100) >= 80;
 	}).length;
 	$: atRisk = (billing?.pastDue ?? 0) + (billing?.canceled ?? 0);

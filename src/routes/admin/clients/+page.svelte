@@ -36,8 +36,26 @@
 
 	$: maxLbConv = Math.max(1, ...(leaders.conversations ?? []).map((c) => c.conversations));
 	$: maxLbLeads = Math.max(1, ...(leaders.leads ?? []).map((c) => c.leads));
-	const capPct = (c) => (c.monthly_conversation_cap > 0 ? Math.min(100, Math.round(((c.conversationsMonth ?? 0) / c.monthly_conversation_cap) * 100)) : null);
+	// Usage against the real capacity (budget-derived ≈ conversations, matching
+	// the billing + plan screens), not the legacy hard cap.
+	const capOf = (c) => Number(c.aiCapacity) || Number(c.monthly_conversation_cap) || 0;
+	const capPct = (c) => {
+		const cap = capOf(c);
+		return cap > 0 ? Math.min(100, Math.round(((c.conversationsMonth ?? 0) / cap) * 100)) : null;
+	};
 	const capCls = (p) => (p == null ? '' : p >= 100 ? 'red' : p >= 80 ? 'amber' : 'green');
+	// A client that's used a few conversations of a large plan is a real <1% — show
+	// that (with a visible sliver) rather than a misleading flat "0% of cap".
+	const capLabel = (c) => {
+		const p = capPct(c);
+		if (p == null) return null;
+		return p === 0 && (c.conversationsMonth ?? 0) > 0 ? '<1% of cap' : `${p}% of cap`;
+	};
+	const capWidth = (c) => {
+		const p = capPct(c);
+		if (p == null) return 0;
+		return p === 0 && (c.conversationsMonth ?? 0) > 0 ? 2 : p;
+	};
 </script>
 
 <div class="page-head">
@@ -79,7 +97,7 @@
 						<div><b>{num(c.items)}</b><span>knowledge</span></div>
 					</div>
 					{#if capPct(c) != null}
-						<div class="cap"><div class="cap-track"><span class="cap-fill {capCls(capPct(c))}" style="width:{capPct(c)}%"></span></div><span class="cap-l">{capPct(c)}% of cap</span></div>
+						<div class="cap"><div class="cap-track"><span class="cap-fill {capCls(capPct(c))}" style="width:{capWidth(c)}%"></span></div><span class="cap-l">{capLabel(c)}</span></div>
 					{/if}
 					<div class="pc-foot">
 						<span class="pc-last">Active {ago(c.lastActive)} · <span class="hb {c.health.cls}">{c.health.label}</span></span>

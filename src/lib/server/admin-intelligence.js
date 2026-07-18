@@ -14,7 +14,9 @@ const money = (n, cur = 'USD') =>
 	n == null ? '—' : new Intl.NumberFormat('en', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n);
 const num = (n) => new Intl.NumberFormat('en').format(Math.round(n ?? 0));
 const pctCap = (c) => {
-	const cap = Number(c.monthly_conversation_cap) || 0;
+	// Against the real budget-derived capacity (enriched onto the client), with
+	// the legacy hard cap as a fallback.
+	const cap = Number(c.aiCapacity) || Number(c.monthly_conversation_cap) || 0;
 	return cap > 0 ? Math.round(((c.conversationsMonth ?? 0) / cap) * 100) : null;
 };
 

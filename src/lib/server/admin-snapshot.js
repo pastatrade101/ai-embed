@@ -7,6 +7,7 @@
 import { supabase } from '$lib/server/supabase.js';
 import { monthStartISO } from '$lib/server/tenant.js';
 import { scoreLead, leadTier } from '$lib/server/dashboard.js';
+import { AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
 import { env } from '$env/dynamic/private';
 import {
 	revenue,
@@ -70,6 +71,15 @@ export async function adminSnapshot({ locals }) {
 
 		const plansRes = await supabase.from('plans').select('*').order('sort');
 		const plans = plansRes.data ?? [];
+		// Real per-plan capacity ≈ conversations from the AI budget (the basis the
+		// billing + plan screens use), falling back to the legacy hard cap. Used
+		// for the client cards' "% of cap" and the near-limit / upgrade signals.
+		const capByPlan = new Map(
+			plans.map((p) => {
+				const budget = Number(p.included_ai_budget) || 0;
+				return [p.key, budget > 0 ? Math.round(budget / AVG_COST_PER_CONVERSATION) : Number(p.monthly_conversation_cap) || 0];
+			})
+		);
 
 		const conv = tally(convRes.data, since);
 		const leadsT = tally(leadRes.data, since);
@@ -93,6 +103,8 @@ export async function adminSnapshot({ locals }) {
 				lastConversationAt: conv.last[c.id] ?? null,
 				lastLeadAt: leadsT.last[c.id] ?? null,
 				knowledgeUpdatedAt: kFresh[c.id] ?? null,
+				// Budget-derived capacity (falls back to the client's own cap).
+				aiCapacity: capByPlan.get(c.plan) ?? Number(c.monthly_conversation_cap) ?? 0,
 				last_login_at: login[c.id] ?? null
 			};
 			enriched.health = clientHealth(enriched);
