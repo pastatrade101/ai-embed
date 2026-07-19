@@ -1,7 +1,7 @@
 import { error, fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { getProposal, updateProposal, proposalTimeline, markSent, setStatus } from '$lib/server/proposals.js';
-import { generateProposalDraft, assistField, revenueIdeas, followupMessage } from '$lib/server/proposal-ai.js';
+import { generateProposalDraft, assistField, revenueIdeas, followupMessage, extractRequirements, syncFromConversation } from '$lib/server/proposal-ai.js';
 import { scoreLead, leadTier, leadStage, extractLead } from '$lib/server/dashboard.js';
 import { sendEmail, brandedEmail, escapeHtml } from '$lib/server/email.js';
 import { proposalConfig } from '$lib/industries.js';
@@ -56,7 +56,25 @@ export async function load({ params, locals, url }) {
 		hostedUrl: `${url.origin}/p/${proposal.public_token}`,
 		operatorEmail: client?.contact_email || null,
 		customerHasEmail: !!proposal.customer_email,
-		customer: customerIntel(lead)
+		customer: customerIntel(lead),
+		conversation: conversationPanel(lead),
+		requirements: proposal.meta?.requirements || null
+	};
+}
+
+// The linked conversation, trimmed for the editor's "AI Sales Memory" panel.
+function conversationPanel(lead) {
+	if (!lead) return { linked: false };
+	const msgs = (Array.isArray(lead.transcript) ? lead.transcript : [])
+		.filter((m) => m && m.role && m.content)
+		.map((m) => ({ role: m.role === 'assistant' ? 'ai' : 'customer', content: String(m.content).slice(0, 1200) }));
+	return {
+		linked: true,
+		leadId: lead.id,
+		startedAt: lead.created_at,
+		count: msgs.length,
+		hasDetails: !!(lead.details && Object.keys(lead.details).length),
+		transcript: msgs.slice(-40)
 	};
 }
 
@@ -165,6 +183,41 @@ export const actions = {
 		if (res.error === 'quota') return fail(403, { section: 'followup', error: 'You’ve used your AI actions for this month.' });
 		if (res.error || !res.text) return fail(502, { section: 'followup', error: 'Could not draft the follow-up — try again.' });
 		return { section: 'followup', channel, text: res.text };
+	},
+
+	// AI Sales Memory — extract structured requirements + readiness from the
+	// linked conversation. Persisted into meta so it's remembered on reload.
+	requirements: async ({ params, locals }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'requirements', error: 'Proposal not found.' });
+		const lead = await loadLead(clientId, proposal.lead_id);
+		const res = await extractRequirements({ client, lead });
+		if (res.error === 'quota') return fail(403, { section: 'requirements', error: 'You’ve used your AI actions for this month.' });
+		if (res.error || !res.data) return fail(502, { section: 'requirements', error: 'Could not analyse the conversation — try again.' });
+		// Remember it (no timeline event — this is analysis, not an edit).
+		try {
+			await supabase.from('proposals').update({ meta: { ...(proposal.meta || {}), requirements: res.data } }).eq('id', params.id).eq('client_id', clientId);
+		} catch {
+			/* non-fatal — still return it to the operator */
+		}
+		return { section: 'requirements', requirements: res.data };
+	},
+
+	// AI Sales Memory — detect what's out of sync with the latest conversation and
+	// propose scoped section updates (preview only; the operator approves & saves).
+	sync: async ({ params, locals }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'sync', error: 'Proposal not found.' });
+		const lead = await loadLead(clientId, proposal.lead_id);
+		if (!lead) return fail(400, { section: 'sync', error: 'This proposal isn’t linked to a conversation.' });
+		const res = await syncFromConversation({ client, proposal, lead });
+		if (res.error === 'quota') return fail(403, { section: 'sync', error: 'You’ve used your AI actions for this month.' });
+		if (res.error || !res.data) return fail(502, { section: 'sync', error: 'Could not check the conversation — try again.' });
+		return { section: 'sync', sync: res.data };
 	},
 
 	// Send the branded proposal email (reply-to the operator, not Makutano).

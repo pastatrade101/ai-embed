@@ -3,7 +3,8 @@
 	export let data;
 	export let form;
 	$: proposals = data.proposals ?? [];
-	$: docLabel = data.industry?.proposal?.docLabel ?? 'Proposal';
+	$: leads = data.leads ?? [];
+	$: docLabel = data.docLabel ?? 'Proposal';
 
 	const money = (n, cur) => {
 		try {
@@ -16,17 +17,31 @@
 	const STATUS = {
 		draft: 'Draft', sent: 'Sent', viewed: 'Viewed', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', converted: 'Won'
 	};
+
+	// ---- Creation modes (conversation / CRM / blank) ----
+	let creating = false;
+	let mode = 'conversation';
+	let pickedLead = null;
+	let submitting = false;
+	$: canSubmit = mode === 'blank' || !!pickedLead;
+	function openCreate() {
+		creating = true;
+		mode = leads.length ? 'conversation' : 'blank';
+		pickedLead = null;
+	}
+	function pickMode(m) {
+		mode = m;
+		if (m === 'blank') pickedLead = null;
+	}
 </script>
 
 <div class="page-head">
 	<div>
 		<h1>Proposals</h1>
-		<div class="sub">Create, send and track quotes and proposals — and turn leads into deals.</div>
+		<div class="sub">Create, send and track quotes and proposals — and turn conversations into deals.</div>
 	</div>
 	{#if !data.tableMissing}
-		<form method="POST" action="?/create" use:enhance>
-			<button class="btn">+ New proposal</button>
-		</form>
+		<button class="btn" type="button" on:click={openCreate}>+ New proposal</button>
 	{/if}
 </div>
 
@@ -40,8 +55,8 @@
 {:else if proposals.length === 0}
 	<div class="card empty">
 		<h2 class="section" style="margin-top:0">No proposals yet</h2>
-		<p class="muted">Send your first professional {docLabel.toLowerCase()}. Start one from a lead (there's a “Proposal” button on each lead) or create a blank one.</p>
-		<form method="POST" action="?/create" use:enhance><button class="btn">+ New proposal</button></form>
+		<p class="muted">Send your first professional {docLabel.toLowerCase()}. The AI can draft it straight from a customer conversation — or start a blank one.</p>
+		<button class="btn" type="button" on:click={openCreate}>+ New proposal</button>
 	</div>
 {:else}
 	<div class="card list">
@@ -56,6 +71,60 @@
 				<div class="r-date">{fmt(p.created_at)}</div>
 			</a>
 		{/each}
+	</div>
+{/if}
+
+<!-- Creation modal -->
+{#if creating}
+	<div class="modal-backdrop" role="presentation" on:click|self={() => (creating = false)}>
+		<div class="modal">
+			<div class="modal-head">
+				<h2 class="section" style="margin:0">New {docLabel.toLowerCase()}</h2>
+				<button class="x" type="button" on:click={() => (creating = false)} aria-label="Close">✕</button>
+			</div>
+			<p class="muted" style="font-size:.85rem;margin:.1rem 0 .8rem">Start from what the AI already knows about the customer — or a blank document.</p>
+
+			<div class="modes">
+				<button type="button" class="mode" class:on={mode === 'conversation'} on:click={() => pickMode('conversation')} disabled={!leads.length}>
+					<div class="mode-t">💬 From a conversation <span class="rec">Recommended</span></div>
+					<div class="mode-d">AI drafts from the customer chat — requirements, items and pricing.</div>
+				</button>
+				<button type="button" class="mode" class:on={mode === 'crm'} on:click={() => pickMode('crm')} disabled={!leads.length}>
+					<div class="mode-t">👤 From a CRM record</div>
+					<div class="mode-d">Use the customer profile, saved details and past proposals.</div>
+				</button>
+				<button type="button" class="mode" class:on={mode === 'blank'} on:click={() => pickMode('blank')}>
+					<div class="mode-t">📄 Blank {docLabel.toLowerCase()}</div>
+					<div class="mode-d">Start empty and write it yourself.</div>
+				</button>
+			</div>
+
+			{#if mode !== 'blank'}
+				{#if leads.length}
+					<div class="pick-h">Choose a conversation</div>
+					<div class="picker">
+						{#each leads as l}
+							<button type="button" class="pick" class:on={pickedLead === l.id} on:click={() => (pickedLead = l.id)}>
+								<span class="pick-score s-{l.cls}">{l.score}</span>
+								<span class="pick-main"><span class="pick-name">{l.name}</span><span class="pick-sub">{l.interest || 'No stated interest'}</span></span>
+								<span class="pick-meta">{l.msgs} msg{l.msgs === 1 ? '' : 's'} · {fmt(l.createdAt)}</span>
+							</button>
+						{/each}
+					</div>
+				{:else}
+					<div class="muted" style="font-size:.85rem">No conversations captured yet. Share your AI assistant to collect leads, or start a blank {docLabel.toLowerCase()}.</div>
+				{/if}
+			{/if}
+
+			{#if form?.error}<div class="notice err" style="margin:0.8rem 0 0">{form.error}</div>{/if}
+
+			<form method="POST" action="?/create" use:enhance={() => { submitting = true; return async ({ update }) => { await update(); submitting = false; }; }} class="modal-foot">
+				<input type="hidden" name="mode" value={mode} />
+				<input type="hidden" name="lead_id" value={pickedLead ?? ''} />
+				<button class="btn ghost" type="button" on:click={() => (creating = false)} disabled={submitting}>Cancel</button>
+				<button class="btn" disabled={!canSubmit || submitting}>{submitting ? (mode === 'blank' ? 'Creating…' : 'Drafting with AI…') : mode === 'blank' ? 'Create' : '✦ Generate proposal'}</button>
+			</form>
+		</div>
 	</div>
 {/if}
 
@@ -79,4 +148,32 @@
 		.row { grid-template-columns: 1fr auto; }
 		.r-status, .r-date { display: none; }
 	}
+
+	/* ---- Creation modal ---- */
+	.modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(4, 14, 10, 0.6); backdrop-filter: blur(3px); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 1rem 2rem; overflow-y: auto; }
+	.modal { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; padding: 1.2rem 1.3rem; box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7); }
+	.modal-head { display: flex; align-items: center; justify-content: space-between; }
+	.modal-head .x { background: transparent; border: 0; color: var(--muted); font-size: 1rem; cursor: pointer; }
+	.modes { display: grid; gap: 0.55rem; }
+	.mode { text-align: left; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); border-radius: 12px; padding: 0.7rem 0.85rem; cursor: pointer; transition: border-color 0.15s, background 0.15s; color: inherit; font: inherit; }
+	.mode:hover:not(:disabled) { border-color: rgba(var(--gold-rgb), 0.4); }
+	.mode.on { border-color: var(--mint); background: rgba(var(--gold-rgb), 0.1); }
+	.mode:disabled { opacity: 0.45; cursor: not-allowed; }
+	.mode-t { font-weight: 700; color: var(--strong); font-size: 0.92rem; display: flex; align-items: center; gap: 0.5rem; }
+	.mode-d { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+	.rec { font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 700; color: var(--ink); background: var(--mint); padding: 0.08rem 0.4rem; border-radius: 999px; }
+	.pick-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.9rem 0 0.4rem; }
+	.picker { display: grid; gap: 0.4rem; max-height: 260px; overflow-y: auto; }
+	.pick { display: flex; align-items: center; gap: 0.7rem; text-align: left; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line-2); border-radius: 12px; padding: 0.55rem 0.7rem; cursor: pointer; color: inherit; font: inherit; transition: border-color 0.15s; }
+	.pick:hover { border-color: rgba(var(--gold-rgb), 0.4); }
+	.pick.on { border-color: var(--mint); background: rgba(var(--gold-rgb), 0.1); }
+	.pick-score { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; font-size: 0.82rem; flex: none; background: rgba(255, 255, 255, 0.08); color: var(--soft); font-variant-numeric: tabular-nums; }
+	.pick-score.s-hot { background: rgba(22, 163, 74, 0.18); color: #6ee7a8; }
+	.pick-score.s-warm { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+	.pick-score.s-cool { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+	.pick-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+	.pick-name { font-weight: 600; color: var(--strong); font-size: 0.88rem; }
+	.pick-sub { font-size: 0.78rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+	.pick-meta { font-size: 0.72rem; color: var(--muted); white-space: nowrap; flex: none; }
+	.modal-foot { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem; }
 </style>

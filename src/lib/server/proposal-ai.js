@@ -7,6 +7,7 @@ import { askJSON, askText, AI, SONNET } from '$lib/server/ai.js';
 import { supabase } from '$lib/server/supabase.js';
 import { serverIndustry } from '$lib/server/industries.js';
 import { proposalConfig } from '$lib/industries.js';
+import { listProposals } from '$lib/server/proposals.js';
 
 const DRAFT_SCHEMA = {
 	type: 'object',
@@ -172,4 +173,135 @@ export async function followupMessage({ client, proposal, channel = 'email', rea
 	const user = `Customer: ${proposal.customer_name || 'there'}. ${money ? `Total: ${money}. ` : ''}Status: ${proposal.status}.${proposal.valid_until ? ` Valid until: ${proposal.valid_until}.` : ''}`;
 	const res = await askText({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, system, maxTokens: 500, messages: [{ role: 'user', content: user }] });
 	return { text: (res.text || '').trim(), error: res.error, quota: res.quota };
+}
+
+// ---- AI Sales Memory: requirement extraction + conversation sync ------------
+// The proposal is a continuation of the customer conversation. These helpers let
+// the AI read everything it already knows — the transcript, the extracted lead
+// details, and previous proposals — instead of starting from an empty document.
+
+/** Flatten a lead's conversation transcript into readable text (trimmed). */
+function conversationText(lead, max = 4000) {
+	if (!lead || !Array.isArray(lead.transcript)) return '';
+	return lead.transcript
+		.filter((m) => m && m.role && m.content)
+		.map((m) => `${m.role === 'assistant' ? 'AI' : 'Customer'}: ${m.content}`)
+		.join('\n')
+		.slice(-max);
+}
+
+/** Compact list of the customer's previous proposals (sales memory / continuity). */
+async function priorProposalsText(clientId, leadId, excludeId) {
+	if (!leadId) return '';
+	try {
+		const { proposals } = await listProposals(clientId, { leadId, limit: 6 });
+		return (proposals || [])
+			.filter((p) => p.id !== excludeId)
+			.map((p) => `- ${p.number} (${p.doc_type}, ${p.status}) — ${p.currency} ${p.total}${p.title ? `: ${p.title}` : ''}`)
+			.join('\n');
+	} catch {
+		return '';
+	}
+}
+
+const REQUIREMENTS_SCHEMA = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['customer', 'summary', 'confidence', 'ready', 'missing', 'questions'],
+	properties: {
+		customer: { type: 'string', description: 'The customer name, or "the customer" if unknown' },
+		summary: {
+			type: 'array',
+			description: 'Structured requirements you can infer, as label/value pairs. Choose the fields that matter for THIS kind of business (e.g. Budget, Timeline, Participants, Interest, Location…). Only include fields you actually know from the conversation or details.',
+			items: { type: 'object', additionalProperties: false, required: ['label', 'value'], properties: { label: { type: 'string' }, value: { type: 'string' } } }
+		},
+		confidence: { type: 'integer', description: '0–100: how confident you are that there is enough to draft a strong, accurate proposal' },
+		ready: { type: 'boolean', description: 'true if there is enough information to generate a high-quality proposal now' },
+		missing: { type: 'array', items: { type: 'string' }, description: 'Important information still missing (short labels)' },
+		questions: { type: 'array', items: { type: 'string' }, description: 'Suggested follow-up questions to ask the customer to fill the gaps (empty if ready)' }
+	}
+};
+
+/**
+ * Extract structured requirements + readiness from the conversation, before/while
+ * drafting. Industry-aware. Returns { data, error, quota }.
+ */
+export async function extractRequirements({ client, lead }) {
+	const ind = serverIndustry(client);
+	const cfg = proposalConfig(client);
+	const convo = conversationText(lead);
+	const details = lead?.details ? JSON.stringify(lead.details).slice(0, 900) : '';
+	const prior = await priorProposalsText(client.id, lead?.id, null);
+
+	const system = `You are a sales requirements analyst for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Read the customer conversation and known details and extract the requirements needed to prepare a ${cfg.docLabel}. Decide which fields matter for this kind of business and fill only the ones you actually know. Be strictly truthful — never invent budgets, dates, numbers or preferences. Judge whether there is enough to draft a strong proposal, list what's missing, and suggest concise follow-up questions for the gaps. Return the structured object only.`;
+	const user = `CUSTOMER: ${lead?.name || '—'}\nStated interest: ${lead?.interest || '—'}\n${details ? `Known details (extracted): ${details}\n` : ''}${prior ? `Previous proposals for this customer:\n${prior}\n` : ''}${convo ? `\nCONVERSATION:\n${convo}` : '\n(no conversation transcript — infer from interest/details only, and lower confidence)'}`;
+
+	return askJSON({
+		clientId: client.id,
+		planKey: client.plan,
+		feature: AI.PROPOSAL,
+		model: SONNET,
+		schema: REQUIREMENTS_SCHEMA,
+		maxTokens: 1100,
+		system,
+		messages: [{ role: 'user', content: user }]
+	});
+}
+
+const SYNC_SCHEMA = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['in_sync', 'changes', 'updated_fields', 'estimated_diff', 'note'],
+	properties: {
+		in_sync: { type: 'boolean', description: 'true if the proposal already reflects the latest conversation — no changes needed' },
+		changes: {
+			type: 'array',
+			description: 'Only the sections that should change based on NEW information in the conversation. Empty when in_sync.',
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['section', 'label', 'detail'],
+				properties: {
+					section: { type: 'string', enum: ['intro', 'summary', 'terms', 'pricing', 'scope', 'customer'] },
+					label: { type: 'string', description: 'Short change title, e.g. "Budget increased", "Removed Zanzibar"' },
+					detail: { type: 'string', description: 'What changed and why, grounded in the conversation' }
+				}
+			}
+		},
+		updated_fields: {
+			type: 'object',
+			additionalProperties: false,
+			required: ['intro', 'summary', 'terms'],
+			description: 'Rewritten text for a section that should change; null to leave that section exactly as-is. Preserve the operator’s wording where possible.',
+			properties: { intro: { type: ['string', 'null'] }, summary: { type: ['string', 'null'] }, terms: { type: ['string', 'null'] } }
+		},
+		estimated_diff: { type: 'number', description: 'Estimated change to the total in the proposal currency (+/-), 0 if none. Advisory only — the operator edits line items.' },
+		note: { type: 'string', description: 'One-line summary for the operator' }
+	}
+};
+
+/**
+ * Detect what in the current proposal is out of sync with the latest conversation
+ * and propose scoped updates (never a full regeneration). Returns { data, error, quota }.
+ */
+export async function syncFromConversation({ client, proposal, lead }) {
+	const ind = serverIndustry(client);
+	const cfg = proposalConfig(client);
+	const convo = conversationText(lead);
+	const details = lead?.details ? JSON.stringify(lead.details).slice(0, 700) : '';
+	const items = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => `${li.description} (${li.qty}× ${li.unit_price})`).join('; ');
+
+	const system = `You keep a ${cfg.docLabel} in sync with the customer conversation for ${client.name || `a ${ind.businessType}`}. Compare the CURRENT proposal to the LATEST conversation and known details. Identify ONLY what genuinely changed because of new customer information (budget, group size, scope added/removed, preferences, timing…). Do NOT rewrite things that are already correct, and preserve the operator's wording where you can. For any of intro/summary/terms that should change, return the full rewritten text; otherwise return null for it. Estimate the pricing impact as a number (advisory — you cannot edit line items). If nothing changed, set in_sync=true with an empty changes array. Never invent facts. Return the structured object only.`;
+	const user = `CURRENT PROPOSAL (${proposal.number}, ${proposal.currency}):\nTitle: ${proposal.title || '—'}\nIntro: ${proposal.intro || '—'}\nSummary: ${proposal.summary || '—'}\nTerms: ${proposal.terms || '—'}\nLine items: ${items || '—'}\nTotal: ${proposal.total}\n\n${details ? `Known details: ${details}\n` : ''}CONVERSATION:\n${convo || '(no transcript available)'}`;
+
+	return askJSON({
+		clientId: client.id,
+		planKey: client.plan,
+		feature: AI.PROPOSAL,
+		model: SONNET,
+		schema: SYNC_SCHEMA,
+		maxTokens: 1400,
+		system,
+		messages: [{ role: 'user', content: user }]
+	});
 }

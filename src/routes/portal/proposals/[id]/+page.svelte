@@ -158,6 +158,48 @@
 
 	$: cust = data.customer;
 	const intentLabel = { ready_to_book: 'Ready to buy', high: 'Very high', medium: 'Medium', low: 'Low' };
+
+	// ---- AI Sales Memory: linked conversation, requirements, live sync ------
+	$: conv = data.conversation || { linked: false };
+	let convOpen = false;
+	let requirements = data.requirements || null, loadingReq = false;
+	async function getRequirements() {
+		if (loadingReq) return; loadingReq = true; aiError = null;
+		try {
+			const res = await postAction('?/requirements', new FormData());
+			if (res.type === 'success') requirements = res.data?.requirements || null; else aiError = res.data?.error || 'Analysis failed.';
+		} catch (_) { aiError = 'Analysis failed.'; }
+		loadingReq = false;
+	}
+
+	let syncResult = null, loadingSync = false;
+	async function checkSync() {
+		if (loadingSync) return; loadingSync = true; aiError = null; syncResult = null;
+		try {
+			const res = await postAction('?/sync', new FormData());
+			if (res.type === 'success') syncResult = res.data?.sync || null; else aiError = res.data?.error || 'Sync check failed.';
+		} catch (_) { aiError = 'Sync check failed.'; }
+		loadingSync = false;
+	}
+	function applySync() {
+		const u = syncResult?.updated_fields;
+		if (!u) { syncResult = null; return; }
+		if (u.intro != null) intro = u.intro;
+		if (u.summary != null) summary = u.summary;
+		if (u.terms != null) terms = u.terms;
+		dirty = true; syncResult = null;
+	}
+
+	// Customer journey stages (derived — no new data model).
+	$: jstages = [
+		{ label: 'Conversation', done: conv.linked },
+		{ label: 'Requirements', done: conv.linked && (conv.hasDetails || !!requirements) },
+		{ label: 'Proposal', done: true },
+		{ label: 'Sent', done: src.status !== 'draft' },
+		{ label: 'Viewed', done: ['viewed', 'accepted', 'converted'].includes(src.status) },
+		{ label: 'Accepted', done: ['accepted', 'converted'].includes(src.status) }
+	];
+	const fmtWhen = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 </script>
 
 <div class="page-head">
@@ -170,6 +212,54 @@
 </div>
 
 {#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}<div class="notice">{form.ok}</div>{/if}
+
+<!-- AI Sales Memory: customer journey + linked conversation + live sync ------->
+<div class="card memory">
+	<div class="journey">
+		{#each jstages as s, i}
+			<div class="jstep" class:done={s.done}><span class="jdot"></span><span class="jlabel">{s.label}</span></div>
+			{#if i < jstages.length - 1}<span class="jline" class:done={jstages[i + 1].done}></span>{/if}
+		{/each}
+	</div>
+	{#if conv.linked}
+		<div class="memory-head">
+			<div class="muted" style="font-size:.82rem">Anchored to a conversation · started {fmtWhen(conv.startedAt)} · {conv.count} message{conv.count === 1 ? '' : 's'}{conv.hasDetails ? ' · requirements captured' : ''}</div>
+			<div class="memory-actions">
+				<button type="button" class="btn ghost sm" on:click={() => (convOpen = !convOpen)} aria-expanded={convOpen}>{convOpen ? 'Hide' : 'View'} conversation</button>
+				<a class="btn ghost sm" href="/portal/leads" title="Open the lead in Leads">Open lead ↗</a>
+				<button type="button" class="btn gold sm" on:click={checkSync} disabled={loadingSync}>{loadingSync ? 'Checking…' : '↻ Re-check conversation'}</button>
+			</div>
+		</div>
+		{#if convOpen}
+			<div class="transcript">
+				{#each conv.transcript as m}<div class="msg {m.role}"><span class="msg-who">{m.role === 'ai' ? 'AI' : 'Customer'}</span><span class="msg-text">{m.content}</span></div>{/each}
+				{#if !conv.transcript.length}<div class="muted" style="font-size:.82rem">No transcript was captured for this conversation.</div>{/if}
+			</div>
+		{/if}
+		{#if syncResult}
+			<div class="sync">
+				{#if syncResult.in_sync}
+					<div class="sync-ok">✓ The proposal is up to date with the conversation.</div>
+				{:else}
+					<div class="sync-h">Suggested updates from the conversation{#if syncResult.estimated_diff} · est. {syncResult.estimated_diff > 0 ? '+' : ''}{money(syncResult.estimated_diff)}{/if}</div>
+					{#if syncResult.note}<p class="muted" style="font-size:.82rem;margin:.1rem 0 .55rem">{syncResult.note}</p>{/if}
+					<ul class="sync-list">
+						{#each syncResult.changes as c}<li><span class="sync-sec">{c.section}</span><b>{c.label}</b><div class="muted" style="font-size:.82rem">{c.detail}</div></li>{/each}
+					</ul>
+					<div class="sync-actions">
+						{#if syncResult.updated_fields && (syncResult.updated_fields.intro || syncResult.updated_fields.summary || syncResult.updated_fields.terms)}
+							<button type="button" class="btn sm" on:click={applySync}>Apply text updates</button>
+						{/if}
+						<button type="button" class="btn ghost sm" on:click={() => (syncResult = null)}>Dismiss</button>
+						<span class="muted" style="font-size:.76rem">Pricing changes are advisory — adjust line items yourself.</span>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	{:else}
+		<div class="muted" style="font-size:.82rem">Not linked to a conversation. Create a proposal <a href="/portal/leads" style="color:var(--mint)">from a lead</a> to unlock AI Sales Memory — the AI drafts from the chat, extracts requirements, and keeps the proposal in sync.</div>
+	{/if}
+</div>
 
 <div class="grid">
 	<!-- Editor ---------------------------------------------------------------->
@@ -305,6 +395,32 @@
 			</ul>
 			{#if recs.length}
 				<div class="q-recs"><div class="q-recs-h">To strengthen it</div><ul>{#each recs.slice(0, 3) as r}<li>{r}</li>{/each}</ul></div>
+			{/if}
+		</div>
+
+		<div class="card reqs">
+			<div class="ai-head">
+				<div><h2 class="section" style="margin:0">AI requirements</h2><div class="muted" style="font-size:.8rem">What the AI knows — and what to still ask.</div></div>
+				<button class="btn ghost sm" type="button" on:click={getRequirements} disabled={loadingReq}>{loadingReq ? '…' : requirements ? 'Refresh' : '✦ Analyse'}</button>
+			</div>
+			{#if requirements}
+				<div class="req-conf" data-band={requirements.confidence >= 70 ? 'hi' : requirements.confidence >= 40 ? 'mid' : 'lo'}>
+					<span class="req-ready">{requirements.ready ? '✓ Ready to generate' : 'Needs more info'}</span>
+					<span class="req-pct">{requirements.confidence}%</span>
+				</div>
+				{#if requirements.summary?.length}
+					<dl class="req-grid">{#each requirements.summary as f}<div><dt>{f.label}</dt><dd>{f.value}</dd></div>{/each}</dl>
+				{/if}
+				{#if requirements.missing?.length}
+					<div class="req-h">Missing</div>
+					<ul class="req-missing">{#each requirements.missing as m}<li>{m}</li>{/each}</ul>
+				{/if}
+				{#if requirements.questions?.length}
+					<div class="req-h">Ask the customer</div>
+					<ul class="req-q">{#each requirements.questions as q}<li>{q}</li>{/each}</ul>
+				{/if}
+			{:else}
+				<p class="muted" style="font-size:.82rem;margin:.2rem 0 0">{conv.linked ? 'Analyse the conversation to extract budget, timeline and scope — and see what’s still missing.' : 'Link this proposal to a conversation to extract requirements automatically.'}</p>
 			{/if}
 		</div>
 
@@ -510,4 +626,48 @@
 	/* AI error toast */
 	.ai-toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 0.6rem; max-width: 90vw; background: rgba(220, 38, 38, 0.95); color: #fff; font-size: 0.85rem; padding: 0.6rem 0.9rem; border-radius: 12px; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.6); }
 	.ai-toast button { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 0.9rem; padding: 0; }
+
+	/* ---- AI Sales Memory ---- */
+	.memory { margin-bottom: 1rem; gap: 0.9rem; }
+	.journey { display: flex; align-items: center; gap: 0.3rem; overflow-x: auto; padding-bottom: 0.2rem; }
+	.jstep { display: flex; align-items: center; gap: 0.4rem; flex: none; color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+	.jdot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--line-2); background: transparent; flex: none; }
+	.jstep.done { color: var(--strong); }
+	.jstep.done .jdot { border-color: var(--mint); background: var(--mint); }
+	.jline { flex: 1 1 18px; min-width: 12px; height: 2px; background: var(--line-2); }
+	.jline.done { background: var(--mint); }
+	.memory-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+	.memory-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+	.transcript { max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem; padding: 0.7rem; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(255, 255, 255, 0.02); }
+	.msg { display: flex; flex-direction: column; gap: 0.15rem; max-width: 85%; }
+	.msg.customer { align-self: flex-start; }
+	.msg.ai { align-self: flex-end; text-align: right; }
+	.msg-who { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+	.msg-text { font-size: 0.84rem; line-height: 1.45; color: var(--soft); background: rgba(255, 255, 255, 0.05); padding: 0.45rem 0.65rem; border-radius: 12px; }
+	.msg.ai .msg-text { background: rgba(var(--gold-rgb), 0.12); color: var(--strong); }
+	.sync { border: 1px solid rgba(var(--gold-rgb), 0.3); border-radius: 12px; padding: 0.75rem 0.85rem; background: rgba(var(--gold-rgb), 0.06); }
+	.sync-ok { color: #6ee7a8; font-weight: 600; font-size: 0.88rem; }
+	.sync-h { font-weight: 700; color: var(--strong); font-size: 0.9rem; margin-bottom: 0.2rem; }
+	.sync-list { list-style: none; margin: 0.3rem 0 0.6rem; padding: 0; display: grid; gap: 0.5rem; }
+	.sync-list li { font-size: 0.86rem; color: var(--strong); }
+	.sync-sec { display: inline-block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mint); border: 1px solid rgba(var(--gold-rgb), 0.35); border-radius: 999px; padding: 0.02rem 0.4rem; margin-right: 0.4rem; vertical-align: middle; }
+	.sync-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+	/* ---- AI requirements ---- */
+	.req-conf { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 10px; background: rgba(255, 255, 255, 0.04); }
+	.req-ready { font-size: 0.84rem; font-weight: 700; color: var(--strong); }
+	.req-pct { font-size: 0.95rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+	.req-conf[data-band='hi'] .req-pct { color: #6ee7a8; }
+	.req-conf[data-band='hi'] .req-ready { color: #6ee7a8; }
+	.req-conf[data-band='mid'] .req-pct { color: #fcd34d; }
+	.req-conf[data-band='lo'] .req-pct { color: #fca5a5; }
+	.req-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; margin: 0.6rem 0 0; }
+	.req-grid dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+	.req-grid dd { margin: 0.1rem 0 0; font-size: 0.85rem; color: var(--soft); font-weight: 600; }
+	.req-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0.7rem 0 0.3rem; }
+	.req-missing, .req-q { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.28rem; }
+	.req-missing li { font-size: 0.82rem; color: var(--soft); padding-left: 0.9rem; position: relative; }
+	.req-missing li::before { content: '○'; position: absolute; left: 0; color: var(--muted); }
+	.req-q li { font-size: 0.82rem; color: var(--soft); padding-left: 0.9rem; position: relative; }
+	.req-q li::before { content: '?'; position: absolute; left: 0; color: var(--mint); font-weight: 700; }
 </style>
