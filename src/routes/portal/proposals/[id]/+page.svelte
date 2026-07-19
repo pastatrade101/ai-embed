@@ -1,5 +1,8 @@
 <script>
-	import { enhance } from '$app/forms';
+	import { enhance, deserialize } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import QRCode from 'qrcode';
 	export let data;
 	export let form;
 
@@ -46,10 +49,115 @@
 
 	let copied = false;
 	async function copyLink() {
+		if (dirty) return;
 		try { await navigator.clipboard.writeText(data.hostedUrl); copied = true; setTimeout(() => (copied = false), 1800); } catch (_) {}
 	}
 	let generating = false, saving = false;
-	const meta = src?.meta ?? {};
+	$: meta = src?.meta ?? {};
+
+	// ---- Post a page action and get the decoded result (no re-seed) ----------
+	async function postAction(action, body) {
+		const r = await fetch(action, { method: 'POST', headers: { 'x-sveltekit-action': 'true' }, body });
+		return deserialize(await r.text());
+	}
+	let aiError = null;
+
+	// ---- AI Proposal Assistant — one-click per-section rewrites --------------
+	const ASSIST_GROUPS = [
+		{ label: 'Improve', actions: [['improve', 'Improve'], ['rewrite', 'Rewrite'], ['persuasive', 'Persuasive']] },
+		{ label: 'Length', actions: [['shorten', 'Shorten'], ['expand', 'Expand'], ['simplify', 'Simplify']] },
+		{ label: 'Tone', actions: [['professional', 'Professional'], ['friendly', 'Friendly'], ['luxury', 'Luxury'], ['formal', 'Formal']] }
+	];
+	let assisting = null;
+	async function assist(field, action) {
+		if (assisting || saving) return;
+		assisting = field + ':' + action; aiError = null;
+		try {
+			const fd = new FormData(); fd.set('field', field); fd.set('action', action); fd.set('text', { intro, summary, terms }[field] || '');
+			const res = await postAction('?/assist', fd);
+			if (res.type === 'success' && res.data?.text) {
+				if (field === 'intro') intro = res.data.text; else if (field === 'summary') summary = res.data.text; else if (field === 'terms') terms = res.data.text;
+				dirty = true;
+			} else aiError = res.data?.error || 'AI edit failed.';
+		} catch (_) { aiError = 'AI edit failed.'; }
+		assisting = null;
+	}
+
+	// ---- AI Quality Score (instant, client-side, live) ----------------------
+	const REC = {
+		'Strong introduction': 'Add or strengthen the introduction.',
+		'Recommended solution': 'Summarise what you recommend and why.',
+		'Pricing': 'Add at least one priced line item.',
+		'Expiry date': 'Set a “valid until” date to create urgency.',
+		'Terms': 'Add terms & conditions.',
+		'Call-to-action': 'End with a clear next step (e.g. “reply to accept”).',
+		'Upsell': 'Add a premium add-on — “Generate with AI” captures upsell ideas.',
+		'Customer email': 'Add the customer’s email so you can send it.'
+	};
+	const ctaRe = /\b(book|contact|reply|accept|call|whatsapp|proceed|reserve|order|sign|get in touch|let us know|reach out)\b/i;
+	$: checklist = [
+		{ label: 'Strong introduction', ok: (intro || '').trim().length > 40 },
+		{ label: 'Recommended solution', ok: (summary || '').trim().length > 30 },
+		{ label: 'Pricing', ok: items.some((li) => li.description && (Number(li.unit_price) || 0) > 0) },
+		{ label: 'Expiry date', ok: !!valid_until },
+		{ label: 'Terms', ok: (terms || '').trim().length > 20 },
+		{ label: 'Call-to-action', ok: !!meta.aiCta || ctaRe.test(`${summary} ${terms}`) },
+		{ label: 'Upsell', ok: !!(meta.aiUpsell && meta.aiUpsell.length) },
+		{ label: 'Customer email', ok: /.+@.+\..+/.test(customer_email || '') }
+	];
+	$: score = Math.round((checklist.filter((c) => c.ok).length / checklist.length) * 100);
+	$: stars = Math.max(1, Math.round(score / 20));
+	$: recs = checklist.filter((c) => !c.ok).map((c) => REC[c.label]).filter(Boolean);
+
+	// ---- AI Sales Coach — revenue ideas -------------------------------------
+	let revenue = null, loadingRevenue = false;
+	async function getRevenue() {
+		if (loadingRevenue) return; loadingRevenue = true; aiError = null;
+		try {
+			const res = await postAction('?/revenue', new FormData());
+			if (res.type === 'success') revenue = res.data?.revenue || null; else aiError = res.data?.error || 'Failed.';
+		} catch (_) { aiError = 'Failed.'; }
+		loadingRevenue = false;
+	}
+
+	// ---- AI Follow-up message ----------------------------------------------
+	let followupText = '', loadingFollowup = null, followupCopied = false;
+	async function getFollowup(channel) {
+		if (loadingFollowup) return; loadingFollowup = channel; aiError = null; followupText = '';
+		try {
+			const fd = new FormData(); fd.set('channel', channel);
+			const res = await postAction('?/followup', fd);
+			if (res.type === 'success') followupText = res.data?.text || ''; else aiError = res.data?.error || 'Failed.';
+		} catch (_) { aiError = 'Failed.'; }
+		loadingFollowup = null;
+	}
+	async function copyFollowup() { try { await navigator.clipboard.writeText(followupText); followupCopied = true; setTimeout(() => (followupCopied = false), 1600); } catch (_) {} }
+
+	// ---- Sharing: QR + print + WhatsApp -------------------------------------
+	let qrData = '', qrFailed = false, shareOpen = false;
+	onMount(async () => { try { qrData = await QRCode.toDataURL(data.hostedUrl, { width: 220, margin: 1 }); } catch (_) { qrFailed = true; } });
+
+	// Open the hosted page (print/PDF via the browser) — only when saved, so the
+	// customer never sees a stale version behind unsaved edits.
+	function openHosted(preview = false) {
+		if (dirty) return;
+		window.open(preview ? `${data.hostedUrl}?preview=1` : data.hostedUrl, '_blank', 'noopener');
+	}
+	// Open WhatsApp with the link and record the send, then refresh the timeline.
+	async function shareWhatsApp() {
+		if (dirty || !waUrl) return;
+		window.open(waUrl, '_blank', 'noopener');
+		// Clear the stale action result so `src` falls back to the freshly-loaded
+		// data.proposal (else a prior Save's form.proposal shadows the new status).
+		try { const fd = new FormData(); fd.set('channel', 'whatsapp'); await postAction('?/markSent', fd); form = null; await invalidateAll(); } catch (_) {}
+	}
+
+	// Collapse the QR panel the moment edits begin, so its live QR/Download can't
+	// share the pre-edit (saved) version while there are unsaved changes.
+	$: if (dirty) shareOpen = false;
+
+	$: cust = data.customer;
+	const intentLabel = { ready_to_book: 'Ready to buy', high: 'Very high', medium: 'Medium', low: 'Low' };
 </script>
 
 <div class="page-head">
@@ -78,6 +186,24 @@
 				<div><label>Phone / WhatsApp<input name="customer_phone" bind:value={customer_phone} placeholder="+255…" /></label></div>
 				<div><label>Document type<select name="doc_type" bind:value={docType}>{#each data.docTypes as d}<option value={d.key}>{d.label}</option>{/each}</select></label></div>
 			</div>
+
+			{#if cust}
+				<div class="intel">
+					<div class="intel-head">
+						<span class="intel-score s-{cust.cls}">{cust.score}</span>
+						<div><div class="intel-tier">{cust.tier}</div><div class="muted" style="font-size:.74rem">Lead intelligence · from the conversation</div></div>
+					</div>
+					<div class="intel-grid">
+						{#if cust.intent}<div><dt>Buying intent</dt><dd>{intentLabel[cust.intent] || cust.intent}</dd></div>{/if}
+						{#if cust.budget}<div><dt>Budget</dt><dd>{cust.currency || ''} {cust.budget}</dd></div>{/if}
+						{#if cust.interest}<div><dt>Interest</dt><dd>{cust.interest}</dd></div>{/if}
+						{#if cust.timing}<div><dt>Timing</dt><dd>{cust.timing}</dd></div>{/if}
+						{#if cust.country}<div><dt>From</dt><dd>{cust.country}</dd></div>{/if}
+						<div><dt>Conversations</dt><dd>{cust.convCount}</dd></div>
+						{#if cust.stage}<div><dt>Pipeline stage</dt><dd style="text-transform:capitalize">{cust.stage}</dd></div>{/if}
+					</div>
+				</div>
+			{/if}
 		</div>
 
 		<div class="card">
@@ -86,8 +212,32 @@
 				<button class="btn gold sm" form="ai-form" disabled={generating}>{generating ? 'Generating…' : '✦ Generate with AI'}</button>
 			</div>
 			<div><label>Title<input name="title" bind:value={title} placeholder={`${docLabel()} for …`} /></label></div>
-			<div><label>Introduction<textarea name="intro" bind:value={intro} rows="3" placeholder="A warm, professional opening for the customer…"></textarea></label></div>
-			<div><label>Summary / recommended solution<textarea name="summary" bind:value={summary} rows="3" placeholder="What you recommend and why it fits…"></textarea></label></div>
+			<div>
+				<label>Introduction<textarea name="intro" bind:value={intro} rows="3" placeholder="A warm, professional opening for the customer…"></textarea></label>
+				<div class="ai-tools">
+					<button type="button" class="ai-chip gold" disabled={!!assisting || saving} on:click={() => assist('intro', 'improve')}>{assisting === 'intro:improve' ? '…' : '✦ Improve'}</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('intro', 'rewrite')}>Rewrite</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('intro', 'shorten')}>Shorten</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('intro', 'expand')}>Expand</button>
+					<select class="ai-tone" disabled={!!assisting || saving} on:change={(e) => { if (e.target.value) { assist('intro', e.target.value); e.target.value = ''; } }}>
+						<option value="">Tone…</option><option value="professional">Professional</option><option value="friendly">Friendly</option><option value="luxury">Luxury</option><option value="formal">Formal</option><option value="persuasive">Persuasive</option>
+					</select>
+					{#if assisting?.startsWith('intro')}<span class="ai-busy">rewriting…</span>{/if}
+				</div>
+			</div>
+			<div>
+				<label>Summary / recommended solution<textarea name="summary" bind:value={summary} rows="3" placeholder="What you recommend and why it fits…"></textarea></label>
+				<div class="ai-tools">
+					<button type="button" class="ai-chip gold" disabled={!!assisting || saving} on:click={() => assist('summary', 'improve')}>{assisting === 'summary:improve' ? '…' : '✦ Improve'}</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('summary', 'persuasive')}>Persuasive</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('summary', 'cta')}>Add CTA</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('summary', 'shorten')}>Shorten</button>
+					<select class="ai-tone" disabled={!!assisting || saving} on:change={(e) => { if (e.target.value) { assist('summary', e.target.value); e.target.value = ''; } }}>
+						<option value="">Tone…</option><option value="professional">Professional</option><option value="friendly">Friendly</option><option value="luxury">Luxury</option><option value="formal">Formal</option><option value="simplify">Simplify</option>
+					</select>
+					{#if assisting?.startsWith('summary')}<span class="ai-busy">rewriting…</span>{/if}
+				</div>
+			</div>
 		</div>
 
 		<div class="card">
@@ -121,15 +271,43 @@
 		</div>
 
 		<div class="card">
-			<div><label>Terms &amp; conditions<textarea name="terms" bind:value={terms} rows="3"></textarea></label></div>
+			<div>
+				<label>Terms &amp; conditions<textarea name="terms" bind:value={terms} rows="3"></textarea></label>
+				<div class="ai-tools">
+					<button type="button" class="ai-chip gold" disabled={!!assisting || saving} on:click={() => assist('terms', 'improve')}>{assisting === 'terms:improve' ? '…' : '✦ Improve'}</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('terms', 'simplify')}>Simplify</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('terms', 'formal')}>Formal</button>
+					<button type="button" class="ai-chip" disabled={!!assisting || saving} on:click={() => assist('terms', 'shorten')}>Shorten</button>
+					{#if assisting?.startsWith('terms')}<span class="ai-busy">rewriting…</span>{/if}
+				</div>
+			</div>
 			<div><label>Internal notes (not shown to customer)<textarea name="notes" bind:value={notes} rows="2"></textarea></label></div>
 		</div>
 
-		<div class="save-bar"><button class="btn" disabled={saving}>{saving ? 'Saving…' : 'Save proposal'}</button>{#if dirty}<span class="unsaved">● Unsaved changes</span>{/if}</div>
+		<div class="save-bar"><button class="btn" disabled={saving || !!assisting} title={assisting ? 'Finishing an AI edit…' : ''}>{saving ? 'Saving…' : 'Save proposal'}</button>{#if dirty}<span class="unsaved">● Unsaved changes</span>{/if}</div>
 	</form>
 
-	<!-- Side: AI form, send, timeline ---------------------------------------->
+	<!-- Side: quality, AI, revenue, share, timeline -------------------------->
 	<div class="col-side">
+		<div class="card quality">
+			<div class="q-top">
+				<div>
+					<h2 class="section" style="margin:0">Proposal quality</h2>
+					<div class="stars" aria-label={`${stars} of 5`}>{#each Array(5) as _, i}<span class:on={i < stars}>★</span>{/each}</div>
+				</div>
+				<div class="q-score" data-band={score >= 80 ? 'hi' : score >= 50 ? 'mid' : 'lo'}>{score}<small>/100</small></div>
+			</div>
+			<div class="q-bar"><span style="width:{score}%" data-band={score >= 80 ? 'hi' : score >= 50 ? 'mid' : 'lo'}></span></div>
+			<ul class="q-list">
+				{#each checklist as c}
+					<li class:ok={c.ok}><span class="q-ic">{c.ok ? '✓' : '○'}</span>{c.label}</li>
+				{/each}
+			</ul>
+			{#if recs.length}
+				<div class="q-recs"><div class="q-recs-h">To strengthen it</div><ul>{#each recs.slice(0, 3) as r}<li>{r}</li>{/each}</ul></div>
+			{/if}
+		</div>
+
 		<form id="ai-form" method="POST" action="?/generate" use:enhance={() => { generating = true; return async ({ update }) => { await update({ reset: false }); generating = false; }; }} class="card ai-side">
 			<h2 class="section" style="margin:0">AI draft</h2>
 			<textarea name="instructions" rows="2" placeholder="Optional: e.g. 'emphasise the premium package', 'add a 10% early-bird note'"></textarea>
@@ -142,18 +320,64 @@
 			{/if}
 		</form>
 
+		<div class="card coach">
+			<div class="ai-head">
+				<div><h2 class="section" style="margin:0">Sales coach</h2><div class="muted" style="font-size:.8rem">Grow this deal with add-ons from your catalogue.</div></div>
+				<button class="btn ghost sm" type="button" on:click={getRevenue} disabled={loadingRevenue}>{loadingRevenue ? '…' : revenue ? 'Refresh' : '✦ Ideas'}</button>
+			</div>
+			{#if revenue}
+				{#if revenue.coach}<p class="coach-tip">💡 {revenue.coach}</p>{/if}
+				{#if revenue.upsells?.length}
+					<div class="rev-h">Upsell</div>
+					{#each revenue.upsells as u}
+						<div class="rev"><div class="rev-name">{u.name}</div>{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}<div class="rev-conf" title="Fit"><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div></div>
+					{/each}
+				{/if}
+				{#if revenue.cross_sells?.length}
+					<div class="rev-h">Cross-sell</div>
+					{#each revenue.cross_sells as u}
+						<div class="rev"><div class="rev-name">{u.name}</div>{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}<div class="rev-conf" title="Fit"><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div></div>
+					{/each}
+				{/if}
+				{#if !revenue.upsells?.length && !revenue.cross_sells?.length}<p class="muted" style="font-size:.82rem;margin:.4rem 0 0">No obvious add-ons for this one — it's well matched.</p>{/if}
+			{:else}
+				<p class="muted" style="font-size:.82rem;margin:.2rem 0 0">Get AI upsell &amp; cross-sell ideas tailored to this customer.</p>
+			{/if}
+		</div>
+
 		<div class="card send">
-			<h2 class="section" style="margin:0">Send</h2>
+			<h2 class="section" style="margin:0">Share</h2>
 			<p class="muted" style="font-size:.82rem;margin:.2rem 0 .6rem">Save first, then share. The customer views a branded page and can accept.</p>
 			<form method="POST" action="?/sendEmail" use:enhance>
 				<button class="btn" disabled={!data.customerHasEmail || dirty} title={dirty ? 'Save your changes first' : data.customerHasEmail ? '' : 'Add a customer email and save first'}>✉ Send by email</button>
 			</form>
-			{#if dirty}<div class="dirty-note">Save your changes before sending.</div>{/if}
+			{#if dirty}<div class="dirty-note">Save your changes before sharing.</div>{/if}
 			<div class="send-row">
-				{#if waUrl}<a class="btn ghost sm" href={waUrl} target="_blank" rel="noopener" on:click={() => fetch(`?/markSent`, { method: 'POST', body: new URLSearchParams({ channel: 'whatsapp' }) })}>WhatsApp</a>{/if}
-				<button class="btn ghost sm" type="button" on:click={copyLink}>{copied ? '✓ Copied' : 'Copy link'}</button>
+				{#if waUrl}<button class="btn ghost sm" type="button" on:click={shareWhatsApp} disabled={dirty} title={dirty ? 'Save your changes first' : ''}>WhatsApp</button>{/if}
+				<button class="btn ghost sm" type="button" on:click={copyLink} disabled={dirty} title={dirty ? 'Save your changes first' : ''}>{copied ? '✓ Copied' : 'Copy link'}</button>
+				<button class="btn ghost sm" type="button" on:click={() => openHosted(true)} disabled={dirty} title={dirty ? 'Save your changes first' : ''}>🖨 Print / PDF</button>
+				<button class="btn ghost sm" type="button" on:click={() => (shareOpen = !shareOpen)} disabled={dirty} aria-expanded={shareOpen} title={dirty ? 'Save your changes first' : ''}>▦ QR</button>
 			</div>
+			{#if shareOpen}
+				<div class="qr">
+					{#if qrData}<img src={qrData} alt="QR code to the proposal" /><a class="btn ghost sm" href={qrData} download={`${src.number}-qr.png`}>Download QR</a>{:else if qrFailed}<span class="muted" style="font-size:.8rem">QR unavailable — use the link above.</span>{:else}<span class="muted" style="font-size:.8rem">Generating…</span>{/if}
+				</div>
+			{/if}
 			<div class="hosted"><a href={data.hostedUrl} target="_blank" rel="noopener">{data.hostedUrl}</a></div>
+		</div>
+
+		<div class="card followup">
+			<div class="ai-head">
+				<div><h2 class="section" style="margin:0">AI follow-up</h2><div class="muted" style="font-size:.8rem">A ready-to-send nudge to move it forward.</div></div>
+			</div>
+			<div class="send-row">
+				<button class="btn ghost sm" type="button" on:click={() => getFollowup('email')} disabled={!!loadingFollowup}>{loadingFollowup === 'email' ? '…' : '✉ Email'}</button>
+				<button class="btn ghost sm" type="button" on:click={() => getFollowup('whatsapp')} disabled={!!loadingFollowup}>{loadingFollowup === 'whatsapp' ? '…' : 'WhatsApp'}</button>
+			</div>
+			{#if followupText}
+				<textarea class="followup-text" rows="5" bind:value={followupText}></textarea>
+				<button class="btn ghost sm" type="button" on:click={copyFollowup}>{followupCopied ? '✓ Copied' : 'Copy message'}</button>
+			{/if}
 		</div>
 
 		<div class="card timeline">
@@ -174,6 +398,8 @@
 		</div>
 	</div>
 </div>
+
+{#if aiError}<div class="ai-toast" role="alert">{aiError}<button type="button" on:click={() => (aiError = null)} aria-label="Dismiss">✕</button></div>{/if}
 
 <style>
 	.back { font-size: 0.82rem; color: var(--muted); text-decoration: none; }
@@ -203,12 +429,12 @@
 	.tr label input { width: 120px; margin: 0; }
 	.tr.grand { font-size: 1.15rem; font-weight: 800; color: var(--strong); border-top: 2px solid var(--line-2); margin-top: 0.4rem; padding-top: 0.6rem; }
 	.save-bar { position: sticky; bottom: 0; padding: 0.6rem 0; display: flex; align-items: center; }
-	.unsaved { margin-left: 0.8rem; font-size: 0.82rem; color: var(--gold); }
-	.dirty-note { font-size: 0.76rem; color: var(--gold); margin-top: 0.3rem; }
+	.unsaved { margin-left: 0.8rem; font-size: 0.82rem; color: var(--mint); }
+	.dirty-note { font-size: 0.76rem; color: var(--mint); margin-top: 0.3rem; }
 	.ai-side textarea { min-height: 52px; }
 	.sugg-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.5rem 0 0.3rem; }
 	.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-	.chip { font-size: 0.78rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: rgba(var(--gold-rgb), 0.14); color: var(--gold); }
+	.chip { font-size: 0.78rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: rgba(var(--gold-rgb), 0.14); color: var(--mint); }
 	.send-row { display: flex; gap: 0.5rem; }
 	.hosted { font-size: 0.72rem; word-break: break-all; margin-top: 0.4rem; }
 	.hosted a { color: var(--mint); }
@@ -217,4 +443,71 @@
 	.timeline .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); flex: none; }
 	.timeline .when { margin-left: auto; color: var(--muted); font-size: 0.75rem; }
 	.mark { display: flex; gap: 0.4rem; margin-top: 0.5rem; border-top: 1px solid var(--line-2); padding-top: 0.6rem; }
+
+	/* Customer intelligence panel */
+	.intel { border-top: 1px solid var(--line-2); padding-top: 0.8rem; margin-top: 0.1rem; }
+	.intel-head { display: flex; align-items: center; gap: 0.6rem; }
+	.intel-score { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 1.05rem; flex: none; background: rgba(var(--gold-rgb), 0.14); color: var(--mint); font-variant-numeric: tabular-nums; }
+	.intel-score.s-hot { background: rgba(22, 163, 74, 0.18); color: #6ee7a8; }
+	.intel-score.s-warm { background: rgba(245, 158, 11, 0.18); color: #fcd34d; }
+	.intel-score.s-cool { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+	.intel-score.s-cold { background: rgba(255, 255, 255, 0.08); color: var(--soft); }
+	.intel-tier { font-weight: 700; color: var(--strong); font-size: 0.92rem; }
+	.intel-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem 0.9rem; margin-top: 0.8rem; }
+	.intel-grid dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+	.intel-grid dd { margin: 0.1rem 0 0; font-size: 0.85rem; color: var(--soft); font-weight: 600; }
+
+	/* Per-section AI toolbars */
+	.ai-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; margin-top: 0.45rem; }
+	.ai-chip { font: inherit; font-size: 0.76rem; padding: 0.22rem 0.6rem; border-radius: 999px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.04); color: var(--soft); cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+	.ai-chip:hover:not(:disabled) { border-color: rgba(var(--gold-rgb), 0.5); color: var(--strong); }
+	.ai-chip:disabled { opacity: 0.5; cursor: default; }
+	.ai-chip.gold { border-color: rgba(var(--gold-rgb), 0.45); color: var(--mint); }
+	.ai-tone { width: auto; margin: 0; font-size: 0.76rem; padding: 0.22rem 0.4rem; border-radius: 8px; border: 1px solid var(--line-2); background: rgba(255, 255, 255, 0.04); color: var(--soft); cursor: pointer; }
+	.ai-busy { font-size: 0.74rem; color: var(--mint); }
+
+	/* Quality score */
+	.quality .q-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
+	.stars { font-size: 0.92rem; letter-spacing: 0.06em; color: var(--line-2); margin-top: 0.3rem; }
+	.stars .on { color: var(--mint); }
+	.q-score { font-size: 1.7rem; font-weight: 800; line-height: 1; color: var(--strong); font-variant-numeric: tabular-nums; }
+	.q-score small { font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+	.q-score[data-band='hi'] { color: #6ee7a8; }
+	.q-score[data-band='mid'] { color: #fcd34d; }
+	.q-score[data-band='lo'] { color: #fca5a5; }
+	.q-bar { height: 6px; border-radius: 999px; background: var(--line-2); overflow: hidden; }
+	.q-bar span { display: block; height: 100%; border-radius: 999px; transition: width 0.35s ease; background: var(--mint); }
+	.q-bar span[data-band='hi'] { background: #6ee7a8; }
+	.q-bar span[data-band='mid'] { background: #fcd34d; }
+	.q-bar span[data-band='lo'] { background: #fca5a5; }
+	.q-list { list-style: none; margin: 0.3rem 0 0; padding: 0; display: grid; gap: 0.32rem; }
+	.q-list li { display: flex; align-items: center; gap: 0.45rem; font-size: 0.82rem; color: var(--muted); }
+	.q-list li.ok { color: var(--soft); }
+	.q-ic { width: 1rem; text-align: center; color: var(--muted); }
+	.q-list li.ok .q-ic { color: #6ee7a8; }
+	.q-recs { border-top: 1px solid var(--line-2); margin-top: 0.6rem; padding-top: 0.55rem; }
+	.q-recs-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.3rem; }
+	.q-recs ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.25rem; }
+	.q-recs li { font-size: 0.8rem; color: var(--soft); padding-left: 0.8rem; position: relative; }
+	.q-recs li::before { content: '→'; position: absolute; left: 0; color: var(--mint); }
+
+	/* Sales coach / revenue */
+	.coach-tip { font-size: 0.84rem; color: var(--soft); background: rgba(var(--gold-rgb), 0.1); border-radius: 10px; padding: 0.55rem 0.65rem; margin: 0.2rem 0 0.5rem; }
+	.rev-h { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.5rem 0 0.3rem; }
+	.rev { display: grid; grid-template-columns: 1fr auto 46px; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-top: 1px solid var(--line-2); }
+	.rev:first-of-type { border-top: 0; }
+	.rev-name { font-size: 0.85rem; color: var(--strong); font-weight: 600; }
+	.rev-val { font-size: 0.82rem; font-weight: 700; color: #6ee7a8; font-variant-numeric: tabular-nums; }
+	.rev-conf { height: 5px; border-radius: 999px; background: var(--line-2); overflow: hidden; }
+	.rev-conf span { display: block; height: 100%; background: var(--mint); border-radius: 999px; }
+
+	/* Share: QR + follow-up */
+	.send-row { flex-wrap: wrap; }
+	.qr { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin-top: 0.6rem; padding: 0.7rem; border: 1px solid var(--line-2); border-radius: 12px; background: rgba(255, 255, 255, 0.03); }
+	.qr img { width: 150px; height: 150px; border-radius: 8px; background: #fff; padding: 6px; }
+	.followup-text { min-height: 90px; font-size: 0.84rem; }
+
+	/* AI error toast */
+	.ai-toast { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 0.6rem; max-width: 90vw; background: rgba(220, 38, 38, 0.95); color: #fff; font-size: 0.85rem; padding: 0.6rem 0.9rem; border-radius: 12px; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.6); }
+	.ai-toast button { background: transparent; border: 0; color: #fff; cursor: pointer; font-size: 0.9rem; padding: 0; }
 </style>

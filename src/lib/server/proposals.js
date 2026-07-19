@@ -126,6 +126,9 @@ export async function updateProposal(clientId, id, patch = {}) {
 	const set = { updated_at: new Date().toISOString() };
 	for (const k of ['title', 'doc_type', 'customer_name', 'customer_email', 'customer_phone', 'currency', 'intro', 'summary', 'terms', 'notes', 'valid_until'])
 		if (k in patch) set[k] = patch[k];
+	// meta is a jsonb blob (AI upsell/cross-sell/CTA, sync state…) — persist it on
+	// UPDATE too, not just INSERT, or generated intelligence is silently dropped.
+	if ('meta' in patch) set.meta = patch.meta;
 	if ('currency' in set && set.currency) set.currency = String(set.currency).toUpperCase().slice(0, 8);
 	if ('customer_email' in set && set.customer_email) set.customer_email = String(set.customer_email).trim().toLowerCase();
 	if ('line_items' in patch || 'discount' in patch || 'tax' in patch) {

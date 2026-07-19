@@ -3,7 +3,7 @@
 // prices, summary, terms, CTA, plus upsell/cross-sell suggestions). Metered and
 // gated via ai.js (AI.PROPOSAL). Industry-agnostic: tone + doc label come from the
 // Industry Registry. The operator always edits before sending.
-import { askJSON, AI, SONNET } from '$lib/server/ai.js';
+import { askJSON, askText, AI, SONNET } from '$lib/server/ai.js';
 import { supabase } from '$lib/server/supabase.js';
 import { serverIndustry } from '$lib/server/industries.js';
 import { proposalConfig } from '$lib/industries.js';
@@ -40,7 +40,7 @@ const DRAFT_SCHEMA = {
 };
 
 /** Compact catalogue (title · category · price · snippet) for grounding. */
-async function catalogueText(clientId) {
+export async function catalogueText(clientId) {
 	const { data } = await supabase
 		.from('knowledge_items')
 		.select('title, category, price_amount, price_currency, body')
@@ -103,4 +103,73 @@ Rules:
 		maxTokens: 1600,
 		messages: [{ role: 'user', content: user }]
 	});
+}
+
+// ---- One-click section rewrites (the AI Proposal Assistant) -----------------
+
+// Each action is an instruction applied to ONE section only. Truthful edits:
+// never invent prices/products/facts — the operator can always undo by editing.
+const ASSIST_ACTIONS = {
+	improve: 'Improve it: clearer, more polished and more compelling, same facts and roughly the same length.',
+	rewrite: 'Rewrite it cleanly and professionally.',
+	persuasive: 'Rewrite it to be more persuasive and benefits-led, without exaggerating or inventing anything.',
+	luxury: 'Rewrite it in a refined, premium, luxury tone.',
+	professional: 'Rewrite it in a crisp, professional business tone.',
+	friendly: 'Rewrite it in a warm, friendly, approachable tone.',
+	formal: 'Rewrite it in a formal, precise tone.',
+	simplify: 'Simplify the language so anyone can understand it — short sentences, plain words.',
+	expand: 'Expand it with a little more useful, factual detail, staying concise.',
+	shorten: 'Make it shorter and punchier without losing the key point.',
+	cta: 'Rewrite it to finish with a clear, confident call to action.',
+	closing: 'Strengthen the closing so it gently encourages the customer to proceed.'
+};
+export const ASSIST_ACTION_KEYS = Object.keys(ASSIST_ACTIONS);
+
+/** Rewrite one section (intro / summary / terms). Returns { text, error, quota }. */
+export async function assistField({ client, field, action, text, proposal = {} }) {
+	const ind = serverIndustry(client);
+	const cfg = proposalConfig(client);
+	const instruction = ASSIST_ACTIONS[action] || ASSIST_ACTIONS.improve;
+	const system = `You are an expert proposal editor for ${client.name || `a ${ind.businessType}`}. You are editing ONE section of a ${cfg.docLabel}. ${instruction}
+Rules: keep it truthful — never invent prices, products, dates or facts. No markdown, no headings, no surrounding quotes. Return ONLY the rewritten text for this section.`;
+	const items = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => li.description).filter(Boolean).join(', ');
+	const user = `Section: ${field}\nCustomer: ${proposal.customer_name || '—'}\nItems in the proposal: ${items || '—'}\n\nCurrent text:\n${(text || '').trim() || '(empty — write a strong, safe, generic one for this section)'}`;
+	const res = await askText({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, system, maxTokens: 900, messages: [{ role: 'user', content: user }] });
+	return { text: (res.text || '').trim(), error: res.error, quota: res.quota };
+}
+
+// ---- Revenue advisor: upsell / cross-sell with values + confidence ----------
+
+const REVENUE_SCHEMA = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['upsells', 'cross_sells', 'coach'],
+	properties: {
+		upsells: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'add_value', 'confidence'], properties: { name: { type: 'string' }, add_value: { type: 'number', description: 'Catalogue price of this add-on' }, confidence: { type: 'integer', description: '0–100 fit estimate' } } } },
+		cross_sells: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'add_value', 'confidence'], properties: { name: { type: 'string' }, add_value: { type: 'number' }, confidence: { type: 'integer' } } } },
+		coach: { type: 'string', description: 'One or two short coaching sentences for the operator' }
+	}
+};
+
+/** Upsell/cross-sell ideas (from the catalogue) + a coaching line. */
+export async function revenueIdeas({ client, proposal, lead = null }) {
+	const ind = serverIndustry(client);
+	const cat = await catalogueText(client.id);
+	const have = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => li.description).filter(Boolean).join(', ');
+	const system = `You are a revenue advisor for ${client.name || `a ${ind.businessType}`}. Suggest UPSELLS (premium upgrades) and CROSS-SELLS (complementary add-ons) for this proposal, chosen ONLY from the catalogue and NOT already on the proposal. add_value = the item's catalogue price (0 if unknown). confidence = 0–100 fit for this customer. Also give one short coaching tip. Empty arrays are fine if nothing fits. Return the structured object only.`;
+	const user = `CATALOGUE:\n${cat || '(none)'}\n\nAlready on the proposal: ${have || 'nothing yet'}\nCustomer: ${proposal.customer_name || '—'}; interest: ${lead?.interest || '—'}${lead?.details ? `; details: ${JSON.stringify(lead.details).slice(0, 400)}` : ''}`;
+	return askJSON({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, schema: REVENUE_SCHEMA, maxTokens: 900, system, messages: [{ role: 'user', content: user }] });
+}
+
+// ---- Follow-up message generator (email / WhatsApp) -------------------------
+
+/** A short follow-up message to nudge the customer. Returns { text, error, quota }. */
+export async function followupMessage({ client, proposal, channel = 'email', reason = '' }) {
+	const cfg = proposalConfig(client);
+	const isWa = channel === 'whatsapp';
+	const system = `Write a short, friendly follow-up ${isWa ? 'WhatsApp message' : 'email'} from ${client.name || 'the team'} to a customer about their ${cfg.docLabel.toLowerCase()} (${proposal.number}). Encourage them to review and accept it. ${isWa ? 'Keep it to 2–3 short, casual lines. No subject line.' : 'Keep it brief and professional. Put the subject on the first line as "Subject: …".'} ${reason ? `Context for you (do not quote verbatim): ${reason}.` : ''} Never invent facts. Return only the message.`;
+	const money = Number(proposal.total) ? `${proposal.currency} ${proposal.total}` : '';
+	const user = `Customer: ${proposal.customer_name || 'there'}. ${money ? `Total: ${money}. ` : ''}Status: ${proposal.status}.${proposal.valid_until ? ` Valid until: ${proposal.valid_until}.` : ''}`;
+	const res = await askText({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, system, maxTokens: 500, messages: [{ role: 'user', content: user }] });
+	return { text: (res.text || '').trim(), error: res.error, quota: res.quota };
 }

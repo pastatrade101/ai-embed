@@ -1,13 +1,43 @@
 import { error, fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { getProposal, updateProposal, proposalTimeline, markSent, setStatus } from '$lib/server/proposals.js';
-import { generateProposalDraft } from '$lib/server/proposal-ai.js';
+import { generateProposalDraft, assistField, revenueIdeas, followupMessage } from '$lib/server/proposal-ai.js';
+import { scoreLead, leadTier, leadStage, extractLead } from '$lib/server/dashboard.js';
 import { sendEmail, brandedEmail, escapeHtml } from '$lib/server/email.js';
 import { proposalConfig } from '$lib/industries.js';
 
 async function loadClient(id) {
 	const { data } = await supabase.from('clients').select('*').eq('id', id).maybeSingle();
 	return data ?? null;
+}
+
+async function loadLead(clientId, leadId) {
+	if (!leadId) return null;
+	const { data } = await supabase.from('leads').select('*').eq('id', leadId).eq('client_id', clientId).maybeSingle();
+	return data ?? null;
+}
+
+// CRM intelligence for the Customer panel — derived from the linked lead.
+function customerIntel(lead) {
+	if (!lead) return null;
+	const detail = extractLead(lead, []);
+	const score = scoreLead(lead);
+	const tier = leadTier(score);
+	const d = lead.details || {};
+	return {
+		score,
+		tier: tier.label,
+		cls: tier.cls,
+		stage: leadStage(lead, detail, score),
+		intent: d.intent || null,
+		budget: d.budget ?? detail.budget ?? null,
+		currency: d.currency || null,
+		interest: lead.interest || null,
+		country: d.country || detail.country || null,
+		timing: d.travel || detail.dates || detail.month || null,
+		convCount: Array.isArray(lead.transcript) ? lead.transcript.length : 0,
+		createdAt: lead.created_at
+	};
 }
 
 export async function load({ params, locals, url }) {
@@ -18,13 +48,15 @@ export async function load({ params, locals, url }) {
 	const client = await loadClient(clientId);
 	const cfg = proposalConfig(client);
 	const events = await proposalTimeline(proposal.id, clientId);
+	const lead = await loadLead(clientId, proposal.lead_id);
 	return {
 		proposal,
 		events,
 		docTypes: cfg.docTypes,
 		hostedUrl: `${url.origin}/p/${proposal.public_token}`,
 		operatorEmail: client?.contact_email || null,
-		customerHasEmail: !!proposal.customer_email
+		customerHasEmail: !!proposal.customer_email,
+		customer: customerIntel(lead)
 	};
 }
 
@@ -89,6 +121,50 @@ export const actions = {
 			meta
 		});
 		return { section: 'ai', ok: 'Draft generated — review and edit below.', proposal: updated, aiGenerated: true };
+	},
+
+	// One-click AI rewrite of a single section — returns the new text (the client
+	// applies it to the field; nothing is persisted until the operator saves).
+	assist: async ({ params, locals, request }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'assist', error: 'Proposal not found.' });
+		const form = await request.formData();
+		const field = String(form.get('field') ?? '');
+		const action = String(form.get('action') ?? 'improve');
+		const text = String(form.get('text') ?? '');
+		if (!['intro', 'summary', 'terms'].includes(field)) return fail(400, { section: 'assist', error: 'Invalid section.' });
+		const res = await assistField({ client, field, action, text, proposal });
+		if (res.error === 'quota') return fail(403, { section: 'assist', error: 'You’ve used your AI actions for this month — edit by hand or upgrade.' });
+		if (res.error || !res.text) return fail(502, { section: 'assist', error: 'The AI edit failed — please try again.' });
+		return { section: 'assist', field, text: res.text };
+	},
+
+	// AI revenue advisor — upsell/cross-sell ideas + a coaching line.
+	revenue: async ({ params, locals }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'revenue', error: 'Proposal not found.' });
+		const lead = await loadLead(clientId, proposal.lead_id);
+		const res = await revenueIdeas({ client, proposal, lead });
+		if (res.error === 'quota') return fail(403, { section: 'revenue', error: 'You’ve used your AI actions for this month.' });
+		if (res.error || !res.data) return fail(502, { section: 'revenue', error: 'Could not get revenue ideas — try again.' });
+		return { section: 'revenue', revenue: res.data };
+	},
+
+	// AI follow-up message (email / WhatsApp) for the operator to copy & send.
+	followup: async ({ params, locals, request }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'followup', error: 'Proposal not found.' });
+		const channel = String((await request.formData()).get('channel') ?? 'email');
+		const res = await followupMessage({ client, proposal, channel });
+		if (res.error === 'quota') return fail(403, { section: 'followup', error: 'You’ve used your AI actions for this month.' });
+		if (res.error || !res.text) return fail(502, { section: 'followup', error: 'Could not draft the follow-up — try again.' });
+		return { section: 'followup', channel, text: res.text };
 	},
 
 	// Send the branded proposal email (reply-to the operator, not Makutano).
