@@ -99,6 +99,9 @@ export const actions = {
 		const res = await respondByToken(params.token, decision);
 		if (res.expired) return { ok: false, error: 'This proposal has expired — please contact the business for an updated one.' };
 		if (!res.ok) return { ok: false, error: 'Could not record your response.' };
-		return { ok: true, decision, already: res.already ?? false };
+		// If it was already decided, reflect the RECORDED status, not the submitted
+		// decision (a crafted POST must not flip a shown "accepted" to "declined").
+		const decided = res.already && res.proposal ? (res.proposal.status === 'declined' ? 'decline' : 'accept') : decision;
+		return { ok: true, decision: decided, already: res.already ?? false };
 	}
 };

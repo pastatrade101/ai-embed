@@ -127,10 +127,10 @@
 		{#if (smart.customerSummary || []).length}
 			<section class="card reveal">
 				<div class="card-eyebrow">Prepared for you</div>
-				<div class="summary-grid">
+				<dl class="summary-grid">
 					{#if p.customerName}<div class="sum-cell"><dt>Prepared for</dt><dd>{p.customerName}</dd></div>{/if}
 					{#each smart.customerSummary as f}<div class="sum-cell"><dt>{f.label}</dt><dd>{f.value}</dd></div>{/each}
-				</div>
+				</dl>
 			</section>
 		{/if}
 
@@ -288,7 +288,7 @@
 <style>
 	:global(body) { margin: 0; background: #f4f3f0; }
 	.wrap {
-		--bg: #f4f3f0; --card: #ffffff; --text: #17211d; --muted: #63706a; --faint: #8a958f;
+		--bg: #f4f3f0; --card: #ffffff; --text: #17211d; --muted: #63706a; --faint: #6b7770;
 		--line: #eae7e0; --soft: #f4f2ee; --shadow: 0 1px 2px rgba(20, 40, 33, 0.04), 0 18px 40px -28px rgba(20, 40, 33, 0.22);
 		min-height: 100vh; padding: clamp(16px, 4vw, 40px) 14px calc(96px + env(safe-area-inset-bottom));
 		font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -325,7 +325,7 @@
 	.hero-meta b { color: var(--text); font-weight: 600; }
 	.dot-sep { color: var(--faint); }
 
-	.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+	.summary-grid { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-top: 1px solid var(--line); border-left: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
 	.sum-cell { background: var(--card); padding: 0.85rem 0.95rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 	.sum-cell dt { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); margin-bottom: 0.28rem; }
 	.sum-cell dd { margin: 0; font-size: 0.98rem; font-weight: 650; color: var(--text); line-height: 1.3; }
