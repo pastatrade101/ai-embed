@@ -20,7 +20,7 @@
 		currency = p.currency ?? 'USD'; valid_until = p.valid_until ?? '';
 		intro = p.intro ?? ''; summary = p.summary ?? ''; terms = p.terms ?? ''; notes = p.notes ?? '';
 		discount = Number(p.discount) || 0; tax = Number(p.tax) || 0;
-		items = (Array.isArray(p.line_items) ? p.line_items : []).map((li) => ({ description: li.description ?? '', detail: li.detail ?? '', qty: Number(li.qty) || 1, unit_price: Number(li.unit_price) || 0 }));
+		items = (Array.isArray(p.line_items) ? p.line_items : []).map((li) => ({ description: li.description ?? '', detail: li.detail ?? '', qty: li.qty == null || li.qty === '' ? 1 : Number(li.qty) || 0, unit_price: Number(li.unit_price) || 0 }));
 		if (!items.length) items = [{ description: '', detail: '', qty: 1, unit_price: 0 }];
 		dirty = false;
 	}
