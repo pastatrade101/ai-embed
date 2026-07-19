@@ -36,7 +36,28 @@ export async function load({ params, url, request }) {
 	}
 
 	const brand = client.brand_color || '#0f6e56';
+	// Curated, customer-safe intelligence from meta (NO confidence/source/notes leak).
+	const meta = proposal.meta || {};
+	const req = meta.requirements || {};
+	const customerSummary = Array.isArray(req.summary)
+		? req.summary.filter((f) => f && f.label && f.value).slice(0, 6).map((f) => ({ label: String(f.label), value: String(f.value) }))
+		: [];
+	const addOns = [...(Array.isArray(meta.aiUpsell) ? meta.aiUpsell : []), ...(Array.isArray(meta.aiCrossSell) ? meta.aiCrossSell : [])]
+		.map((x) => String(x || '').trim())
+		.filter(Boolean)
+		.slice(0, 5);
+	const matchScore = typeof req.confidence === 'number' ? req.confidence : null;
+	const aiGenerated = !!(meta.creationMode || meta.aiCta || addOns.length || customerSummary.length);
 	return {
+		smart: {
+			aiGenerated,
+			customerSummary,
+			addOns,
+			// Only surface a match score to the customer when it's genuinely strong.
+			matchScore: matchScore != null && matchScore >= 70 ? matchScore : null,
+			cta: typeof meta.aiCta === 'string' ? meta.aiCta : null,
+			thankYou: typeof meta.aiThankYou === 'string' ? meta.aiThankYou : null
+		},
 		proposal: {
 			id: proposal.id,
 			number: proposal.number,
