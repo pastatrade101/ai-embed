@@ -139,7 +139,8 @@ export const actions = {
 	setStatus: async ({ params, locals, request }) => {
 		const status = String((await request.formData()).get('status') ?? '');
 		if (!['accepted', 'declined', 'converted', 'sent'].includes(status)) return fail(400, { section: 'status', error: 'Invalid status.' });
-		await setStatus(locals.user.client_id, params.id, status);
+		const { ok, error } = await setStatus(locals.user.client_id, params.id, status);
+		if (!ok) return fail(400, { section: 'status', error: error?.message || 'Could not update.' });
 		return { section: 'status', ok: 'Updated.' };
 	}
 };

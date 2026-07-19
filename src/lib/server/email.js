@@ -19,23 +19,28 @@ function fromAddress() {
  */
 export async function sendEmail({ to, subject, text, html, replyTo }) {
 	if (!env.RESEND_API_KEY || !to) return { ok: false, skipped: true };
-	const res = await fetch(RESEND_URL, {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			authorization: `Bearer ${env.RESEND_API_KEY}`,
-			'user-agent': 'Makutano/1.0'
-		},
-		body: JSON.stringify({
-			from: fromAddress(),
-			to: [to],
-			subject,
-			text,
-			...(html ? { html } : {}),
-			...(replyTo ? { reply_to: replyTo } : {})
-		})
-	});
-	return { ok: res.ok, status: res.status };
+	// Non-fatal: a network error must never bubble out and 500 the caller.
+	try {
+		const res = await fetch(RESEND_URL, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${env.RESEND_API_KEY}`,
+				'user-agent': 'Makutano/1.0'
+			},
+			body: JSON.stringify({
+				from: fromAddress(),
+				to: [to],
+				subject,
+				text,
+				...(html ? { html } : {}),
+				...(replyTo ? { reply_to: replyTo } : {})
+			})
+		});
+		return { ok: res.ok, status: res.status };
+	} catch (e) {
+		return { ok: false, error: true, message: String(e?.message ?? e) };
+	}
 }
 
 /** Escape user-supplied values before interpolating into email HTML. */
@@ -101,20 +106,23 @@ export async function sendLeadEmail({ to, businessName, lead }) {
 		`Interest: ${lead.interest ?? '—'}`
 	];
 
-	const res = await fetch(RESEND_URL, {
-		method: 'POST',
-		headers: {
-			'content-type': 'application/json',
-			authorization: `Bearer ${env.RESEND_API_KEY}`,
-			'user-agent': 'Makutano/1.0'
-		},
-		body: JSON.stringify({
-			from: fromAddress(),
-			to: [to],
-			subject: `New lead — ${businessName}`,
-			text: lines.join('\n')
-		})
-	});
-
-	return { ok: res.ok, status: res.status };
+	try {
+		const res = await fetch(RESEND_URL, {
+			method: 'POST',
+			headers: {
+				'content-type': 'application/json',
+				authorization: `Bearer ${env.RESEND_API_KEY}`,
+				'user-agent': 'Makutano/1.0'
+			},
+			body: JSON.stringify({
+				from: fromAddress(),
+				to: [to],
+				subject: `New lead — ${businessName}`,
+				text: lines.join('\n')
+			})
+		});
+		return { ok: res.ok, status: res.status };
+	} catch (e) {
+		return { ok: false, error: true };
+	}
 }

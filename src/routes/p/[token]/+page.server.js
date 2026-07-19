@@ -16,17 +16,22 @@ async function brandingFor(clientId) {
 }
 
 const isExpired = (p) => p.valid_until && !['accepted', 'declined'].includes(p.status) && new Date(p.valid_until) < new Date(new Date().toDateString());
+// Link-unfurl / crawler user-agents — their GETs must not count as customer views.
+const BOT = /bot|crawl|spider|slurp|facebookexternalhit|whatsapp|telegram|slack|discord|linkedin|twitter|preview|scan|monitor|curl|wget|python-requests|headless|embed|fetch/i;
 
-export async function load({ params, url }) {
+export async function load({ params, url, request }) {
 	const { proposal, tableMissing } = await getProposalByToken(params.token);
 	if (tableMissing || !proposal) throw error(404, 'This proposal is not available.');
 
 	const client = await brandingFor(proposal.client_id);
-	if (!client) throw error(404, 'This proposal is not available.');
+	if (!client || client.is_active === false) throw error(404, 'This proposal is not available.');
 
 	const cfg = proposalConfig(client);
-	// Count the view (best-effort) unless the operator is previewing (?preview=1).
-	if (url.searchParams.get('preview') !== '1') {
+	// Count a view only for a genuine human open — not the operator's preview,
+	// link-unfurl bots, or a reload after the customer already accepted/declined.
+	const ua = request.headers.get('user-agent') || '';
+	const terminal = ['accepted', 'declined', 'converted'].includes(proposal.status);
+	if (url.searchParams.get('preview') !== '1' && !terminal && !BOT.test(ua)) {
 		await recordView(proposal, { ref: url.searchParams.get('ref') || null });
 	}
 
@@ -71,6 +76,7 @@ export const actions = {
 		const decision = String(form.get('decision') ?? '');
 		if (!['accept', 'decline'].includes(decision)) return { ok: false, error: 'Invalid choice.' };
 		const res = await respondByToken(params.token, decision);
+		if (res.expired) return { ok: false, error: 'This proposal has expired — please contact the business for an updated one.' };
 		if (!res.ok) return { ok: false, error: 'Could not record your response.' };
 		return { ok: true, decision, already: res.already ?? false };
 	}

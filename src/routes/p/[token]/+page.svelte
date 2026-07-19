@@ -29,8 +29,6 @@
 		accepted: { t: 'Accepted', c: '#16a34a' }, declined: { t: 'Declined', c: '#dc2626' }, expired: { t: 'Expired', c: '#a1a1aa' }, converted: { t: 'Won', c: '#16a34a' }
 	};
 	$: st = STATUS[p.status] || STATUS.sent;
-	$: decided = ['accepted', 'declined'].includes(p.status) || (form?.ok && ['accept', 'decline'].includes(form?.decision));
-	$: outcome = form?.ok ? (form.decision === 'accept' ? 'accepted' : 'declined') : p.status;
 	$: waLink = biz.whatsapp ? `https://wa.me/${String(biz.whatsapp).replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hi, about ${p.docLabel} ${p.number}`)}` : null;
 </script>
 
@@ -88,10 +86,15 @@
 			{#if p.terms}<div class="block terms"><div class="block-h">Terms</div><p>{p.terms}</p></div>{/if}
 
 			<!-- Accept / Decline ------------------------------------------------->
-			{#if decided}
-				<div class="decided {outcome}">
-					{#if outcome === 'accepted'}✓ You accepted this {p.docLabel.toLowerCase()}. {biz.name} will be in touch.{:else}This {p.docLabel.toLowerCase()} was declined.{/if}
+			{#if form && form.ok === false && form.error}<div class="decided expired">{form.error}</div>{/if}
+			{#if form?.ok && ['accept', 'decline'].includes(form?.decision)}
+				<div class="decided {form.decision === 'accept' ? 'accepted' : 'declined'}">
+					{#if form.decision === 'accept'}✓ You accepted this {p.docLabel.toLowerCase()}. {biz.name} will be in touch.{:else}This {p.docLabel.toLowerCase()} was declined.{/if}
 				</div>
+			{:else if p.status === 'accepted' || p.status === 'converted'}
+				<div class="decided accepted">✓ This {p.docLabel.toLowerCase()} has been accepted. {biz.name} will be in touch.</div>
+			{:else if p.status === 'declined'}
+				<div class="decided declined">This {p.docLabel.toLowerCase()} was declined.</div>
 			{:else if p.status === 'expired'}
 				<div class="decided expired">This {p.docLabel.toLowerCase()} has expired. Please contact {biz.name} for an updated one.</div>
 			{:else}

@@ -34,7 +34,9 @@ const n2 = (v) => {
 export function computeTotals(lineItems = [], discount = 0, tax = 0) {
 	const items = (Array.isArray(lineItems) ? lineItems : [])
 		.map((li) => {
-			const qty = n2(li.qty ?? 1) || 1;
+			// Blank/missing qty defaults to 1; an explicit 0 stays 0 — matching the
+			// editor's live math so the operator's total equals the customer's.
+			const qty = li.qty == null || li.qty === '' ? 1 : n2(li.qty);
 			const unit = n2(li.unit_price);
 			const amount = li.amount != null && li.amount !== '' ? n2(li.amount) : qty * unit;
 			return {
@@ -196,6 +198,9 @@ export async function markSent(clientId, id, channel) {
 /** Record a public view (hosted page). Advances draft/sent → viewed, counts views. */
 export async function recordView(proposal, meta = {}) {
 	if (!proposal) return;
+	// Don't count views of a decided proposal (also prevents a recount on the
+	// load re-run right after the customer accepts/declines).
+	if (['accepted', 'declined', 'converted'].includes(proposal.status)) return;
 	const patch = { viewed_count: (proposal.viewed_count ?? 0) + 1, updated_at: new Date().toISOString() };
 	if (!proposal.first_viewed_at) patch.first_viewed_at = new Date().toISOString();
 	if (['draft', 'sent'].includes(proposal.status)) patch.status = 'viewed';
@@ -211,7 +216,12 @@ export async function recordView(proposal, meta = {}) {
 export async function respondByToken(tok, decision) {
 	const { proposal } = await getProposalByToken(tok);
 	if (!proposal) return { ok: false, notFound: true };
-	if (['accepted', 'declined'].includes(proposal.status)) return { ok: true, proposal, already: true };
+	// Only an open proposal can be responded to — accepted/declined/converted stay put.
+	if (!['draft', 'sent', 'viewed'].includes(proposal.status)) return { ok: true, proposal, already: true };
+	// An expired proposal can't be accepted.
+	if (decision === 'accept' && proposal.valid_until && new Date(proposal.valid_until) < new Date(new Date().toDateString())) {
+		return { ok: false, expired: true, proposal };
+	}
 	const now = new Date().toISOString();
 	const status = decision === 'accept' ? 'accepted' : 'declined';
 	const patch = { status, updated_at: now };

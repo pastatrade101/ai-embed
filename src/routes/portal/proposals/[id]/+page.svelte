@@ -4,11 +4,15 @@
 	export let form;
 
 	// Re-seed the editor whenever the proposal changes (load, save, AI generate).
+	// But NEVER clobber unsaved edits from a passive re-run (e.g. after Send/Mark,
+	// which bump updated_at without returning a proposal) — only re-seed when the
+	// server explicitly returned one (save/generate) or the editor is clean.
 	let seededAt = null;
+	let dirty = false;
 	let title = '', docType = 'quotation', customer_name = '', customer_email = '', customer_phone = '', currency = 'USD', valid_until = '', intro = '', summary = '', terms = '', notes = '', discount = 0, tax = 0;
 	let items = [];
 	$: src = form?.proposal ?? data.proposal;
-	$: if (src && src.updated_at !== seededAt) seedFrom(src);
+	$: if (src && src.updated_at !== seededAt && (form?.proposal || !dirty)) seedFrom(src);
 	function seedFrom(p) {
 		seededAt = p.updated_at;
 		title = p.title ?? ''; docType = p.doc_type ?? 'quotation';
@@ -18,6 +22,7 @@
 		discount = Number(p.discount) || 0; tax = Number(p.tax) || 0;
 		items = (Array.isArray(p.line_items) ? p.line_items : []).map((li) => ({ description: li.description ?? '', detail: li.detail ?? '', qty: Number(li.qty) || 1, unit_price: Number(li.unit_price) || 0 }));
 		if (!items.length) items = [{ description: '', detail: '', qty: 1, unit_price: 0 }];
+		dirty = false;
 	}
 
 	const money = (n) => {
@@ -27,13 +32,13 @@
 			return `${currency || 'USD'} ${(Number(n) || 0).toFixed(2)}`;
 		}
 	};
-	$: lineAmount = (li) => (Number(li.qty) || 0) * (Number(li.unit_price) || 0);
+	$: lineAmount = (li) => (li.qty == null || li.qty === '' ? 1 : Number(li.qty) || 0) * (Number(li.unit_price) || 0);
 	$: subtotal = items.reduce((a, li) => a + lineAmount(li), 0);
 	$: total = Math.max(0, subtotal - (Number(discount) || 0) + (Number(tax) || 0));
 	$: itemsJson = JSON.stringify(items.filter((li) => li.description || li.unit_price));
 
-	const addItem = () => (items = [...items, { description: '', detail: '', qty: 1, unit_price: 0 }]);
-	const removeItem = (i) => (items = items.filter((_, x) => x !== i));
+	const addItem = () => { items = [...items, { description: '', detail: '', qty: 1, unit_price: 0 }]; dirty = true; };
+	const removeItem = (i) => { items = items.filter((_, x) => x !== i); dirty = true; };
 
 	$: statusMeta = { draft: 'Draft', sent: 'Sent', viewed: 'Viewed', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', converted: 'Won' };
 	$: waUrl = customer_phone ? `https://wa.me/${customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Here's your ${docLabel().toLowerCase()}: ${data.hostedUrl}`)}` : null;
@@ -60,7 +65,7 @@
 
 <div class="grid">
 	<!-- Editor ---------------------------------------------------------------->
-	<form method="POST" action="?/save" use:enhance={() => { saving = true; return async ({ update }) => { await update({ reset: false }); saving = false; }; }} class="col-main">
+	<form method="POST" action="?/save" on:input={() => (dirty = true)} use:enhance={() => { saving = true; return async ({ update }) => { await update({ reset: false }); saving = false; }; }} class="col-main">
 		<input type="hidden" name="line_items" value={itemsJson} />
 
 		<div class="card grid-fields">
@@ -94,7 +99,7 @@
 							<input placeholder="Item or service" bind:value={li.description} />
 							<input class="li-detail" placeholder="What's included (optional)" bind:value={li.detail} />
 						</div>
-						<input class="li-qty" type="number" min="1" bind:value={li.qty} title="Qty" />
+						<input class="li-qty" type="number" min="0" bind:value={li.qty} title="Qty" />
 						<input class="li-price" type="number" min="0" step="0.01" bind:value={li.unit_price} title="Unit price" />
 						<div class="li-amt">{money(lineAmount(li))}</div>
 						<button type="button" class="li-x" on:click={() => removeItem(i)} title="Remove" aria-label="Remove">✕</button>
@@ -120,7 +125,7 @@
 			<div><label>Internal notes (not shown to customer)<textarea name="notes" bind:value={notes} rows="2"></textarea></label></div>
 		</div>
 
-		<div class="save-bar"><button class="btn" disabled={saving}>{saving ? 'Saving…' : 'Save proposal'}</button></div>
+		<div class="save-bar"><button class="btn" disabled={saving}>{saving ? 'Saving…' : 'Save proposal'}</button>{#if dirty}<span class="unsaved">● Unsaved changes</span>{/if}</div>
 	</form>
 
 	<!-- Side: AI form, send, timeline ---------------------------------------->
@@ -141,8 +146,9 @@
 			<h2 class="section" style="margin:0">Send</h2>
 			<p class="muted" style="font-size:.82rem;margin:.2rem 0 .6rem">Save first, then share. The customer views a branded page and can accept.</p>
 			<form method="POST" action="?/sendEmail" use:enhance>
-				<button class="btn" disabled={!data.customerHasEmail} title={data.customerHasEmail ? '' : 'Add a customer email and save first'}>✉ Send by email</button>
+				<button class="btn" disabled={!data.customerHasEmail || dirty} title={dirty ? 'Save your changes first' : data.customerHasEmail ? '' : 'Add a customer email and save first'}>✉ Send by email</button>
 			</form>
+			{#if dirty}<div class="dirty-note">Save your changes before sending.</div>{/if}
 			<div class="send-row">
 				{#if waUrl}<a class="btn ghost sm" href={waUrl} target="_blank" rel="noopener" on:click={() => fetch(`?/markSent`, { method: 'POST', body: new URLSearchParams({ channel: 'whatsapp' }) })}>WhatsApp</a>{/if}
 				<button class="btn ghost sm" type="button" on:click={copyLink}>{copied ? '✓ Copied' : 'Copy link'}</button>
@@ -196,7 +202,9 @@
 	.tr label { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
 	.tr label input { width: 120px; margin: 0; }
 	.tr.grand { font-size: 1.15rem; font-weight: 800; color: var(--strong); border-top: 2px solid var(--line-2); margin-top: 0.4rem; padding-top: 0.6rem; }
-	.save-bar { position: sticky; bottom: 0; padding: 0.6rem 0; }
+	.save-bar { position: sticky; bottom: 0; padding: 0.6rem 0; display: flex; align-items: center; }
+	.unsaved { margin-left: 0.8rem; font-size: 0.82rem; color: var(--gold); }
+	.dirty-note { font-size: 0.76rem; color: var(--gold); margin-top: 0.3rem; }
 	.ai-side textarea { min-height: 52px; }
 	.sugg-h { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0.5rem 0 0.3rem; }
 	.chips { display: flex; flex-wrap: wrap; gap: 0.35rem; }
