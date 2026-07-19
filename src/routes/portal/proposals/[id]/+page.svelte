@@ -189,6 +189,21 @@
 		if (u.terms != null) terms = u.terms;
 		dirty = true; syncResult = null;
 	}
+	// Accept one section's change individually (Review Before Apply).
+	function applyOne(section) {
+		const t = syncResult?.updated_fields?.[section];
+		if (t == null) return;
+		if (section === 'intro') intro = t;
+		else if (section === 'summary') summary = t;
+		else if (section === 'terms') terms = t;
+		dirty = true;
+	}
+
+	// Explainability labels (source attribution + trust grounding).
+	const srcLabel = { conversation: 'Conversation', crm: 'CRM', knowledge_base: 'Knowledge', catalogue: 'Catalogue', pricing: 'Pricing', policy: 'Policy', previous_proposal: 'Prev. proposal', inferred: 'Inferred' };
+	const groundLabels = [{ k: 'conversation', t: 'Conversation' }, { k: 'crm', t: 'CRM' }, { k: 'knowledge_base', t: 'Knowledge base' }, { k: 'pricing', t: 'Pricing' }];
+	const riskLabel = { very_low: 'Very low', low: 'Low', medium: 'Medium' };
+	const band = (n) => (n >= 80 ? 'hi' : n >= 50 ? 'mid' : 'lo');
 
 	// Customer journey stages (derived — no new data model).
 	$: jstages = [
@@ -241,16 +256,27 @@
 				{#if syncResult.in_sync}
 					<div class="sync-ok">✓ The proposal is up to date with the conversation.</div>
 				{:else}
-					<div class="sync-h">Suggested updates from the conversation{#if syncResult.estimated_diff} · est. {syncResult.estimated_diff > 0 ? '+' : ''}{money(syncResult.estimated_diff)}{/if}</div>
+					<div class="sync-h">Review before apply · suggested updates from the conversation{#if syncResult.estimated_diff} · est. {syncResult.estimated_diff > 0 ? '+' : ''}{money(syncResult.estimated_diff)}{/if}</div>
 					{#if syncResult.note}<p class="muted" style="font-size:.82rem;margin:.1rem 0 .55rem">{syncResult.note}</p>{/if}
 					<ul class="sync-list">
-						{#each syncResult.changes as c}<li><span class="sync-sec">{c.section}</span><b>{c.label}</b><div class="muted" style="font-size:.82rem">{c.detail}</div></li>{/each}
+						{#each syncResult.changes as c}
+							<li>
+								<div class="sync-row">
+									<span class="sync-sec">{c.section}</span><b>{c.label}</b>
+									{#if ['intro', 'summary', 'terms'].includes(c.section) && syncResult.updated_fields?.[c.section] != null}
+										<button type="button" class="btn ghost xs" on:click={() => applyOne(c.section)}>Apply</button>
+									{/if}
+								</div>
+								{#if c.from || c.to}<div class="sync-delta">{#if c.from}<span class="from">{c.from}</span> <span class="arr">→</span> {/if}<span class="to">{c.to}</span></div>{/if}
+								{#if c.reason}<div class="muted" style="font-size:.82rem">{c.reason}</div>{/if}
+							</li>
+						{/each}
 					</ul>
 					<div class="sync-actions">
 						{#if syncResult.updated_fields && (syncResult.updated_fields.intro || syncResult.updated_fields.summary || syncResult.updated_fields.terms)}
-							<button type="button" class="btn sm" on:click={applySync}>Apply text updates</button>
+							<button type="button" class="btn sm" on:click={applySync}>Accept all text</button>
 						{/if}
-						<button type="button" class="btn ghost sm" on:click={() => (syncResult = null)}>Dismiss</button>
+						<button type="button" class="btn ghost sm" on:click={() => (syncResult = null)}>Reject</button>
 						<span class="muted" style="font-size:.76rem">Pricing changes are advisory — adjust line items yourself.</span>
 					</div>
 				{/if}
@@ -404,12 +430,27 @@
 				<button class="btn ghost sm" type="button" on:click={getRequirements} disabled={loadingReq}>{loadingReq ? '…' : requirements ? 'Refresh' : '✦ Analyse'}</button>
 			</div>
 			{#if requirements}
-				<div class="req-conf" data-band={requirements.confidence >= 70 ? 'hi' : requirements.confidence >= 40 ? 'mid' : 'lo'}>
+				<div class="req-conf" data-band={band(requirements.confidence)}>
 					<span class="req-ready">{requirements.ready ? '✓ Ready to generate' : 'Needs more info'}</span>
 					<span class="req-pct">{requirements.confidence}%</span>
 				</div>
+				<div class="req-meta">
+					{#if requirements.completeness}<span>Completeness <b>{requirements.completeness.have}/{requirements.completeness.total}</b></span>{/if}
+					{#if requirements.intent && requirements.intent !== 'unknown'}<span>Intent <b class="cap">{requirements.intent}</b></span>{/if}
+					{#if requirements.estimated_value}<span>Est. value <b>{money(requirements.estimated_value)}</b></span>{/if}
+				</div>
+				{#if requirements.grounding}
+					<div class="trust">
+						<div class="trust-h">Grounded in real business data{#if requirements.hallucination_risk} · <span class="risk risk-{requirements.hallucination_risk}">hallucination risk {riskLabel[requirements.hallucination_risk] || requirements.hallucination_risk}</span>{/if}</div>
+						<div class="trust-chips">
+							{#each groundLabels as gl}<span class="tchip" class:on={requirements.grounding[gl.k]}>{requirements.grounding[gl.k] ? '✓' : '○'} {gl.t}</span>{/each}
+						</div>
+					</div>
+				{/if}
 				{#if requirements.summary?.length}
-					<dl class="req-grid">{#each requirements.summary as f}<div><dt>{f.label}</dt><dd>{f.value}</dd></div>{/each}</dl>
+					<dl class="req-grid">{#each requirements.summary as f}
+						<div><dt>{f.label}{#if f.source}<span class="src">{srcLabel[f.source] || f.source}</span>{/if}</dt><dd>{f.value}{#if f.confidence != null}<span class="fconf" data-band={band(f.confidence)}>{f.confidence}%</span>{/if}</dd></div>
+					{/each}</dl>
 				{/if}
 				{#if requirements.missing?.length}
 					<div class="req-h">Missing</div>
@@ -446,13 +487,21 @@
 				{#if revenue.upsells?.length}
 					<div class="rev-h">Upsell</div>
 					{#each revenue.upsells as u}
-						<div class="rev"><div class="rev-name">{u.name}</div>{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}<div class="rev-conf" title="Fit"><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div></div>
+						<div class="rev">
+							<div class="rev-main"><div class="rev-name">{u.name}</div>{#if u.reason}<div class="rev-why">{u.reason}</div>{/if}</div>
+							{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}
+							<div class="rev-conf" title={`Fit ${u.confidence || 0}%`}><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div>
+						</div>
 					{/each}
 				{/if}
 				{#if revenue.cross_sells?.length}
 					<div class="rev-h">Cross-sell</div>
 					{#each revenue.cross_sells as u}
-						<div class="rev"><div class="rev-name">{u.name}</div>{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}<div class="rev-conf" title="Fit"><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div></div>
+						<div class="rev">
+							<div class="rev-main"><div class="rev-name">{u.name}</div>{#if u.reason}<div class="rev-why">{u.reason}</div>{/if}</div>
+							{#if u.add_value}<div class="rev-val">+{money(u.add_value)}</div>{/if}
+							<div class="rev-conf" title={`Fit ${u.confidence || 0}%`}><span style="width:{Math.max(0, Math.min(100, u.confidence || 0))}%"></span></div>
+						</div>
 					{/each}
 				{/if}
 				{#if !revenue.upsells?.length && !revenue.cross_sells?.length}<p class="muted" style="font-size:.82rem;margin:.4rem 0 0">No obvious add-ons for this one — it's well matched.</p>{/if}
@@ -670,4 +719,29 @@
 	.req-missing li::before { content: '○'; position: absolute; left: 0; color: var(--muted); }
 	.req-q li { font-size: 0.82rem; color: var(--soft); padding-left: 0.9rem; position: relative; }
 	.req-q li::before { content: '?'; position: absolute; left: 0; color: var(--mint); font-weight: 700; }
+
+	/* ---- Explainable AI (Section 19) ---- */
+	.req-meta { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; margin-top: 0.5rem; font-size: 0.78rem; color: var(--muted); }
+	.req-meta b { color: var(--soft); }
+	.req-meta .cap { text-transform: capitalize; }
+	.trust { margin-top: 0.7rem; border-top: 1px solid var(--line-2); padding-top: 0.6rem; }
+	.trust-h { font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
+	.risk { color: #6ee7a8; font-weight: 600; }
+	.risk-medium { color: #fcd34d; }
+	.trust-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+	.tchip { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted); }
+	.tchip.on { border-color: rgba(22, 163, 74, 0.4); color: #6ee7a8; background: rgba(22, 163, 74, 0.08); }
+	.src { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--mint); border: 1px solid rgba(var(--gold-rgb), 0.3); border-radius: 999px; padding: 0.02rem 0.35rem; margin-left: 0.4rem; vertical-align: middle; }
+	.fconf { font-size: 0.68rem; font-weight: 700; margin-left: 0.4rem; font-variant-numeric: tabular-nums; }
+	.fconf[data-band='hi'] { color: #6ee7a8; }
+	.fconf[data-band='mid'] { color: #fcd34d; }
+	.fconf[data-band='lo'] { color: #fca5a5; }
+	.sync-row { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+	.sync-delta { font-size: 0.82rem; margin: 0.15rem 0; }
+	.sync-delta .from { color: var(--muted); text-decoration: line-through; }
+	.sync-delta .to { color: #6ee7a8; font-weight: 600; }
+	.sync-delta .arr { color: var(--muted); }
+	.btn.xs { padding: 0.12rem 0.5rem; font-size: 0.72rem; margin-left: auto; }
+	.rev-main { display: flex; flex-direction: column; min-width: 0; }
+	.rev-why { font-size: 0.74rem; color: var(--muted); line-height: 1.35; margin-top: 0.1rem; }
 </style>

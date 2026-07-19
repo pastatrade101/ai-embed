@@ -141,13 +141,24 @@ Rules: keep it truthful — never invent prices, products, dates or facts. No ma
 
 // ---- Revenue advisor: upsell / cross-sell with values + confidence ----------
 
+const REV_ITEM = {
+	type: 'object',
+	additionalProperties: false,
+	required: ['name', 'add_value', 'confidence', 'reason'],
+	properties: {
+		name: { type: 'string' },
+		add_value: { type: 'number', description: 'Catalogue price of this add-on' },
+		confidence: { type: 'integer', description: '0–100 fit estimate' },
+		reason: { type: 'string', description: 'One short sentence: WHY this fits THIS customer, grounded in what they said or their profile (e.g. "Customer asked for premium accommodation")' }
+	}
+};
 const REVENUE_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
 	required: ['upsells', 'cross_sells', 'coach'],
 	properties: {
-		upsells: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'add_value', 'confidence'], properties: { name: { type: 'string' }, add_value: { type: 'number', description: 'Catalogue price of this add-on' }, confidence: { type: 'integer', description: '0–100 fit estimate' } } } },
-		cross_sells: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'add_value', 'confidence'], properties: { name: { type: 'string' }, add_value: { type: 'number' }, confidence: { type: 'integer' } } } },
+		upsells: { type: 'array', items: REV_ITEM },
+		cross_sells: { type: 'array', items: REV_ITEM },
 		coach: { type: 'string', description: 'One or two short coaching sentences for the operator' }
 	}
 };
@@ -157,7 +168,7 @@ export async function revenueIdeas({ client, proposal, lead = null }) {
 	const ind = serverIndustry(client);
 	const cat = await catalogueText(client.id);
 	const have = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => li.description).filter(Boolean).join(', ');
-	const system = `You are a revenue advisor for ${client.name || `a ${ind.businessType}`}. Suggest UPSELLS (premium upgrades) and CROSS-SELLS (complementary add-ons) for this proposal, chosen ONLY from the catalogue and NOT already on the proposal. add_value = the item's catalogue price (0 if unknown). confidence = 0–100 fit for this customer. Also give one short coaching tip. Empty arrays are fine if nothing fits. Return the structured object only.`;
+	const system = `You are a revenue advisor for ${client.name || `a ${ind.businessType}`}. Suggest UPSELLS (premium upgrades) and CROSS-SELLS (complementary add-ons) for this proposal, chosen ONLY from the catalogue and NOT already on the proposal. add_value = the item's catalogue price (0 if unknown). confidence = 0–100 fit for this customer. For EACH suggestion give a short, specific reason grounded in what the customer said or their profile — never a generic reason. Also give one short coaching tip. Empty arrays are fine if nothing fits. Return the structured object only.`;
 	const user = `CATALOGUE:\n${cat || '(none)'}\n\nAlready on the proposal: ${have || 'nothing yet'}\nCustomer: ${proposal.customer_name || '—'}; interest: ${lead?.interest || '—'}${lead?.details ? `; details: ${JSON.stringify(lead.details).slice(0, 400)}` : ''}`;
 	return askJSON({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, schema: REVENUE_SCHEMA, maxTokens: 900, system, messages: [{ role: 'user', content: user }] });
 }
@@ -204,23 +215,57 @@ async function priorProposalsText(clientId, leadId, excludeId) {
 	}
 }
 
+const SOURCE_ENUM = ['conversation', 'crm', 'knowledge_base', 'catalogue', 'pricing', 'policy', 'previous_proposal', 'inferred'];
+
 const REQUIREMENTS_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['customer', 'summary', 'confidence', 'ready', 'missing', 'questions'],
+	required: ['customer', 'intent', 'summary', 'confidence', 'ready', 'missing', 'questions', 'estimated_value'],
 	properties: {
 		customer: { type: 'string', description: 'The customer name, or "the customer" if unknown' },
+		intent: { type: 'string', enum: ['high', 'medium', 'low', 'unknown'], description: 'The customer’s buying intent, judged from the conversation' },
 		summary: {
 			type: 'array',
-			description: 'Structured requirements you can infer, as label/value pairs. Choose the fields that matter for THIS kind of business (e.g. Budget, Timeline, Participants, Interest, Location…). Only include fields you actually know from the conversation or details.',
-			items: { type: 'object', additionalProperties: false, required: ['label', 'value'], properties: { label: { type: 'string' }, value: { type: 'string' } } }
+			description: 'Structured requirements you can infer, as fields. Choose the ones that matter for THIS kind of business (e.g. Budget, Timeline, Participants, Interest, Location…). Only include fields you actually know from the conversation or details.',
+			items: {
+				type: 'object',
+				additionalProperties: false,
+				required: ['label', 'value', 'confidence', 'source'],
+				properties: {
+					label: { type: 'string' },
+					value: { type: 'string' },
+					confidence: { type: 'integer', description: '0–100 confidence in THIS field’s value' },
+					source: { type: 'string', enum: SOURCE_ENUM, description: 'Where this value came from — "conversation" if the customer said it, "crm" if from saved details, "inferred" if you deduced it' }
+				}
+			}
 		},
 		confidence: { type: 'integer', description: '0–100: how confident you are that there is enough to draft a strong, accurate proposal' },
 		ready: { type: 'boolean', description: 'true if there is enough information to generate a high-quality proposal now' },
 		missing: { type: 'array', items: { type: 'string' }, description: 'Important information still missing (short labels)' },
-		questions: { type: 'array', items: { type: 'string' }, description: 'Suggested follow-up questions to ask the customer to fill the gaps (empty if ready)' }
+		questions: { type: 'array', items: { type: 'string' }, description: 'Suggested follow-up questions to ask the customer to fill the gaps (empty if ready)' },
+		estimated_value: { type: 'number', description: 'Best estimate of the proposal value in the customer’s currency, grounded in the catalogue and stated budget; 0 if you cannot estimate' }
 	}
 };
+
+/** Deterministic grounding signals — computed from real data, never asked of the
+ *  AI (so it can't fake its own trustworthiness). Powers the Trust panel. */
+async function groundingFor(clientId, lead) {
+	let kb = 0;
+	let priced = 0;
+	try {
+		const { data } = await supabase.from('knowledge_items').select('price_amount').eq('client_id', clientId).limit(300);
+		kb = (data ?? []).length;
+		priced = (data ?? []).filter((i) => i.price_amount != null && i.price_amount !== '').length;
+	} catch {
+		/* fail open — report no catalogue grounding */
+	}
+	return {
+		conversation: !!(lead && Array.isArray(lead.transcript) && lead.transcript.length),
+		crm: !!(lead && lead.details && Object.keys(lead.details).length),
+		knowledge_base: kb > 0,
+		pricing: priced > 0
+	};
+}
 
 /**
  * Extract structured requirements + readiness from the conversation, before/while
@@ -233,19 +278,32 @@ export async function extractRequirements({ client, lead }) {
 	const details = lead?.details ? JSON.stringify(lead.details).slice(0, 900) : '';
 	const prior = await priorProposalsText(client.id, lead?.id, null);
 
-	const system = `You are a sales requirements analyst for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Read the customer conversation and known details and extract the requirements needed to prepare a ${cfg.docLabel}. Decide which fields matter for this kind of business and fill only the ones you actually know. Be strictly truthful — never invent budgets, dates, numbers or preferences. Judge whether there is enough to draft a strong proposal, list what's missing, and suggest concise follow-up questions for the gaps. Return the structured object only.`;
-	const user = `CUSTOMER: ${lead?.name || '—'}\nStated interest: ${lead?.interest || '—'}\n${details ? `Known details (extracted): ${details}\n` : ''}${prior ? `Previous proposals for this customer:\n${prior}\n` : ''}${convo ? `\nCONVERSATION:\n${convo}` : '\n(no conversation transcript — infer from interest/details only, and lower confidence)'}`;
+	const cat = await catalogueText(client.id);
+	const system = `You are a sales requirements analyst for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Read the customer conversation and known details and extract the requirements needed to prepare a ${cfg.docLabel}. Decide which fields matter for this kind of business and fill only the ones you actually know. For EACH field give a confidence (0–100) and its source — "conversation" if the customer said it, "crm" if it came from saved details, "inferred" if you deduced it. Be strictly truthful — never invent budgets, dates, numbers or preferences. Estimate the proposal value using the catalogue and stated budget. Judge overall readiness, list what's missing, and suggest concise follow-up questions for the gaps. Return the structured object only.`;
+	const user = `CUSTOMER: ${lead?.name || '—'}\nStated interest: ${lead?.interest || '—'}\n${details ? `Known details (extracted): ${details}\n` : ''}${prior ? `Previous proposals for this customer:\n${prior}\n` : ''}${cat ? `\nCATALOGUE (for value estimate):\n${cat.slice(0, 1500)}\n` : ''}${convo ? `\nCONVERSATION:\n${convo}` : '\n(no conversation transcript — infer from interest/details only, and lower confidence)'}`;
 
-	return askJSON({
+	const res = await askJSON({
 		clientId: client.id,
 		planKey: client.plan,
 		feature: AI.PROPOSAL,
 		model: SONNET,
 		schema: REQUIREMENTS_SCHEMA,
-		maxTokens: 1100,
+		maxTokens: 1300,
 		system,
 		messages: [{ role: 'user', content: user }]
 	});
+
+	// Augment with deterministic grounding/trust signals (not AI-authored).
+	if (res.data) {
+		const g = await groundingFor(client.id, lead);
+		const have = Array.isArray(res.data.summary) ? res.data.summary.length : 0;
+		const miss = Array.isArray(res.data.missing) ? res.data.missing.length : 0;
+		res.data.grounding = g;
+		res.data.sources_used = Object.entries(g).filter(([, v]) => v).map(([k]) => k);
+		res.data.hallucination_risk = g.knowledge_base && g.pricing ? 'very_low' : g.knowledge_base || g.conversation ? 'low' : 'medium';
+		res.data.completeness = { have, total: have + miss };
+	}
+	return res;
 }
 
 const SYNC_SCHEMA = {
@@ -260,11 +318,13 @@ const SYNC_SCHEMA = {
 			items: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['section', 'label', 'detail'],
+				required: ['section', 'label', 'from', 'to', 'reason'],
 				properties: {
 					section: { type: 'string', enum: ['intro', 'summary', 'terms', 'pricing', 'scope', 'customer'] },
 					label: { type: 'string', description: 'Short change title, e.g. "Budget increased", "Removed Zanzibar"' },
-					detail: { type: 'string', description: 'What changed and why, grounded in the conversation' }
+					from: { type: 'string', description: 'The current value/state in one short phrase (e.g. "USD 8,000", "Luxury lodge"). "" if new.' },
+					to: { type: 'string', description: 'The new value/state in one short phrase (e.g. "USD 10,000", "Ultra-luxury lodge").' },
+					reason: { type: 'string', description: 'Why it changed, grounded in the conversation (e.g. "Customer increased budget during the chat")' }
 				}
 			}
 		},
