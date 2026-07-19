@@ -4,6 +4,7 @@ import { getProposal, updateProposal, proposalTimeline, markSent, setStatus } fr
 import { generateProposalDraft, assistField, revenueIdeas, followupMessage, extractRequirements, syncFromConversation } from '$lib/server/proposal-ai.js';
 import { scoreLead, leadTier, leadStage, extractLead } from '$lib/server/dashboard.js';
 import { sendEmail, brandedEmail, escapeHtml } from '$lib/server/email.js';
+import { getProposalSettings } from '$lib/server/proposal-settings.js';
 import { proposalConfig } from '$lib/industries.js';
 
 async function loadClient(id) {
@@ -58,7 +59,8 @@ export async function load({ params, locals, url }) {
 		customerHasEmail: !!proposal.customer_email,
 		customer: customerIntel(lead),
 		conversation: conversationPanel(lead),
-		requirements: proposal.meta?.requirements || null
+		requirements: proposal.meta?.requirements || null,
+		settings: getProposalSettings(client)
 	};
 }
 

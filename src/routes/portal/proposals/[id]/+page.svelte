@@ -157,6 +157,10 @@
 	$: if (dirty) shareOpen = false;
 
 	$: cust = data.customer;
+	// Proposal AI settings — gate the explainability / recommendation UI. Fail open
+	// (undefined => shown) so the editor works before the settings migration runs.
+	$: pset = data.settings || {};
+	const on = (v) => v !== false;
 	const intentLabel = { ready_to_book: 'Ready to buy', high: 'Very high', medium: 'Medium', low: 'Low' };
 
 	// ---- AI Sales Memory: linked conversation, requirements, live sync ------
@@ -242,7 +246,7 @@
 			<div class="memory-actions">
 				<button type="button" class="btn ghost sm" on:click={() => (convOpen = !convOpen)} aria-expanded={convOpen}>{convOpen ? 'Hide' : 'View'} conversation</button>
 				<a class="btn ghost sm" href="/portal/leads" title="Open the lead in Leads">Open lead ↗</a>
-				<button type="button" class="btn gold sm" on:click={checkSync} disabled={loadingSync}>{loadingSync ? 'Checking…' : '↻ Re-check conversation'}</button>
+				{#if on(pset.enableLiveSync)}<button type="button" class="btn gold sm" on:click={checkSync} disabled={loadingSync}>{loadingSync ? 'Checking…' : '↻ Re-check conversation'}</button>{/if}
 			</div>
 		</div>
 		{#if convOpen}
@@ -267,7 +271,7 @@
 										<button type="button" class="btn ghost xs" on:click={() => applyOne(c.section)}>Apply</button>
 									{/if}
 								</div>
-								{#if c.from || c.to}<div class="sync-delta">{#if c.from}<span class="from">{c.from}</span> <span class="arr">→</span> {/if}<span class="to">{c.to}</span></div>{/if}
+								{#if (c.from || c.to) && on(pset.showChangeSummary)}<div class="sync-delta">{#if c.from}<span class="from">{c.from}</span> <span class="arr">→</span> {/if}<span class="to">{c.to}</span></div>{/if}
 								{#if c.reason}<div class="muted" style="font-size:.82rem">{c.reason}</div>{/if}
 							</li>
 						{/each}
@@ -405,6 +409,7 @@
 
 	<!-- Side: quality, AI, revenue, share, timeline -------------------------->
 	<div class="col-side">
+		{#if on(pset.showQualityScore)}
 		<div class="card quality">
 			<div class="q-top">
 				<div>
@@ -423,6 +428,7 @@
 				<div class="q-recs"><div class="q-recs-h">To strengthen it</div><ul>{#each recs.slice(0, 3) as r}<li>{r}</li>{/each}</ul></div>
 			{/if}
 		</div>
+		{/if}
 
 		<div class="card reqs">
 			<div class="ai-head">
@@ -439,7 +445,7 @@
 					{#if requirements.intent && requirements.intent !== 'unknown'}<span>Intent <b class="cap">{requirements.intent}</b></span>{/if}
 					{#if requirements.estimated_value}<span>Est. value <b>{money(requirements.estimated_value)}</b></span>{/if}
 				</div>
-				{#if requirements.grounding}
+				{#if requirements.grounding && on(pset.showReasoning)}
 					<div class="trust">
 						<div class="trust-h">Grounded in real business data{#if requirements.hallucination_risk} · <span class="risk risk-{requirements.hallucination_risk}">hallucination risk {riskLabel[requirements.hallucination_risk] || requirements.hallucination_risk}</span>{/if}</div>
 						<div class="trust-chips">
@@ -449,7 +455,7 @@
 				{/if}
 				{#if requirements.summary?.length}
 					<dl class="req-grid">{#each requirements.summary as f}
-						<div><dt>{f.label}{#if f.source}<span class="src">{srcLabel[f.source] || f.source}</span>{/if}</dt><dd>{f.value}{#if f.confidence != null}<span class="fconf" data-band={band(f.confidence)}>{f.confidence}%</span>{/if}</dd></div>
+						<div><dt>{f.label}{#if f.source && on(pset.showSources)}<span class="src">{srcLabel[f.source] || f.source}</span>{/if}</dt><dd>{f.value}{#if f.confidence != null && on(pset.showConfidence)}<span class="fconf" data-band={band(f.confidence)}>{f.confidence}%</span>{/if}</dd></div>
 					{/each}</dl>
 				{/if}
 				{#if requirements.missing?.length}
@@ -477,6 +483,7 @@
 			{/if}
 		</form>
 
+		{#if on(pset.enableUpsell) || on(pset.enableCrossSell)}
 		<div class="card coach">
 			<div class="ai-head">
 				<div><h2 class="section" style="margin:0">Sales coach</h2><div class="muted" style="font-size:.8rem">Grow this deal with add-ons from your catalogue.</div></div>
@@ -509,6 +516,7 @@
 				<p class="muted" style="font-size:.82rem;margin:.2rem 0 0">Get AI upsell &amp; cross-sell ideas tailored to this customer.</p>
 			{/if}
 		</div>
+		{/if}
 
 		<div class="card send">
 			<h2 class="section" style="margin:0">Share</h2>
@@ -531,6 +539,7 @@
 			<div class="hosted"><a href={data.hostedUrl} target="_blank" rel="noopener">{data.hostedUrl}</a></div>
 		</div>
 
+		{#if on(pset.enableFollowup)}
 		<div class="card followup">
 			<div class="ai-head">
 				<div><h2 class="section" style="margin:0">AI follow-up</h2><div class="muted" style="font-size:.8rem">A ready-to-send nudge to move it forward.</div></div>
@@ -544,23 +553,28 @@
 				<button class="btn ghost sm" type="button" on:click={copyFollowup}>{followupCopied ? '✓ Copied' : 'Copy message'}</button>
 			{/if}
 		</div>
+		{/if}
 
+		{#if on(pset.enableTimeline) || !['accepted', 'declined'].includes(src.status)}
 		<div class="card timeline">
-			<h2 class="section" style="margin:0">Timeline</h2>
-			{#if data.events.length}
-				<ul>
-					{#each [...data.events].reverse() as e}
-						<li><span class="dot"></span><b>{e.type.replace(/_/g, ' ')}</b><span class="when">{new Date(e.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></li>
-					{/each}
-				</ul>
-			{:else}<p class="muted" style="font-size:.82rem">No activity yet.</p>{/if}
+			{#if on(pset.enableTimeline)}
+				<h2 class="section" style="margin:0">Timeline</h2>
+				{#if data.events.length}
+					<ul>
+						{#each [...data.events].reverse() as e}
+							<li><span class="dot"></span><b>{e.type.replace(/_/g, ' ')}</b><span class="when">{new Date(e.at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></li>
+						{/each}
+					</ul>
+				{:else}<p class="muted" style="font-size:.82rem">No activity yet.</p>{/if}
+			{/if}
 			{#if !['accepted', 'declined'].includes(src.status)}
-				<form method="POST" action="?/setStatus" use:enhance class="mark">
+				<form method="POST" action="?/setStatus" use:enhance class="mark" class:solo={!on(pset.enableTimeline)}>
 					<button class="btn ghost sm" name="status" value="accepted">Mark accepted</button>
 					<button class="btn ghost sm" name="status" value="declined">Mark declined</button>
 				</form>
 			{/if}
 		</div>
+		{/if}
 	</div>
 </div>
 
@@ -608,6 +622,7 @@
 	.timeline .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); flex: none; }
 	.timeline .when { margin-left: auto; color: var(--muted); font-size: 0.75rem; }
 	.mark { display: flex; gap: 0.4rem; margin-top: 0.5rem; border-top: 1px solid var(--line-2); padding-top: 0.6rem; }
+	.mark.solo { margin-top: 0; border-top: 0; padding-top: 0; }
 
 	/* Customer intelligence panel */
 	.intel { border-top: 1px solid var(--line-2); padding-top: 0.8rem; margin-top: 0.1rem; }

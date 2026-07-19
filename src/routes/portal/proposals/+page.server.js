@@ -2,6 +2,7 @@ import { redirect, fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { listProposals, createProposal, updateProposal, deleteProposal } from '$lib/server/proposals.js';
 import { generateProposalDraft } from '$lib/server/proposal-ai.js';
+import { getProposalSettings } from '$lib/server/proposal-settings.js';
 import { scoreLead, leadTier } from '$lib/server/dashboard.js';
 import { proposalConfig } from '$lib/industries.js';
 
@@ -33,9 +34,10 @@ async function pickerLeads(clientId) {
 export async function load({ locals }) {
 	const clientId = locals.user.client_id;
 	const { proposals, tableMissing } = await listProposals(clientId);
-	const { data: client } = await supabase.from('clients').select('industry').eq('id', clientId).maybeSingle();
+	const { data: client } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
 	const leads = tableMissing ? [] : await pickerLeads(clientId);
-	return { proposals, tableMissing: !!tableMissing, leads, docLabel: proposalConfig(client).docLabel };
+	const settings = getProposalSettings(client);
+	return { proposals, tableMissing: !!tableMissing, leads, docLabel: proposalConfig(client).docLabel, defaultMode: settings.defaultMode };
 }
 
 export const actions = {
@@ -49,7 +51,9 @@ export const actions = {
 		const leadId = String(form.get('lead_id') ?? '') || null;
 		const { data: client } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
 		const cfg = proposalConfig(client);
+		const settings = getProposalSettings(client);
 		let seed = { currency: client?.default_currency || 'USD', doc_type: cfg.defaultDocType, terms: cfg.defaultTerms };
+		if (settings.defaultExpiryDays > 0) seed.valid_until = new Date(Date.now() + settings.defaultExpiryDays * 86400000).toISOString().slice(0, 10);
 		let lead = null;
 		if (leadId && mode !== 'blank') {
 			const { data } = await supabase.from('leads').select('*').eq('id', leadId).eq('client_id', clientId).maybeSingle();

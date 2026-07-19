@@ -18,6 +18,13 @@
 		draft: 'Draft', sent: 'Sent', viewed: 'Viewed', accepted: 'Accepted', declined: 'Declined', expired: 'Expired', converted: 'Won'
 	};
 
+	// Move a node to <body> so position:fixed escapes any transformed/blurred
+	// ancestor (the portal's frosted panels trap fixed positioning, clipping the modal).
+	function portal(node) {
+		document.body.appendChild(node);
+		return { destroy() { node.parentNode && node.parentNode.removeChild(node); } };
+	}
+
 	// ---- Creation modes (conversation / CRM / blank) ----
 	let creating = false;
 	let mode = 'conversation';
@@ -26,12 +33,16 @@
 	$: canSubmit = mode === 'blank' || !!pickedLead;
 	function openCreate() {
 		creating = true;
-		mode = leads.length ? 'conversation' : 'blank';
-		pickedLead = null;
+		const pref = data.defaultMode || 'conversation';
+		mode = pref !== 'blank' && !leads.length ? 'blank' : pref;
+		// Pre-select the top conversation so "Generate" is ready immediately —
+		// otherwise the button sits disabled with no hint and feels stuck.
+		pickedLead = mode !== 'blank' && leads.length ? leads[0].id : null;
 	}
 	function pickMode(m) {
 		mode = m;
 		if (m === 'blank') pickedLead = null;
+		else if (!pickedLead && leads.length) pickedLead = leads[0].id;
 	}
 </script>
 
@@ -41,7 +52,10 @@
 		<div class="sub">Create, send and track quotes and proposals — and turn conversations into deals.</div>
 	</div>
 	{#if !data.tableMissing}
-		<button class="btn" type="button" on:click={openCreate}>+ New proposal</button>
+		<div class="head-actions">
+			<a class="btn ghost" href="/portal/proposals/settings" title="Proposal AI settings">⚙ AI settings</a>
+			<button class="btn" type="button" on:click={openCreate}>+ New proposal</button>
+		</div>
 	{/if}
 </div>
 
@@ -76,7 +90,7 @@
 
 <!-- Creation modal -->
 {#if creating}
-	<div class="modal-backdrop" role="presentation" on:click|self={() => (creating = false)}>
+	<div class="modal-backdrop" use:portal role="presentation" on:click|self={() => (creating = false)}>
 		<div class="modal">
 			<div class="modal-head">
 				<h2 class="section" style="margin:0">New {docLabel.toLowerCase()}</h2>
@@ -118,6 +132,7 @@
 
 			{#if form?.error}<div class="notice err" style="margin:0.8rem 0 0">{form.error}</div>{/if}
 
+			{#if !canSubmit && mode !== 'blank'}<div class="pick-hint">Choose a conversation above to continue — or pick “Blank”.</div>{/if}
 			<form method="POST" action="?/create" use:enhance={() => { submitting = true; return async ({ update }) => { await update(); submitting = false; }; }} class="modal-foot">
 				<input type="hidden" name="mode" value={mode} />
 				<input type="hidden" name="lead_id" value={pickedLead ?? ''} />
@@ -129,6 +144,7 @@
 {/if}
 
 <style>
+	.head-actions { display: flex; gap: 0.5rem; align-items: center; }
 	.list { padding: 0; }
 	.row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 1rem; padding: 0.9rem 1.1rem; border-top: 1px solid var(--line-2); text-decoration: none; color: inherit; transition: background 0.12s; }
 	.row:first-child { border-top: 0; }
@@ -151,7 +167,8 @@
 
 	/* ---- Creation modal ---- */
 	.modal-backdrop { position: fixed; inset: 0; z-index: 60; background: rgba(4, 14, 10, 0.6); backdrop-filter: blur(3px); display: flex; align-items: flex-start; justify-content: center; padding: 6vh 1rem 2rem; overflow-y: auto; }
-	.modal { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; padding: 1.2rem 1.3rem; box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7); }
+	.modal { width: 100%; max-width: 560px; max-height: 88vh; overflow-y: auto; background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; padding: 1.2rem 1.3rem; box-shadow: 0 30px 70px -30px rgba(0, 0, 0, 0.7); }
+	.pick-hint { font-size: 0.8rem; color: var(--mint); margin-top: 0.7rem; }
 	.modal-head { display: flex; align-items: center; justify-content: space-between; }
 	.modal-head .x { background: transparent; border: 0; color: var(--muted); font-size: 1rem; cursor: pointer; }
 	.modes { display: grid; gap: 0.55rem; }

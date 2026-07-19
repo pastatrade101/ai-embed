@@ -8,6 +8,7 @@ import { supabase } from '$lib/server/supabase.js';
 import { serverIndustry } from '$lib/server/industries.js';
 import { proposalConfig } from '$lib/industries.js';
 import { listProposals } from '$lib/server/proposals.js';
+import { getProposalSettings, aiDirectives, detailTokens } from '$lib/server/proposal-settings.js';
 
 const DRAFT_SCHEMA = {
 	type: 'object',
@@ -63,19 +64,21 @@ export async function catalogueText(clientId) {
 export async function generateProposalDraft({ client, planKey, lead = null, extra = '' }) {
 	const ind = serverIndustry(client);
 	const cfg = proposalConfig(client);
-	const cat = await catalogueText(client.id);
+	const s = getProposalSettings(client);
+	// Knowledge-source toggles decide what the AI may draw on.
+	const cat = s.sources.catalogue ? await catalogueText(client.id) : '';
 
 	const who = lead
 		? [
 				`Customer name: ${lead.name || '—'}`,
 				`Their interest: ${lead.interest || '—'}`,
-				lead.details ? `Known details: ${JSON.stringify(lead.details).slice(0, 800)}` : ''
+				s.sources.crm && lead.details ? `Known details: ${JSON.stringify(lead.details).slice(0, 800)}` : ''
 			]
 				.filter(Boolean)
 				.join('\n')
 		: 'No specific lead — draft a general example the operator can tailor.';
 	const convo =
-		lead && Array.isArray(lead.transcript)
+		s.sources.conversation && lead && Array.isArray(lead.transcript)
 			? lead.transcript
 					.filter((m) => m && m.role && m.content)
 					.map((m) => `${m.role}: ${m.content}`)
@@ -83,14 +86,21 @@ export async function generateProposalDraft({ client, planKey, lead = null, extr
 					.slice(0, 3000)
 			: '';
 
-	const system = `You draft a professional ${cfg.docLabel} for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Write in a ${client.tone || 'warm, professional'} tone that matches the brand.
+	const recRule =
+		!s.enableUpsell && !s.enableCrossSell
+			? '- Do NOT suggest any upsells or cross-sells — return empty arrays for both.'
+			: `- ${s.enableUpsell ? 'upsell = optional premium upgrades' : 'return an empty upsell array'}; ${s.enableCrossSell ? 'cross_sell = complementary add-ons' : 'return an empty cross_sell array'}. Use catalogue item names where possible; leave arrays empty if nothing fits.`;
+	const directives = aiDirectives(s, { includeStyle: false });
+	const styleTone = s.writingStyle ? s.writingStyle : client.tone || 'warm, professional';
+
+	const system = `You draft a professional ${cfg.docLabel} for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Write in a ${styleTone} tone that matches the brand.
 
 Rules:
 - Recommend items ONLY from the CATALOGUE below. NEVER invent products, services or prices. Copy catalogue prices EXACTLY into unit_price; if an item has no price, set unit_price to 0 and note "price on request" in detail.
 - Pick the items that best fit the customer's stated interest; a good ${cfg.docLabel} is focused, not a dump of everything.
 - Be concise, benefits-led and easy to skim. No markdown, no headings — just the fields.
-- upsell = optional premium upgrades; cross_sell = complementary add-ons. Use catalogue item names where possible; leave arrays empty if nothing fits.
-- Return the structured object only.`;
+${recRule}
+- Return the structured object only.${directives ? `\n\n${directives}` : ''}`;
 
 	const user = `CATALOGUE (the only prices/items you may use):\n${cat || '(no catalogue items yet — keep line_items minimal and set prices to 0)'}\n\nCUSTOMER:\n${who}\n${convo ? `\nCONVERSATION SO FAR:\n${convo}` : ''}${extra ? `\n\nOperator instructions: ${extra}` : ''}\n\nDraft the ${cfg.docLabel} now.`;
 
@@ -101,7 +111,7 @@ Rules:
 		model: SONNET,
 		system,
 		schema: DRAFT_SCHEMA,
-		maxTokens: 1600,
+		maxTokens: detailTokens(s, 1600),
 		messages: [{ role: 'user', content: user }]
 	});
 }
@@ -131,8 +141,9 @@ export async function assistField({ client, field, action, text, proposal = {} }
 	const ind = serverIndustry(client);
 	const cfg = proposalConfig(client);
 	const instruction = ASSIST_ACTIONS[action] || ASSIST_ACTIONS.improve;
+	const directives = aiDirectives(getProposalSettings(client), { includeStyle: false });
 	const system = `You are an expert proposal editor for ${client.name || `a ${ind.businessType}`}. You are editing ONE section of a ${cfg.docLabel}. ${instruction}
-Rules: keep it truthful — never invent prices, products, dates or facts. No markdown, no headings, no surrounding quotes. Return ONLY the rewritten text for this section.`;
+Rules: keep it truthful — never invent prices, products, dates or facts. No markdown, no headings, no surrounding quotes. Return ONLY the rewritten text for this section.${directives ? `\n${directives}` : ''}`;
 	const items = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => li.description).filter(Boolean).join(', ');
 	const user = `Section: ${field}\nCustomer: ${proposal.customer_name || '—'}\nItems in the proposal: ${items || '—'}\n\nCurrent text:\n${(text || '').trim() || '(empty — write a strong, safe, generic one for this section)'}`;
 	const res = await askText({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, system, maxTokens: 900, messages: [{ role: 'user', content: user }] });
@@ -163,14 +174,31 @@ const REVENUE_SCHEMA = {
 	}
 };
 
-/** Upsell/cross-sell ideas (from the catalogue) + a coaching line. */
+/** Upsell/cross-sell ideas (from the catalogue) + a coaching line. Honours the
+ *  tenant's recommendation settings (enable up/cross-sell, min confidence, max recs). */
 export async function revenueIdeas({ client, proposal, lead = null }) {
 	const ind = serverIndustry(client);
+	const s = getProposalSettings(client);
+	// Both off → no AI call, no cost.
+	if (!s.enableUpsell && !s.enableCrossSell) {
+		return { data: { upsells: [], cross_sells: [], coach: 'Upsell and cross-sell recommendations are turned off in Proposal AI settings.' } };
+	}
 	const cat = await catalogueText(client.id);
 	const have = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => li.description).filter(Boolean).join(', ');
-	const system = `You are a revenue advisor for ${client.name || `a ${ind.businessType}`}. Suggest UPSELLS (premium upgrades) and CROSS-SELLS (complementary add-ons) for this proposal, chosen ONLY from the catalogue and NOT already on the proposal. add_value = the item's catalogue price (0 if unknown). confidence = 0–100 fit for this customer. For EACH suggestion give a short, specific reason grounded in what the customer said or their profile — never a generic reason. Also give one short coaching tip. Empty arrays are fine if nothing fits. Return the structured object only.`;
+	const kinds = [s.enableUpsell && 'UPSELLS (premium upgrades)', s.enableCrossSell && 'CROSS-SELLS (complementary add-ons)'].filter(Boolean).join(' and ');
+	const extra = [s.enablePremium && 'You may recommend premium options.', s.enableBundles && 'You may suggest sensible bundles.', s.enableDiscounts && 'You may suggest a discount where it helps close.'].filter(Boolean).join(' ');
+	const directives = aiDirectives(s, { includeStyle: false });
+	const system = `You are a revenue advisor for ${client.name || `a ${ind.businessType}`}. Suggest ${kinds} for this proposal, chosen ONLY from the catalogue and NOT already on the proposal.${s.enableUpsell ? '' : ' Return an empty upsells array.'}${s.enableCrossSell ? '' : ' Return an empty cross_sells array.'} add_value = the item's catalogue price (0 if unknown). confidence = 0–100 fit for this customer. For EACH suggestion give a short, specific reason grounded in what the customer said or their profile — never a generic reason. Also give one short coaching tip. Empty arrays are fine if nothing fits. ${extra} ${directives} Return the structured object only.`;
 	const user = `CATALOGUE:\n${cat || '(none)'}\n\nAlready on the proposal: ${have || 'nothing yet'}\nCustomer: ${proposal.customer_name || '—'}; interest: ${lead?.interest || '—'}${lead?.details ? `; details: ${JSON.stringify(lead.details).slice(0, 400)}` : ''}`;
-	return askJSON({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, schema: REVENUE_SCHEMA, maxTokens: 900, system, messages: [{ role: 'user', content: user }] });
+	const res = await askJSON({ clientId: client.id, planKey: client.plan, feature: AI.PROPOSAL, model: SONNET, schema: REVENUE_SCHEMA, maxTokens: 900, system, messages: [{ role: 'user', content: user }] });
+
+	// Enforce the tenant's recommendation rules (min confidence, max, enables).
+	if (res.data) {
+		const gate = (arr, on) => (on && Array.isArray(arr) ? arr.filter((r) => (r.confidence ?? 0) >= (s.minConfidence || 0)).slice(0, s.maxRecommendations || 10) : []);
+		res.data.upsells = gate(res.data.upsells, s.enableUpsell);
+		res.data.cross_sells = gate(res.data.cross_sells, s.enableCrossSell);
+	}
+	return res;
 }
 
 // ---- Follow-up message generator (email / WhatsApp) -------------------------
@@ -249,19 +277,23 @@ const REQUIREMENTS_SCHEMA = {
 
 /** Deterministic grounding signals — computed from real data, never asked of the
  *  AI (so it can't fake its own trustworthiness). Powers the Trust panel. */
-async function groundingFor(clientId, lead) {
+async function groundingFor(clientId, lead, s) {
 	let kb = 0;
 	let priced = 0;
-	try {
-		const { data } = await supabase.from('knowledge_items').select('price_amount').eq('client_id', clientId).limit(300);
-		kb = (data ?? []).length;
-		priced = (data ?? []).filter((i) => i.price_amount != null && i.price_amount !== '').length;
-	} catch {
-		/* fail open — report no catalogue grounding */
+	// Only query (and only credit) the catalogue if the operator left it enabled —
+	// grounding must reflect what was ACTUALLY fed to the model, not raw data presence.
+	if (s.sources.catalogue) {
+		try {
+			const { data } = await supabase.from('knowledge_items').select('price_amount').eq('client_id', clientId).limit(300);
+			kb = (data ?? []).length;
+			priced = (data ?? []).filter((i) => i.price_amount != null && i.price_amount !== '').length;
+		} catch {
+			/* fail open — report no catalogue grounding */
+		}
 	}
 	return {
-		conversation: !!(lead && Array.isArray(lead.transcript) && lead.transcript.length),
-		crm: !!(lead && lead.details && Object.keys(lead.details).length),
+		conversation: !!(s.sources.conversation && lead && Array.isArray(lead.transcript) && lead.transcript.length),
+		crm: !!(s.sources.crm && lead && lead.details && Object.keys(lead.details).length),
 		knowledge_base: kb > 0,
 		pricing: priced > 0
 	};
@@ -274,11 +306,12 @@ async function groundingFor(clientId, lead) {
 export async function extractRequirements({ client, lead }) {
 	const ind = serverIndustry(client);
 	const cfg = proposalConfig(client);
-	const convo = conversationText(lead);
-	const details = lead?.details ? JSON.stringify(lead.details).slice(0, 900) : '';
-	const prior = await priorProposalsText(client.id, lead?.id, null);
+	const s = getProposalSettings(client);
+	const convo = s.sources.conversation ? conversationText(lead) : '';
+	const details = s.sources.crm && lead?.details ? JSON.stringify(lead.details).slice(0, 900) : '';
+	const prior = s.sources.previous_proposals ? await priorProposalsText(client.id, lead?.id, null) : '';
 
-	const cat = await catalogueText(client.id);
+	const cat = s.sources.catalogue ? await catalogueText(client.id) : '';
 	const system = `You are a sales requirements analyst for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Read the customer conversation and known details and extract the requirements needed to prepare a ${cfg.docLabel}. Decide which fields matter for this kind of business and fill only the ones you actually know. For EACH field give a confidence (0–100) and its source — "conversation" if the customer said it, "crm" if it came from saved details, "inferred" if you deduced it. Be strictly truthful — never invent budgets, dates, numbers or preferences. Estimate the proposal value using the catalogue and stated budget. Judge overall readiness, list what's missing, and suggest concise follow-up questions for the gaps. Return the structured object only.`;
 	const user = `CUSTOMER: ${lead?.name || '—'}\nStated interest: ${lead?.interest || '—'}\n${details ? `Known details (extracted): ${details}\n` : ''}${prior ? `Previous proposals for this customer:\n${prior}\n` : ''}${cat ? `\nCATALOGUE (for value estimate):\n${cat.slice(0, 1500)}\n` : ''}${convo ? `\nCONVERSATION:\n${convo}` : '\n(no conversation transcript — infer from interest/details only, and lower confidence)'}`;
 
@@ -295,7 +328,7 @@ export async function extractRequirements({ client, lead }) {
 
 	// Augment with deterministic grounding/trust signals (not AI-authored).
 	if (res.data) {
-		const g = await groundingFor(client.id, lead);
+		const g = await groundingFor(client.id, lead, s);
 		const have = Array.isArray(res.data.summary) ? res.data.summary.length : 0;
 		const miss = Array.isArray(res.data.missing) ? res.data.missing.length : 0;
 		res.data.grounding = g;
@@ -347,8 +380,9 @@ const SYNC_SCHEMA = {
 export async function syncFromConversation({ client, proposal, lead }) {
 	const ind = serverIndustry(client);
 	const cfg = proposalConfig(client);
-	const convo = conversationText(lead);
-	const details = lead?.details ? JSON.stringify(lead.details).slice(0, 700) : '';
+	const s = getProposalSettings(client);
+	const convo = s.sources.conversation ? conversationText(lead) : '';
+	const details = s.sources.crm && lead?.details ? JSON.stringify(lead.details).slice(0, 700) : '';
 	const items = (Array.isArray(proposal.line_items) ? proposal.line_items : []).map((li) => `${li.description} (${li.qty}× ${li.unit_price})`).join('; ');
 
 	const system = `You keep a ${cfg.docLabel} in sync with the customer conversation for ${client.name || `a ${ind.businessType}`}. Compare the CURRENT proposal to the LATEST conversation and known details. Identify ONLY what genuinely changed because of new customer information (budget, group size, scope added/removed, preferences, timing…). Do NOT rewrite things that are already correct, and preserve the operator's wording where you can. For any of intro/summary/terms that should change, return the full rewritten text; otherwise return null for it. Estimate the pricing impact as a number (advisory — you cannot edit line items). If nothing changed, set in_sync=true with an empty changes array. Never invent facts. Return the structured object only.`;
