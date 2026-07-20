@@ -185,7 +185,7 @@
 {/if}
 
 <style>
-	.seg { display: inline-flex; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 10px; padding: 2px; }
+	.seg { display: inline-flex; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 10px; padding: 2px; }
 	.seg button { border: 0; background: transparent; color: var(--muted); font-weight: 600; font-size: 0.85rem; padding: 0.35rem 0.8rem; border-radius: 8px; cursor: pointer; }
 	.seg button.on { background: var(--mint); color: #06331c; }
 
@@ -230,12 +230,12 @@
 	.tag { font-size: 0.75rem; font-weight: 700; color: var(--c); background: color-mix(in srgb, var(--c) 16%, transparent); padding: 0.15rem 0.55rem; border-radius: 999px; }
 
 	.scrim { position: fixed; inset: 0; background: rgba(3, 12, 9, 0.62); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
-	.modal { background: var(--body, #0d1f18); border: 1px solid var(--edge); border-radius: 18px; width: min(560px, 96vw); max-height: 90vh; overflow-y: auto; padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
+	.modal { background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; width: min(560px, 96vw); max-height: 90vh; overflow-y: auto; padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
 	.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
 	.modal-head h3 { margin: 0; color: var(--strong); }
 	.x { border: 0; background: transparent; color: var(--muted); font-size: 1rem; cursor: pointer; }
 	.hint { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.8rem; line-height: 1.5; }
-	textarea, .in { width: 100%; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 10px; padding: 0.6rem 0.75rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
+	textarea, .in { width: 100%; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 10px; padding: 0.6rem 0.75rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
 	textarea { resize: vertical; }
 	.in:focus, textarea:focus { outline: none; border-color: var(--mint); }
 	.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }

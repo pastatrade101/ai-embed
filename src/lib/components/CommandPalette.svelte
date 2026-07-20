@@ -86,7 +86,7 @@
 
 <style>
 	.cp-scrim { position: fixed; inset: 0; background: rgba(3, 12, 9, 0.55); backdrop-filter: blur(4px); z-index: 120; display: flex; align-items: flex-start; justify-content: center; padding-top: 12vh; }
-	.cp { width: min(560px, 94vw); background: var(--body, #0d1f18); border: 1px solid var(--edge); border-radius: 16px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.7); overflow: hidden; }
+	.cp { width: min(560px, 94vw); background: var(--panel); border: 1px solid var(--edge); border-radius: 16px; box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.7); overflow: hidden; }
 	.cp-input { display: flex; align-items: center; gap: 0.6rem; padding: 0.9rem 1rem; border-bottom: 1px solid var(--edge); color: var(--muted); }
 	.cp-input input { flex: 1; background: transparent; border: 0; color: var(--strong); font: inherit; font-size: 1rem; outline: none; }
 	kbd { font-size: 0.68rem; color: var(--muted); border: 1px solid var(--edge); border-radius: 5px; padding: 0.1rem 0.35rem; }

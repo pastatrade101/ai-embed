@@ -149,7 +149,7 @@
 	.empty p { color: var(--muted); max-width: 44ch; margin: 0 auto 1.2rem; }
 	.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0.4rem 0 0.8rem; flex-wrap: wrap; }
 	.searchbar { display: flex; gap: 0.5rem; flex: 1; max-width: 460px; }
-	.searchbar input { flex: 1; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 9px; padding: 0.5rem 0.75rem; color: var(--strong); font: inherit; }
+	.searchbar input { flex: 1; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 9px; padding: 0.5rem 0.75rem; color: var(--strong); font: inherit; }
 	.searchbar input:focus { outline: none; border-color: var(--mint); }
 	.count { color: var(--muted); font-size: 0.85rem; }
 	.badge.warn { background: rgba(224, 178, 76, 0.16); color: #fcd34d; text-decoration: none; }
@@ -170,14 +170,14 @@
 	.link { border: 0; background: transparent; color: var(--mint); cursor: pointer; font-weight: 600; font-size: 0.84rem; margin-left: 0.6rem; }
 
 	.scrim { position: fixed; inset: 0; background: rgba(3, 12, 9, 0.62); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
-	.modal { background: var(--body, #0d1f18); border: 1px solid var(--edge); border-radius: 18px; width: min(560px, 96vw); max-height: 92vh; overflow-y: auto; padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
+	.modal { background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; width: min(560px, 96vw); max-height: 92vh; overflow-y: auto; padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
 	.modal.sm { width: min(420px, 96vw); }
 	.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
 	.modal-head h3 { margin: 0; color: var(--strong); font-size: 1.05rem; }
 	.x { border: 0; background: transparent; color: var(--muted); font-size: 1rem; cursor: pointer; }
 	.hint { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.8rem; }
 	.hint b { color: var(--soft); }
-	.in { width: 100%; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 10px; padding: 0.55rem 0.7rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
+	.in { width: 100%; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 10px; padding: 0.55rem 0.7rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
 	.in:focus { outline: none; border-color: var(--mint); }
 	textarea.in { resize: vertical; }
 	.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }

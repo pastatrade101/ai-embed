@@ -75,7 +75,7 @@
 <style>
 	.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin: 0.4rem 0 0.8rem; flex-wrap: wrap; }
 	.searchbar { display: flex; gap: 0.5rem; flex: 1; max-width: 420px; }
-	.searchbar input { flex: 1; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 9px; padding: 0.5rem 0.75rem; color: var(--strong); font: inherit; }
+	.searchbar input { flex: 1; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 9px; padding: 0.5rem 0.75rem; color: var(--strong); font: inherit; }
 	.searchbar input:focus { outline: none; border-color: var(--mint); }
 	.count { color: var(--muted); font-size: 0.85rem; }
 	.empty { text-align: center; padding: 3rem 1.5rem; }
@@ -91,11 +91,11 @@
 	.cname { font-weight: 650; color: var(--strong); }
 	.mono { font-family: ui-monospace, monospace; }
 	.scrim { position: fixed; inset: 0; background: rgba(3, 12, 9, 0.62); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
-	.modal { background: var(--body, #0d1f18); border: 1px solid var(--edge); border-radius: 18px; width: min(440px, 96vw); padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
+	.modal { background: var(--panel); border: 1px solid var(--edge); border-radius: 18px; width: min(440px, 96vw); padding: 1.3rem; box-shadow: var(--shadow, 0 30px 60px -30px rgba(0,0,0,0.6)); }
 	.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
 	.modal-head h3 { margin: 0; color: var(--strong); }
 	.x { border: 0; background: transparent; color: var(--muted); font-size: 1rem; cursor: pointer; }
-	.in { width: 100%; background: rgba(var(--panel-rgb, 255, 255, 255), 0.04); border: 1px solid var(--edge); border-radius: 10px; padding: 0.6rem 0.75rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
+	.in { width: 100%; background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 10px; padding: 0.6rem 0.75rem; color: var(--strong); font: inherit; margin-bottom: 0.6rem; }
 	.in:focus { outline: none; border-color: var(--mint); }
 	.modal-foot { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.4rem; }
 	code { background: rgba(var(--panel-rgb, 255, 255, 255), 0.08); padding: 0.05rem 0.3rem; border-radius: 5px; font-size: 0.85em; }
