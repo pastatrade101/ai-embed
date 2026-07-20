@@ -5,6 +5,7 @@ import { generateProposalDraft, assistField, revenueIdeas, followupMessage, extr
 import { scoreLead, leadTier, leadStage, extractLead } from '$lib/server/dashboard.js';
 import { sendEmail, brandedEmail, escapeHtml } from '$lib/server/email.js';
 import { getProposalSettings } from '$lib/server/proposal-settings.js';
+import { startProposalConversation } from '$lib/server/proposal-conversation.js';
 import { proposalConfig } from '$lib/industries.js';
 
 async function loadClient(id) {
@@ -258,6 +259,21 @@ export const actions = {
 		if (res.ok) return { section: 'send', ok: `Sent to ${proposal.customer_email}.` };
 		// Email skipped/failed (Resend unconfigured) — the hosted link still works.
 		return { section: 'send', ok: `Marked as sent. Share the link directly: ${hosted}`, emailFailed: true };
+	},
+
+	// Start an AI-run WhatsApp conversation: send the opening template and open the
+	// thread so the customer can negotiate/ask right inside WhatsApp.
+	startWhatsApp: async ({ params, locals }) => {
+		const clientId = locals.user.client_id;
+		const client = await loadClient(clientId);
+		const { proposal } = await getProposal(clientId, params.id);
+		if (!proposal) return fail(404, { section: 'wa', error: 'Proposal not found.' });
+		if (!proposal.customer_phone) return fail(400, { section: 'wa', error: 'Add the customer’s WhatsApp number (Phone / WhatsApp) and save first.' });
+		const settings = getProposalSettings(client);
+		const res = await startProposalConversation({ client, proposal, to: proposal.customer_phone, templateName: settings.waTemplate || 'hello_world' });
+		if (res.reason === 'migration_020_needed') return fail(400, { section: 'wa', error: 'WhatsApp conversations need a one-time database update — run db/020_wa_conversations.sql.' });
+		if (!res.ok) return fail(502, { section: 'wa', error: res.sent?.error || 'Could not start the WhatsApp conversation. Check the number and WhatsApp config.' });
+		return { section: 'wa', ok: `WhatsApp chat started with ${proposal.customer_phone}. The AI will handle their replies.` };
 	},
 
 	// Record that the operator sent it via another channel (WhatsApp / copied link).

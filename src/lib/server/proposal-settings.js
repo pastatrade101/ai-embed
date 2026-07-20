@@ -44,6 +44,8 @@ export const PROPOSAL_AI_DEFAULTS = {
 	enablePremium: true,
 	enableBundles: true,
 	enableDiscounts: false,
+	maxDiscountPercent: 10, // ceiling the WhatsApp assistant may offer without a human
+	allowNegotiation: true, // let the WhatsApp assistant negotiate / modify the proposal
 	maxRecommendations: 4,
 	minConfidence: 0, // hide recs below this 0–100
 	// Explainability (Section 19 UI toggles)

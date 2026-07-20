@@ -52,7 +52,7 @@
 		if (dirty) return;
 		try { await navigator.clipboard.writeText(data.hostedUrl); copied = true; setTimeout(() => (copied = false), 1800); } catch (_) {}
 	}
-	let generating = false, saving = false;
+	let generating = false, saving = false, startingWa = false;
 	$: meta = src?.meta ?? {};
 
 	// ---- Post a page action and get the decoded result (no re-seed) ----------
@@ -524,6 +524,11 @@
 			<form method="POST" action="?/sendEmail" use:enhance>
 				<button class="btn" disabled={!data.customerHasEmail || dirty} title={dirty ? 'Save your changes first' : data.customerHasEmail ? '' : 'Add a customer email and save first'}>✉ Send by email</button>
 			</form>
+			{#if customer_phone}
+				<form method="POST" action="?/startWhatsApp" use:enhance={() => { startingWa = true; return async ({ update }) => { await update({ reset: false }); startingWa = false; }; }}>
+					<button class="btn ghost" style="width:100%;margin-top:.5rem" disabled={dirty || startingWa} title={dirty ? 'Save your changes first' : 'Sends the opening template; the AI then handles the customer’s replies'}>{startingWa ? 'Starting…' : '🤖 Start AI WhatsApp chat'}</button>
+				</form>
+			{/if}
 			{#if dirty}<div class="dirty-note">Save your changes before sharing.</div>{/if}
 			<div class="send-row">
 				{#if waUrl}<button class="btn ghost sm" type="button" on:click={shareWhatsApp} disabled={dirty} title={dirty ? 'Save your changes first' : ''}>WhatsApp</button>{/if}
