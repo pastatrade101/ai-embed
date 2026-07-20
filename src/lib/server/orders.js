@@ -6,6 +6,7 @@
 import { supabase } from './supabase.js';
 import { isModuleEnabled } from './modules.js';
 import { reserveForOrder, releaseForOrder, deductForOrder } from './inventory.js';
+import { upsertByPhone, recomputeStats } from './customers.js';
 
 const COLS =
 	'id, client_id, lead_id, customer_id, conversation_id, number, status, payment_status, source, customer_name, customer_phone, customer_email, currency, items, subtotal, discount, tax, total, delivery_date, delivery_address, notes, internal_notes, confidence, assigned_to, meta, created_at, updated_at, confirmed_at, delivered_at, completed_at';
@@ -93,10 +94,16 @@ export async function addOrderEvent(orderId, clientId, type, meta = {}) {
 export async function createOrder(clientId, data = {}) {
 	const { items, subtotal, total } = computeOrderTotals(data.items, data.discount, data.tax);
 	const status = ORDER_STATUS_KEYS.includes(data.status) ? data.status : 'draft';
+	// Link (or create) the customer by phone — dedup so one number is one customer.
+	let customerId = data.customer_id || null;
+	if (!customerId && data.customer_phone) {
+		const { customer } = await upsertByPhone(clientId, { phone: data.customer_phone, name: data.customer_name, source: data.source || 'whatsapp' });
+		customerId = customer?.id || null;
+	}
 	const row = {
 		client_id: clientId,
 		lead_id: data.lead_id || null,
-		customer_id: data.customer_id || null,
+		customer_id: customerId,
 		conversation_id: data.conversation_id || null,
 		number: await nextNumber(clientId),
 		status,
@@ -120,7 +127,8 @@ export async function createOrder(clientId, data = {}) {
 	};
 	const { data: created, error } = await supabase.from('orders').insert(row).select(COLS).single();
 	if (error) return { order: null, error, tableMissing: isMissingOrders(error) };
-	await addOrderEvent(created.id, clientId, data.source === 'whatsapp' ? 'ai_parsed' : 'created', { source: row.source, confidence: row.confidence });
+	await addOrderEvent(created.id, clientId, data.source === 'whatsapp' ? 'drafted' : 'created', { source: row.source, confidence: row.confidence });
+	if (customerId) await recomputeStats(clientId, customerId).catch(() => {});
 	return { order: created, error: null };
 }
 
@@ -185,7 +193,7 @@ export async function setOrderStatus(clientId, id, status, { allowBackorder = fa
 	const set = { status, updated_at: now };
 	if (status === 'confirmed') set.confirmed_at = now;
 	if (status === 'completed') set.completed_at = now;
-	const { data, error } = await supabase.from('orders').update(set).eq('id', id).eq('client_id', clientId).select('id, status').single();
+	const { data, error } = await supabase.from('orders').update(set).eq('id', id).eq('client_id', clientId).select('id, status, customer_id').single();
 	if (error) return { ok: false, error, order: null };
 	await addOrderEvent(id, clientId, `status_${status}`, {});
 
@@ -194,6 +202,7 @@ export async function setOrderStatus(clientId, id, status, { allowBackorder = fa
 		if (status === 'cancelled') await releaseForOrder(clientId, id);
 		if (status === 'completed') await deductForOrder(clientId, id);
 	}
+	if (data?.customer_id) await recomputeStats(clientId, data.customer_id).catch(() => {});
 	return { ok: true, order: data };
 }
 
@@ -204,11 +213,12 @@ export async function getOrder(clientId, id) {
 	return { order: data ?? null };
 }
 
-/** List orders for a client (optionally by status or lead). */
-export async function listOrders(clientId, { status = null, leadId = null, limit = 200 } = {}) {
+/** List orders for a client (optionally by status, lead or customer). */
+export async function listOrders(clientId, { status = null, leadId = null, customerId = null, limit = 200 } = {}) {
 	let q = supabase.from('orders').select(COLS).eq('client_id', clientId).order('created_at', { ascending: false }).limit(limit);
 	if (status) q = q.eq('status', status);
 	if (leadId) q = q.eq('lead_id', leadId);
+	if (customerId) q = q.eq('customer_id', customerId);
 	const { data, error } = await q;
 	if (error) return { orders: [], tableMissing: isMissingOrders(error) };
 	return { orders: data ?? [] };

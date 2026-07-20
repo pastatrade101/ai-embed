@@ -18,6 +18,7 @@
 		{ label: 'AI draft an order', hint: 'From a customer message', href: '/portal/orders?new=ai', module: 'orders', icon: 'M12 2v20 M2 12h20' },
 		{ label: 'Products', hint: 'Catalogue & stock', href: '/portal/products', module: 'inventory', icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11' },
 		{ label: 'Leads', hint: 'CRM pipeline', href: '/portal/leads', module: null, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z' },
+		{ label: 'Customers', hint: 'People & spend', href: '/portal/customers', module: null, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
 		{ label: 'Quotations', hint: 'Proposals', href: '/portal/proposals', module: null, icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6' },
 		{ label: 'Knowledge', hint: 'What the AI knows', href: '/portal/knowledge', module: null, icon: 'M4 19.5A2.5 2.5 0 016.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z' },
 		{ label: 'Conversations', hint: 'All chats', href: '/portal/conversations', module: null, icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
