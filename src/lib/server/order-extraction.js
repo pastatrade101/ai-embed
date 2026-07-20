@@ -1,8 +1,8 @@
-// AI Order Extraction — turns a natural-language message ("I need 20 bags of cement
-// tomorrow, deliver to Mikocheni") into a structured draft order: customer, items,
-// quantities, delivery date/address, notes and a confidence score. Prices are taken
-// from the tenant's real catalogue (never invented); the operator always confirms.
-// Metered + gated via ai.js (AI.ORDER). Industry-agnostic.
+// AI Order Extraction (v2) — the product's core: turn a messy WhatsApp message into a
+// structured order the owner can confirm with almost no typing. The AI scores EVERY
+// field's confidence, names what's missing, and writes the exact clarification question
+// to ask the customer — so the review UI can highlight ONLY the uncertain fields.
+// Prices come from the tenant's catalogue (never invented). Metered via ai.js (AI.ORDER).
 import { askJSON, AI, SONNET } from './ai.js';
 import { supabase } from './supabase.js';
 import { serverIndustry } from './industries.js';
@@ -11,31 +11,40 @@ import { createOrder } from './orders.js';
 import { matchProduct, listCatalogueForMatching } from './products.js';
 import { fromMinor } from './money.js';
 
+const clampInt = (v) => Math.max(0, Math.min(100, Math.round(Number(v) || 0)));
+
 const ORDER_SCHEMA = {
 	type: 'object',
 	additionalProperties: false,
-	required: ['is_order', 'customer_name', 'items', 'delivery_date', 'delivery_address', 'notes', 'confidence', 'reasoning'],
+	required: ['is_order', 'overall_confidence', 'customer_name', 'customer_confidence', 'items', 'delivery_address', 'delivery_date', 'delivery_confidence', 'notes', 'missing_fields', 'clarification_question', 'reasoning'],
 	properties: {
-		is_order: { type: 'boolean', description: 'true only if the message is genuinely placing/requesting an order for goods or services. A question, greeting or complaint is NOT an order.' },
-		customer_name: { type: ['string', 'null'], description: 'The customer name if stated, else null.' },
+		is_order: { type: 'boolean', description: 'true ONLY if the customer is genuinely placing/requesting an order for goods or services. A greeting, a price/stock/delivery enquiry, small talk or a complaint is NOT an order.' },
+		overall_confidence: { type: 'integer', description: '0–100: overall confidence this is a complete, actionable order.' },
+		customer_name: { type: ['string', 'null'], description: 'The customer’s name if stated in the message, else null.' },
+		customer_confidence: { type: 'integer', description: '0–100 confidence in the customer identity (0 if not given).' },
 		items: {
 			type: 'array',
-			description: 'The items the customer wants. Match names to the CATALOGUE where possible; otherwise use the customer’s own words.',
+			description: 'Each distinct item the customer wants. Understand mixed Swahili/English (e.g. "mifuko 20 ya cement" = 20 bags of cement; "chaja mbili" = 2 chargers).',
 			items: {
 				type: 'object',
 				additionalProperties: false,
-				required: ['description', 'qty', 'unit_price'],
+				required: ['raw_text', 'description', 'qty', 'unit', 'unit_price', 'confidence'],
 				properties: {
-					description: { type: 'string', description: 'Item/product name, matched to the catalogue if it exists there.' },
-					qty: { type: 'integer', description: 'Quantity requested (default 1).' },
-					unit_price: { type: 'number', description: 'Per-unit price from the CATALOGUE only; 0 if the item is not in the catalogue or has no price.' }
+					raw_text: { type: 'string', description: 'The exact words the customer used for this item.' },
+					description: { type: 'string', description: 'Normalised item name; use the CATALOGUE name if it matches one.' },
+					qty: { type: 'integer', description: 'Quantity requested. Default to 1 only if the customer clearly wants one.' },
+					unit: { type: ['string', 'null'], description: 'Unit if stated (bag, box, piece, kg…), else null.' },
+					unit_price: { type: 'number', description: 'Per-unit price from the CATALOGUE only; 0 if the item is not in the catalogue.' },
+					confidence: { type: 'integer', description: '0–100 confidence you correctly understood this item AND its quantity.' }
 				}
 			}
 		},
-		delivery_date: { type: ['string', 'null'], description: 'Requested delivery/pickup date as YYYY-MM-DD if you can resolve it (e.g. "tomorrow" → the date), else null.' },
-		delivery_address: { type: ['string', 'null'], description: 'Delivery address / area if mentioned, else null.' },
+		delivery_address: { type: ['string', 'null'], description: 'Delivery address/area if mentioned, else null.' },
+		delivery_date: { type: ['string', 'null'], description: 'Requested date as YYYY-MM-DD, resolving "kesho"/"tomorrow"/"leo" against TODAY; null if none stated.' },
+		delivery_confidence: { type: 'integer', description: '0–100 confidence in the delivery details (0 if none given).' },
 		notes: { type: ['string', 'null'], description: 'Any special instructions, else null.' },
-		confidence: { type: 'integer', description: '0–100: how confident you are this is a complete, actionable order.' },
+		missing_fields: { type: 'array', items: { type: 'string', enum: ['customer_name', 'delivery_address', 'delivery_date', 'quantity', 'item', 'price'] }, description: 'Important fields the customer did NOT provide and that the owner would need.' },
+		clarification_question: { type: ['string', 'null'], description: 'ONE short, friendly question in the CUSTOMER’S language to fill the single most important gap; null if nothing important is missing.' },
 		reasoning: { type: 'string', description: 'One short sentence: what you understood.' }
 	}
 };
@@ -47,32 +56,29 @@ function cleanDate(v) {
 	if (!m) return null;
 	const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00`);
 	if (Number.isNaN(d.getTime())) return null;
-	// Reject impossible dates that V8 silently rolls over (e.g. 2026-02-30 → Mar 2).
-	// getFullYear/Month/Date are local, matching the local-time construction above.
+	// Reject impossible dates V8 silently rolls over (e.g. 2026-02-30 → Mar 2).
 	if (d.getFullYear() !== +m[1] || d.getMonth() + 1 !== +m[2] || d.getDate() !== +m[3]) return null;
 	return `${m[1]}-${m[2]}-${m[3]}`;
 }
 
 /**
- * Extract a structured order from a free-text message. Grounds prices in the
- * catalogue. Returns { data, error, quota } from the metered layer.
- * @param {object} p
- * @param {object} p.client   the tenant row
- * @param {string} p.message  the customer's message
- * @param {string} [p.today]  ISO date used to resolve "tomorrow" etc. (defaults to now)
+ * Extract a structured order (with per-field confidence) from a free-text message.
+ * Returns { data, error, quota } from the metered layer.
  */
 export async function extractOrder({ client, message, today = new Date().toISOString().slice(0, 10) }) {
 	const ind = serverIndustry(client);
 	const cat = await catalogueText(client.id);
-	const system = `You are an order-taking assistant for ${client.name || `a ${ind.businessType}`}, a ${ind.businessType}. Read the customer message and extract a structured order.
+	const system = `You turn a customer's WhatsApp message to ${client.name || `a ${ind.businessType}`} (a ${ind.businessType}) into a structured order. Customers write informally, often mixing Swahili and English, with typos and shorthand — understand them.
+
 Rules:
-- Only set is_order=true if the customer is actually placing or requesting an order. Questions, greetings, small talk or complaints are NOT orders.
-- Match items to the CATALOGUE by name where possible and copy the catalogue unit_price EXACTLY. If an item isn't in the catalogue, keep the customer's wording and set unit_price to 0 (the operator will price it).
-- NEVER invent prices, products or quantities you weren't given. Default qty to 1 only when the customer clearly wants one.
-- Resolve relative dates against TODAY (${today}) into YYYY-MM-DD. If no date is mentioned, use null.
-- confidence reflects how complete and unambiguous the order is.
+- is_order = true ONLY if they are actually placing/requesting an order. A greeting, a "how much?"/"do you have?"/"where are you?" enquiry, or a complaint is NOT an order.
+- Extract every distinct item with its quantity and unit. Match item names to the CATALOGUE where possible and copy the catalogue unit_price EXACTLY; if an item isn't in the catalogue, keep the customer's wording and set unit_price = 0.
+- NEVER invent prices, products, quantities, names or addresses. If something isn't in the message, leave it null/0 and list it in missing_fields.
+- Score confidence HONESTLY per field (customer_confidence, delivery_confidence, and each item's confidence) and overall. Low confidence is fine and useful — it tells the owner what to check.
+- Resolve relative dates against TODAY (${today}) to YYYY-MM-DD.
+- If an important field is missing, write ONE short, friendly clarification_question in the customer's own language to ask for it (the most important gap only).
 Return the structured object only.`;
-	const user = `TODAY: ${today}\n\nCATALOGUE (the only prices you may use):\n${cat || '(no catalogue items yet — set all unit_price to 0)'}\n\nCUSTOMER MESSAGE:\n${String(message || '').slice(0, 2000)}`;
+	const user = `TODAY: ${today}\n\nCATALOGUE (the only prices you may use):\n${cat || '(no catalogue yet — set all unit_price to 0)'}\n\nCUSTOMER MESSAGE:\n${String(message || '').slice(0, 2000)}`;
 
 	return askJSON({
 		clientId: client.id,
@@ -80,40 +86,30 @@ Return the structured object only.`;
 		feature: AI.ORDER,
 		model: SONNET,
 		schema: ORDER_SCHEMA,
-		maxTokens: 900,
+		maxTokens: 1100,
 		system,
 		messages: [{ role: 'user', content: user }]
 	});
 }
 
-/** Re-price extracted items against the catalogue (defence-in-depth: the stored price
- *  wins over whatever the model returned, so a draft can never carry an invented price).
- *  Prefers the real products catalogue (attaching product_id so stock can be reserved),
- *  falling back to knowledge_items for tenants that haven't built a product catalogue. */
+/** Re-price extracted items against the catalogue (the stored price always wins, so a
+ *  draft can never carry an invented price) and carry per-item extraction signals
+ *  (raw_text, confidence, alternatives) through for the review UI. */
 async function priceAgainstCatalogue(clientId, items) {
 	const list = Array.isArray(items) ? items : [];
 	if (!list.length) return [];
 
-	// Products catalogue path — links each item to a product for inventory reservation.
 	if (await listCatalogueForMatching(clientId)) {
 		const out = [];
 		for (const it of list) {
 			const name = String(it.description || '').trim();
 			if (!name) continue;
+			const base = { qty: Math.max(1, Number(it.qty) || 1), unit: it.unit || undefined, raw_text: it.raw_text || name, item_confidence: clampInt(it.confidence) };
 			const { product, confidence, alternatives } = await matchProduct(clientId, name);
 			if (product) {
-				out.push({
-					description: product.name,
-					qty: Math.max(1, Number(it.qty) || 1),
-					unit_price: fromMinor(product.price_minor, product.currency), // minor units → order's numeric
-					unit: product.unit || undefined,
-					product_id: product.id,
-					match_confidence: confidence,
-					alternatives: alternatives || []
-				});
+				out.push({ ...base, description: product.name, unit: it.unit || product.unit || undefined, unit_price: fromMinor(product.price_minor, product.currency), product_id: product.id, match_confidence: confidence, alternatives: alternatives || [] });
 			} else {
-				// Unknown product: keep the customer's wording, price 0, flag for review.
-				out.push({ description: name, qty: Math.max(1, Number(it.qty) || 1), unit_price: 0, product_id: null, unmatched: true });
+				out.push({ ...base, description: name, unit_price: 0, product_id: null, unmatched: true });
 			}
 		}
 		return out;
@@ -123,11 +119,9 @@ async function priceAgainstCatalogue(clientId, items) {
 	let priced = [];
 	try {
 		const { data } = await supabase.from('knowledge_items').select('title, price_amount').eq('client_id', clientId).limit(300);
-		// Require a real title too — a blank-title row would `includes('')`-match every
-		// item and misprice the whole order.
 		priced = (data || []).filter((i) => i.price_amount != null && i.price_amount !== '' && String(i.title || '').trim() !== '');
 	} catch {
-		/* no catalogue → prices stay 0, operator prices manually */
+		/* no catalogue → prices stay 0 */
 	}
 	return list
 		.map((it) => {
@@ -137,17 +131,23 @@ async function priceAgainstCatalogue(clientId, items) {
 				const t = String(i.title || '').toLowerCase().trim();
 				return t && (t === name || t.includes(name) || name.includes(t));
 			});
-			// Money-safety invariant: ONLY a catalogue match may carry a price. A non-match
-			// is priced 0 (the operator sets it on review) — the AI can never inject a price.
-			const unit = match ? Math.max(0, Number(match.price_amount) || 0) : 0;
-			return { description: match ? match.title : String(it.description || '').trim(), qty: Math.max(1, Number(it.qty) || 1), unit_price: unit };
+			return {
+				description: match ? match.title : String(it.description || '').trim(),
+				qty: Math.max(1, Number(it.qty) || 1),
+				unit: it.unit || undefined,
+				unit_price: match ? Math.max(0, Number(match.price_amount) || 0) : 0,
+				raw_text: it.raw_text || name,
+				item_confidence: clampInt(it.confidence),
+				unmatched: !match
+			};
 		})
 		.filter(Boolean);
 }
 
 /**
- * Extract + persist a DRAFT order from a message (the operator reviews & confirms).
- * Confidence is stored for a "needs review" cue but never auto-confirms.
+ * Extract + persist a DRAFT order from a message. Stores per-field confidence, the
+ * missing fields and the clarification question in meta.extraction so the transformation
+ * workspace can highlight only what's uncertain. Never auto-confirms.
  * Returns { order, extraction, skipped }.
  */
 export async function draftOrderFromMessage({ client, message, from = null, leadId = null, conversationId = null, source = 'whatsapp' }) {
@@ -159,7 +159,7 @@ export async function draftOrderFromMessage({ client, message, from = null, lead
 	const items = await priceAgainstCatalogue(client.id, ex.items);
 	if (!items.length) return { order: null, extraction: ex, skipped: 'no_items' };
 
-	const confidence = Math.max(0, Math.min(100, Number(ex.confidence) || 0));
+	const overall = clampInt(ex.overall_confidence);
 	const { order } = await createOrder(client.id, {
 		lead_id: leadId,
 		conversation_id: conversationId,
@@ -172,8 +172,19 @@ export async function draftOrderFromMessage({ client, message, from = null, lead
 		delivery_date: cleanDate(ex.delivery_date),
 		delivery_address: ex.delivery_address || null,
 		notes: ex.notes || null,
-		confidence,
-		meta: { extracted: true, reasoning: ex.reasoning || '', raw_message: String(message || '').slice(0, 500) }
+		confidence: overall,
+		meta: {
+			extracted: true,
+			reasoning: ex.reasoning || '',
+			raw_message: String(message || '').slice(0, 1000),
+			extraction: {
+				overall,
+				customer_confidence: clampInt(ex.customer_confidence),
+				delivery_confidence: clampInt(ex.delivery_confidence),
+				missing_fields: Array.isArray(ex.missing_fields) ? ex.missing_fields : [],
+				clarification_question: ex.clarification_question || null
+			}
+		}
 	});
 	return { order, extraction: ex, skipped: order ? null : 'create_failed' };
 }

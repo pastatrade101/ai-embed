@@ -34,6 +34,12 @@
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
 				<span class="nav-label">Overview</span>
 			</a>
+			{#if hasModule('orders')}
+				<a href="/portal/inbox" class="nav-item" title="Inbox" aria-label="Inbox" class:active={active(routeId, '/portal/inbox')}>
+					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
+					<span class="nav-label">Inbox</span>
+				</a>
+			{/if}
 			<a href="/portal/knowledge" class="nav-item" title="Knowledge" aria-label="Knowledge" class:active={active(routeId, '/portal/knowledge')}>
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
 				<span class="nav-label">Knowledge</span>

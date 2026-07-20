@@ -14,6 +14,7 @@
 	// key → destination + label + hint + which module gates it (null = always shown).
 	const ALL = [
 		{ label: 'Overview', hint: 'Dashboard', href: '/portal', module: null, icon: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z' },
+		{ label: 'Inbox', hint: 'Review draft orders', href: '/portal/inbox', module: 'orders', icon: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11 2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z' },
 		{ label: 'Orders', hint: 'Order board', href: '/portal/orders', module: 'orders', icon: 'M9 22a1 1 0 100-2 1 1 0 000 2z M20 22a1 1 0 100-2 1 1 0 000 2z M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6' },
 		{ label: 'AI draft an order', hint: 'From a customer message', href: '/portal/orders?new=ai', module: 'orders', icon: 'M12 2v20 M2 12h20' },
 		{ label: 'Products', hint: 'Catalogue & stock', href: '/portal/products', module: 'inventory', icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11' },

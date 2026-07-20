@@ -52,6 +52,9 @@ export function computeOrderTotals(rawItems = [], discount = 0, tax = 0) {
 			if (li.unit) out.unit = String(li.unit);
 			if (li.detail) out.detail = String(li.detail).trim();
 			if (li.match_confidence != null) out.match_confidence = li.match_confidence;
+			if (li.item_confidence != null) out.item_confidence = li.item_confidence;
+			if (li.raw_text) out.raw_text = String(li.raw_text);
+			if (Array.isArray(li.alternatives) && li.alternatives.length) out.alternatives = li.alternatives;
 			if (li.unmatched) out.unmatched = true;
 			return out;
 		})
