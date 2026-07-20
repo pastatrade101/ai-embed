@@ -17,7 +17,7 @@
 <div class="page-head">
 	<div>
 		<h1>Modules</h1>
-		<div class="sub">Turn on the parts of the business OS you need. WhatsApp stays connected — no re-onboarding.</div>
+		<div class="sub">Turn on the features you need. WhatsApp stays connected — no re-onboarding.</div>
 	</div>
 	<div class="actions"><span class="badge neutral">{enabledCount} add-on{enabledCount === 1 ? '' : 's'} active</span></div>
 </div>
