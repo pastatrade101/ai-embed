@@ -17,7 +17,6 @@ const COLS =
 export const ORDER_STATUSES = [
 	{ key: 'draft', label: 'Draft', color: '#e0b24c' },
 	{ key: 'confirmed', label: 'Confirmed', color: '#2c9c6a' },
-	{ key: 'processing', label: 'Processing', color: '#3a9bd6' },
 	{ key: 'completed', label: 'Completed', color: '#16a34a', terminal: true },
 	{ key: 'cancelled', label: 'Cancelled', color: '#dc2626', terminal: true }
 ];
@@ -250,8 +249,8 @@ export async function orderStats(clientId) {
 	if (tableMissing) return { tableMissing: true };
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
-	const isRevenue = (s) => ['confirmed', 'processing', 'completed'].includes(s);
-	const openStatuses = new Set(['draft', 'confirmed', 'processing']);
+	const isRevenue = (s) => ['confirmed', 'completed'].includes(s);
+	const openStatuses = new Set(['draft', 'confirmed']);
 	let ordersToday = 0;
 	let revenueToday = 0;
 	let revenueMonth = 0;

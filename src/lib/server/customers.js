@@ -73,6 +73,6 @@ export async function updateCustomer(clientId, id, patch = {}) {
 export async function recomputeStats(clientId, customerId) {
 	const { data } = await supabase.from('orders').select('total, status').eq('client_id', clientId).eq('customer_id', customerId);
 	const rows = data ?? [];
-	const spent = rows.filter((o) => ['confirmed', 'processing', 'completed'].includes(o.status)).reduce((a, o) => a + (Number(o.total) || 0), 0);
+	const spent = rows.filter((o) => ['confirmed', 'completed'].includes(o.status)).reduce((a, o) => a + (Number(o.total) || 0), 0);
 	await supabase.from('customers').update({ order_count: rows.length, total_spent: Math.round(spent * 100) / 100, updated_at: new Date().toISOString() }).eq('id', customerId).eq('client_id', clientId);
 }

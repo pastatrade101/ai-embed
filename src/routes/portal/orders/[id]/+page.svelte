@@ -26,7 +26,7 @@
 	$: liveSubtotal = items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.unit_price) || 0), 0);
 
 	// The forward pipeline for the primary CTA (Draft → Confirmed → Processing → Completed).
-	const NEXT = { draft: 'confirmed', confirmed: 'processing', processing: 'completed' };
+	const NEXT = { draft: 'confirmed', confirmed: 'completed' };
 	$: nextStatus = NEXT[o?.status];
 
 	function afterSave() {

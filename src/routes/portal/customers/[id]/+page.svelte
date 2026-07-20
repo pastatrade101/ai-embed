@@ -7,7 +7,7 @@
 	$: currency = data.currency || 'USD';
 	const money = (n) => `${currency} ${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
 	const fmt = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
-	const statusColor = { draft: '#e0b24c', confirmed: '#2c9c6a', processing: '#3a9bd6', completed: '#16a34a', cancelled: '#dc2626' };
+	const statusColor = { draft: '#e0b24c', confirmed: '#2c9c6a', completed: '#16a34a', cancelled: '#dc2626' };
 </script>
 
 <a class="back" href="/portal/customers">← Customers</a>

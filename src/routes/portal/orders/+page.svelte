@@ -20,7 +20,6 @@
 	const COLUMNS = [
 		{ id: 'draft', label: 'Draft', keys: ['draft'] },
 		{ id: 'confirmed', label: 'Confirmed', keys: ['confirmed'] },
-		{ id: 'processing', label: 'Processing', keys: ['processing'] },
 		{ id: 'completed', label: 'Completed', keys: ['completed'] },
 		{ id: 'cancelled', label: 'Cancelled', keys: ['cancelled'] }
 	];
