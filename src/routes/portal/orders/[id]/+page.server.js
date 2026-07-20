@@ -2,16 +2,20 @@
 // timeline. Tenant-scoped; gated behind the `orders` module.
 import { error, fail, redirect } from '@sveltejs/kit';
 import { isModuleEnabled } from '$lib/server/modules.js';
-import { getOrder, updateOrder, setOrderStatus, deleteOrder, orderTimeline, ORDER_STATUSES, ORDER_STATUS_KEYS } from '$lib/server/orders.js';
+import { getOrder, updateOrder, setOrderStatus, setPaymentStatus, deleteOrder, orderTimeline, ORDER_STATUSES, ORDER_STATUS_KEYS, PAYMENT_STATUSES, PAYMENT_STATUS_KEYS } from '$lib/server/orders.js';
+import { generateInvoiceFromOrder, getOrderInvoice } from '$lib/server/invoices.js';
+import { env } from '$env/dynamic/private';
 
-export async function load({ params, locals, parent }) {
+export async function load({ params, locals, parent, url }) {
 	const { client } = await parent();
 	if (!isModuleEnabled(client, 'orders')) throw redirect(303, '/portal/modules');
 	const { order, tableMissing } = await getOrder(locals.user.client_id, params.id);
 	if (tableMissing) throw error(503, 'Run db/023_orders.sql to enable orders.');
 	if (!order) throw error(404, 'Order not found.');
 	const timeline = await orderTimeline(order.id, locals.user.client_id);
-	return { order, timeline, statuses: ORDER_STATUSES };
+	const { invoice } = await getOrderInvoice(locals.user.client_id, order);
+	const origin = env.APP_ORIGIN || env.PUBLIC_APP_URL || url.origin || '';
+	return { order, timeline, statuses: ORDER_STATUSES, paymentStatuses: PAYMENT_STATUSES, invoice, hostedBase: String(origin).replace(/\/$/, '') };
 }
 
 export const actions = {
@@ -47,6 +51,20 @@ export const actions = {
 		if (Array.isArray(items)) patch.items = items;
 		const { error: err } = await updateOrder(locals.user.client_id, params.id, patch);
 		return err ? fail(400, { error: 'Could not save.' }) : { ok: 'Saved.' };
+	},
+
+	pay: async ({ request, params, locals }) => {
+		const form = await request.formData();
+		const status = String(form.get('payment_status') || '');
+		if (!PAYMENT_STATUS_KEYS.includes(status)) return fail(400, { error: 'Invalid payment status.' });
+		const res = await setPaymentStatus(locals.user.client_id, params.id, status);
+		return res.ok ? { ok: 'Payment updated.' } : fail(400, { error: 'Could not update payment.' });
+	},
+
+	invoice: async ({ params, locals }) => {
+		const { invoice, error: err } = await generateInvoiceFromOrder(locals.user.client_id, params.id);
+		if (err || !invoice) return fail(400, { error: 'Could not generate the invoice.' });
+		return { ok: `Invoice ${invoice.number} ready.` };
 	},
 
 	remove: async ({ params, locals }) => {

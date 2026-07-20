@@ -6,6 +6,9 @@
 
 	$: o = data.order;
 	$: statuses = data.statuses || [];
+	$: paymentStatuses = data.paymentStatuses || [];
+	$: invoice = data.invoice;
+	$: invoiceUrl = invoice && data.hostedBase ? `${data.hostedBase}/p/${invoice.public_token}` : null;
 	$: timeline = data.timeline || [];
 	$: currency = o?.currency || 'USD';
 	const money = (n) => `${currency} ${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
@@ -140,6 +143,35 @@
 				<div><dt>Address</dt><dd>{o.delivery_address || '—'}</dd></div>
 			</dl>
 		</div>
+		<div class="card">
+			<div class="card-h"><h3>Payment</h3><span class="pay p-{o.payment_status || 'unpaid'}">{(o.payment_status || 'unpaid').charAt(0).toUpperCase() + (o.payment_status || 'unpaid').slice(1)}</span></div>
+			<div class="paybtns">
+				{#each paymentStatuses as ps}
+					<form method="POST" action="?/pay" use:enhance={afterSave} style="display:inline">
+						<input type="hidden" name="payment_status" value={ps.key} />
+						<button class="paybtn" class:on={o.payment_status === ps.key} type="submit">{ps.label}</button>
+					</form>
+				{/each}
+			</div>
+		</div>
+
+		<div class="card">
+			<div class="card-h"><h3>Invoice</h3></div>
+			{#if invoice}
+				<div class="inv"><span class="inv-num">{invoice.number}</span><span class="inv-total">{money(invoice.total)}</span></div>
+				{#if invoiceUrl}
+					<div class="inv-actions">
+						<a class="btn ghost sm" href={invoiceUrl} target="_blank" rel="noopener noreferrer">View</a>
+						<button class="btn ghost sm" on:click={() => { navigator.clipboard?.writeText(invoiceUrl); }}>Copy link</button>
+						{#if o.customer_phone}<a class="btn sm" href={`https://wa.me/${o.customer_phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Here's your invoice ${invoice.number}: ${invoiceUrl}`)}`} target="_blank" rel="noopener noreferrer">Send on WhatsApp</a>{/if}
+					</div>
+				{/if}
+			{:else}
+				<p class="muted-sm">No invoice yet.</p>
+				<form method="POST" action="?/invoice" use:enhance={afterSave}><button class="btn" type="submit">Generate invoice</button></form>
+			{/if}
+		</div>
+
 		{#if o.meta?.reasoning}
 			<div class="card ai">
 				<div class="card-h"><h3>✨ AI understood</h3></div>
@@ -202,6 +234,20 @@
 
 	.ai { border-color: color-mix(in srgb, var(--mint) 40%, var(--edge)); }
 	.raw { color: var(--muted); font-style: italic; font-size: 0.85rem; margin: 0.5rem 0 0; }
+	.pay { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 999px; }
+	.pay.p-unpaid { color: var(--muted); background: rgba(var(--panel-rgb, 255, 255, 255), 0.08); }
+	.pay.p-pending { color: #fcd34d; background: rgba(245, 158, 11, 0.16); }
+	.pay.p-paid { color: #6ee7a8; background: rgba(22, 163, 74, 0.16); }
+	.pay.p-failed { color: #fca5a5; background: rgba(220, 38, 38, 0.16); }
+	.paybtns { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+	.paybtn { border: 1px solid var(--edge); background: transparent; color: var(--muted); border-radius: 8px; padding: 0.3rem 0.6rem; font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+	.paybtn.on { background: var(--mint); color: #06331c; border-color: var(--mint); }
+	.paybtn:hover:not(.on) { border-color: var(--mint); color: var(--soft); }
+	.inv { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+	.inv-num { font-family: ui-monospace, monospace; color: var(--soft); font-size: 0.9rem; }
+	.inv-total { font-weight: 700; color: var(--strong); }
+	.inv-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+	.muted-sm { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.6rem; }
 	.danger { color: #fca5a5; width: 100%; }
 	.tl { list-style: none; margin: 0; padding: 0; }
 	.tl li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; color: var(--soft); }

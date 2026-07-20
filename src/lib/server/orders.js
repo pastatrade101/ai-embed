@@ -206,6 +206,16 @@ export async function setOrderStatus(clientId, id, status, { allowBackorder = fa
 	return { ok: true, order: data };
 }
 
+/** Set the payment status (separate track from fulfilment). Manual for now; the
+ *  payment module will drive this from real/mock provider webhooks later. */
+export async function setPaymentStatus(clientId, id, paymentStatus) {
+	if (!PAYMENT_STATUS_KEYS.includes(paymentStatus)) return { ok: false, error: 'bad_payment_status' };
+	const { data, error } = await supabase.from('orders').update({ payment_status: paymentStatus, updated_at: new Date().toISOString() }).eq('id', id).eq('client_id', clientId).select('id, payment_status').single();
+	if (error) return { ok: false, error };
+	await addOrderEvent(id, clientId, `payment_${paymentStatus}`, {});
+	return { ok: true, order: data };
+}
+
 /** Single order, scoped to the client. */
 export async function getOrder(clientId, id) {
 	const { data, error } = await supabase.from('orders').select(COLS).eq('id', id).eq('client_id', clientId).maybeSingle();
