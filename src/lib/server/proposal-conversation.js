@@ -12,7 +12,7 @@ import { getProposalSettings } from './proposal-settings.js';
 import { getProposal, markSent } from './proposals.js';
 import { buildProposalContext } from './proposal-context.js';
 import { applyModification } from './proposal-versions.js';
-import { defaultCredentials } from './whatsapp/config.js';
+import { resolveCredentials, resolveTenantByPhoneNumberId } from './whatsapp/credentials.js';
 import { log } from './whatsapp/logger.js';
 import * as convo from './wa-conversations.js';
 
@@ -58,14 +58,13 @@ async function loadLead(clientId, leadId) {
 }
 
 // Fallback resolution: a customer messaged a number we sent a proposal to but no
-// thread exists yet. Match by normalized phone across recent proposals.
-async function findProposalByPhone(phone) {
-	const { data } = await supabase
-		.from('proposals')
-		.select('id, client_id, lead_id, customer_phone')
-		.not('customer_phone', 'is', null)
-		.order('created_at', { ascending: false })
-		.limit(200);
+// thread exists yet. Match by normalized phone across recent proposals. Scoped to the
+// owning tenant when the receiving number identifies one (so a message to tenant B's
+// number never opens a thread against tenant A's proposal).
+async function findProposalByPhone(phone, clientId = null) {
+	let q = supabase.from('proposals').select('id, client_id, lead_id, customer_phone').not('customer_phone', 'is', null);
+	if (clientId) q = q.eq('client_id', clientId);
+	const { data } = await q.order('created_at', { ascending: false }).limit(200);
 	return (data ?? []).find((p) => convo.normalizePhone(p.customer_phone) === phone) ?? null;
 }
 
@@ -86,10 +85,10 @@ ${ctx.text}
 Return the structured decision only.`;
 }
 
-async function sendReply(client, to, text) {
-	// Single-WABA today → default credentials. credentialsFor(client) is the seam
-	// for per-tenant numbers later.
-	return NotificationService.send({ channel: Channel.WHATSAPP, type: 'text', to, text });
+async function sendReply(to, text, credentials) {
+	// Reply FROM the same number that received the message (per-tenant credentials),
+	// falling back to the platform default when the tenant hasn't connected its own.
+	return NotificationService.send({ channel: Channel.WHATSAPP, type: 'text', to, text, credentials });
 }
 
 async function notifyOperator(client, proposal, reason, snippet) {
@@ -144,11 +143,17 @@ export async function handleInboundMessage({ phoneNumberId, from, text }) {
 	const phone = convo.normalizePhone(from);
 	if (!phone || !text) return { ok: false, reason: 'empty' };
 
-	// 1. Resolve the thread (or start one from a matching proposal).
-	let { conversation, tableMissing } = await convo.getByPhone(phone);
+	// 0. Which tenant owns the number that received this message? (null → single shared
+	//    number / legacy). Everything below is scoped to this number so replies always
+	//    go out from the same number/tenant that received the message.
+	const tenant = await resolveTenantByPhoneNumberId(phoneNumberId);
+	const ownerClientId = tenant?.clientId || null;
+
+	// 1. Resolve the thread (scoped to the receiving number) or start one from a matching proposal.
+	let { conversation, tableMissing } = await convo.getByPhone(phone, phoneNumberId);
 	if (tableMissing) { log.warn('wa_assistant_needs_migration', {}); return { ok: false, reason: 'migration_020_needed' }; }
 	if (!conversation) {
-		const found = await findProposalByPhone(phone);
+		const found = await findProposalByPhone(phone, ownerClientId);
 		if (!found) { log.info('wa_no_proposal_for_number', { from: phone }); return { ok: false, reason: 'no_proposal' }; }
 		const created = await convo.createConversation({ clientId: found.client_id, proposalId: found.id, leadId: found.lead_id, customerPhone: phone, phoneNumberId });
 		conversation = created.conversation;
@@ -161,6 +166,8 @@ export async function handleInboundMessage({ phoneNumberId, from, text }) {
 	const { proposal } = conversation.proposal_id ? await getProposal(conversation.client_id, conversation.proposal_id) : { proposal: null };
 	if (!client || !proposal) { log.warn('wa_missing_context', { convId: conversation.id }); return { ok: false, reason: 'missing_context' }; }
 	const lead = await loadLead(conversation.client_id, proposal.lead_id);
+	// Reply from the number that received the message (this tenant's own, if connected).
+	const credentials = await resolveCredentials({ phoneNumberId, clientId: conversation.client_id });
 
 	// 3. Record the customer message (this opens the 24h free-text window).
 	conversation = await convo.appendMessage(conversation, { role: 'customer', text });
@@ -179,7 +186,7 @@ export async function handleInboundMessage({ phoneNumberId, from, text }) {
 		conversation = (await convo.escalate(conversation, 'sensitive_topic')) || conversation;
 		await notifyOperator(client, proposal, 'sensitive_topic', text);
 		const holding = `Thanks for that — let me bring in a colleague from ${client.name} to help you properly. They'll follow up here shortly.`;
-		await sendReply(client, phone, holding);
+		await sendReply(phone, holding, credentials);
 		await convo.appendMessage(conversation, { role: 'ai', text: holding, kind: 'escalation' });
 		return { ok: true, escalated: true };
 	}
@@ -235,7 +242,7 @@ export async function handleInboundMessage({ phoneNumberId, from, text }) {
 	}
 
 	// 9. Send the reply (window is open from the inbound message) + remember it.
-	const sent = await sendReply(client, phone, replyText);
+	const sent = await sendReply(phone, replyText, credentials);
 	conversation = await convo.appendMessage(conversation, { role: 'ai', text: replyText, kind: decision.intent, meta: mod?.action !== 'none' ? { modification: mod } : {} });
 	conversation = (await convo.addTimeline(conversation, 'ai_responded', { intent: decision.intent })) || conversation;
 	return { ok: sent.ok, intent: decision.intent, escalated: decision.escalate };
@@ -254,14 +261,18 @@ export async function startProposalConversation({ client, proposal, to, template
 	if (existing.tableMissing) return { ok: false, reason: 'migration_020_needed' };
 
 	// Send the opening template first — a brand-new thread has no free-text window.
-	const sent = await NotificationService.send({ channel: Channel.WHATSAPP, type: 'template', to: phone, name: templateName, language: templateLanguage });
+	// From this tenant's own number if connected, else the platform default.
+	const credentials = await resolveCredentials({ clientId: client.id });
+	const sent = await NotificationService.send({ channel: Channel.WHATSAPP, type: 'template', to: phone, name: templateName, language: templateLanguage, credentials });
 
 	// Only persist a thread when the template actually went out (no orphan threads),
 	// or reuse one that already exists.
 	let conversation = existing.conversation;
 	if (!conversation) {
 		if (!sent.ok) return { ok: false, reason: 'send_failed', sent };
-		const created = await convo.createConversation({ clientId: client.id, proposalId: proposal.id, leadId: proposal.lead_id, customerPhone: phone, phoneNumberId: defaultCredentials().phoneNumberId });
+		// Record the number the template actually went out from (this tenant's own, if
+		// connected) so the customer's reply resolves back to THIS thread.
+		const created = await convo.createConversation({ clientId: client.id, proposalId: proposal.id, leadId: proposal.lead_id, customerPhone: phone, phoneNumberId: credentials.phoneNumberId });
 		conversation = created.conversation;
 		if (!conversation) return { ok: false, reason: created.tableMissing ? 'migration_020_needed' : 'create_failed', sent };
 	}

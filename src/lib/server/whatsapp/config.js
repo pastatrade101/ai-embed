@@ -68,14 +68,22 @@ export function credentialsFor(tenant = null) {
 	};
 }
 
-/**
- * Reverse lookup for inbound webhooks in a multi-WABA future: map the incoming
- * `phone_number_id` to the owning tenant so replies use the right credentials.
- * Single-account today → null (dispatch uses the default). Wire this to a
- * `clients` lookup on `meta.whatsapp.phone_number_id` when you go multi-number.
- * @param {string} _phoneNumberId
- * @returns {Promise<object|null>}
- */
-export async function resolveTenantByPhoneNumberId(_phoneNumberId) {
-	return null;
+// Note: the real inbound tenant resolver + per-tenant credential decryption live in
+// ./credentials.js (resolveTenantByPhoneNumberId / resolveCredentials), backed by the
+// whatsapp_connections table. Kept out of this module to avoid an import cycle.
+
+/** Meta App config for Embedded Signup (server-side OAuth code exchange). */
+export function metaAppConfig() {
+	return {
+		appId: env.META_APP_ID || '',
+		appSecret: env.META_APP_SECRET || '',
+		configId: env.META_CONFIG_ID || '', // Facebook Login for Business config
+		graphVersion: env.META_GRAPH_VERSION || 'v23.0'
+	};
+}
+
+/** True when Embedded Signup can run end-to-end (app creds + encryption key present). */
+export function embeddedSignupReady() {
+	const m = metaAppConfig();
+	return !!(m.appId && m.appSecret && m.configId && env.WHATSAPP_ENC_KEY);
 }

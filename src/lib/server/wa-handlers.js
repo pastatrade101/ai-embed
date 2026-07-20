@@ -28,7 +28,7 @@ export function registerWhatsAppHandlers() {
 	on('status', async (ev) => {
 		if (ev.status !== 'delivered' && ev.status !== 'read') return;
 		try {
-			const { conversation } = await convo.getByPhone(ev.recipient || '');
+			const { conversation } = await convo.getByPhone(ev.recipient || '', ev.phoneNumberId);
 			if (conversation) await convo.addTimeline(conversation, ev.status, { messageId: ev.messageId });
 		} catch {
 			/* non-fatal */

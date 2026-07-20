@@ -39,22 +39,20 @@ export async function createConversation({ clientId, proposalId, leadId = null, 
 	return { conversation: data };
 }
 
-/** The active thread for a phone number (most recent, any tenant).
- *  NOTE: on a single shared WABA test number, inbound messages carry only the
- *  customer's phone — so if the SAME customer has open threads with two tenants,
- *  the most-recent wins. This is inherent to a shared number; per-tenant WhatsApp
- *  numbers (config.credentialsFor + resolveTenantByPhoneNumberId) disambiguate it
- *  in production. It never leaks data across tenants — the resolved thread's own
- *  client_id scopes everything downstream. */
-export async function getByPhone(customerPhone) {
-	const { data, error } = await supabase
+/** The active thread for a customer, scoped to the business number that received the
+ *  message. Passing phoneNumberId is REQUIRED for tenant isolation: if the same
+ *  customer has open threads with two tenants (each on its own number), scoping by
+ *  phone_number_id returns the thread for the number actually messaged — so a reply
+ *  can never go out from the wrong tenant's number/token. When phoneNumberId is omitted
+ *  (single shared number / legacy), it falls back to most-recent-across-numbers. */
+export async function getByPhone(customerPhone, phoneNumberId = null) {
+	let q = supabase
 		.from('wa_conversations')
 		.select(COLS)
 		.eq('customer_phone', normalizePhone(customerPhone))
-		.not('status', 'eq', 'closed')
-		.order('updated_at', { ascending: false })
-		.limit(1)
-		.maybeSingle();
+		.not('status', 'eq', 'closed');
+	if (phoneNumberId) q = q.eq('phone_number_id', phoneNumberId);
+	const { data, error } = await q.order('updated_at', { ascending: false }).limit(1).maybeSingle();
 	if (error) return { conversation: null, tableMissing: isMissingWaTable(error) };
 	return { conversation: data ?? null };
 }
