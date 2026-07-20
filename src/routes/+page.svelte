@@ -553,7 +553,10 @@
 
 		<div class="wrap foot-bar">
 			<div class="foot-copy">© {new Date().getFullYear()} Makutano&nbsp;AI. All rights reserved.</div>
-			<a class="foot-top" href="#top">Back to top <Icon name="arrow-up" size={14} /></a>
+			<div class="foot-bar-links">
+				<a class="foot-legal" href="/privacy-policy">Privacy Policy</a>
+				<a class="foot-top" href="#top">Back to top <Icon name="arrow-up" size={14} /></a>
+			</div>
 		</div>
 	</footer>
 </div>
@@ -1989,6 +1992,18 @@
 		color: rgba(247, 242, 232, 0.5);
 	}
 	.foot-copy a {
+		color: var(--gold);
+	}
+	.foot-bar-links {
+		display: inline-flex;
+		align-items: center;
+		gap: 1.2rem;
+	}
+	.foot-legal {
+		color: rgba(247, 242, 232, 0.68);
+		transition: color 0.15s;
+	}
+	.foot-legal:hover {
 		color: var(--gold);
 	}
 	.foot-top {
