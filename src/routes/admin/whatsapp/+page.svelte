@@ -8,6 +8,20 @@
 	$: result = form?.result ?? null;
 	$: ok = result?.ok === true;
 
+	// Translate the common Meta error codes into plain, actionable guidance.
+	const ERROR_HINTS = {
+		131047: 'WhatsApp’s 24-hour rule: you can only send free text within 24 hours of the customer’s last message. Reply to this test number from that WhatsApp first (that opens the window), then Send text again — or just use a template, which works anytime.',
+		131051: 'Unsupported message type for this recipient.',
+		131026: 'Undeliverable — the recipient may not be on WhatsApp, hasn’t accepted messages from the test number, or blocked it.',
+		131042: 'Business eligibility / billing issue on the WhatsApp account (add a payment method in Meta).',
+		133010: 'That number isn’t registered on WhatsApp.',
+		100: 'Invalid parameter — double-check the recipient number and payload.',
+		190: 'The access token is invalid or expired — refresh WHATSAPP_ACCESS_TOKEN.',
+		132000: 'Template mismatch — the number of parameters doesn’t match the approved template.',
+		132001: 'That template name/language doesn’t exist or isn’t approved for this WABA.'
+	};
+	$: hint = result && !ok && !result.skipped ? ERROR_HINTS[result.code] : null;
+
 	const CHECKS = [
 		{ k: 'accessToken', label: 'Access token', hint: 'WHATSAPP_ACCESS_TOKEN' },
 		{ k: 'phoneNumberId', label: 'Phone number ID', hint: 'WHATSAPP_PHONE_NUMBER_ID' },
@@ -59,6 +73,7 @@
 			✕ Send failed{result.status ? ` (HTTP ${result.status})` : ''}{result.code ? ` · code ${result.code}` : ''}: {result.error || 'unknown error'}
 		{/if}
 	</div>
+	{#if hint}<div class="hint">💡 {hint}</div>{/if}
 	<details class="raw"><summary>Raw result</summary><pre>{JSON.stringify(result, null, 2)}</pre></details>
 {/if}
 {#if form?.error}<div class="notice err">{form.error}</div>{/if}
@@ -80,7 +95,7 @@
 
 	<div class="card">
 		<h2 class="section" style="margin-top:0">Send free text</h2>
-		<p class="fineprint" style="margin:0 0 .9rem">Only delivers inside the 24-hour customer-service window (i.e. the recipient messaged your number recently). Otherwise Meta returns a re-engagement error — that’s expected; use a template instead.</p>
+		<p class="fineprint" style="margin:0 0 .9rem"><b>WhatsApp only allows this inside a 24-hour window.</b> To open it: from the recipient’s WhatsApp, send any message to your test number first — then Send text within 24h. Outside the window Meta returns code 131047; that’s the rule, not a bug. Templates have no such limit.</p>
 		<form method="POST" action="?/sendText" use:enhance={() => { sending = 'text'; return async ({ update }) => { await update({ reset: false }); sending = null; }; }}>
 			<label>Recipient (international, digits only)<input name="to" inputmode="numeric" placeholder="255700000000" required /></label>
 			<label>Message<textarea name="text" rows="3" placeholder="Hello from Makutano AI 👋">Hello from Makutano AI 👋 — this is a test message.</textarea></label>
@@ -165,6 +180,16 @@
 		border-color: rgba(22, 163, 74, 0.4);
 		background: rgba(22, 163, 74, 0.1);
 		color: #6ee7a8;
+	}
+	.hint {
+		margin: 0.6rem 0 0;
+		padding: 0.8rem 1rem;
+		border-radius: 12px;
+		background: rgba(var(--gold-rgb), 0.1);
+		border: 1px solid rgba(var(--gold-rgb), 0.25);
+		color: var(--soft);
+		font-size: 0.88rem;
+		line-height: 1.5;
 	}
 	.raw {
 		margin: 0.6rem 0 0;
