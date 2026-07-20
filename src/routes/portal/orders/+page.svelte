@@ -45,6 +45,13 @@
 			}
 		};
 	}
+
+	// Move the modal to <body> so its fixed backdrop escapes the AppShell's
+	// transformed content wrapper (which otherwise clips it to the content column).
+	function portal(node) {
+		document.body.appendChild(node);
+		return { destroy() { node.parentNode && node.parentNode.removeChild(node); } };
+	}
 </script>
 
 <div class="page-head">
@@ -133,7 +140,7 @@
 
 <!-- AI draft modal -->
 {#if showAI}
-	<div class="scrim" on:click|self={() => (showAI = false)} role="presentation">
+	<div class="scrim" use:portal on:click|self={() => (showAI = false)} role="presentation">
 		<div class="modal">
 			<div class="modal-head"><h3>✨ AI draft from a message</h3><button class="x" on:click={() => (showAI = false)}>✕</button></div>
 			<p class="hint">Paste what the customer wrote (e.g. “I need 20 bags of cement delivered to Mikocheni tomorrow”). The AI extracts the items, quantities and delivery, priced from your catalogue.</p>
@@ -148,7 +155,7 @@
 
 <!-- Manual create modal -->
 {#if showManual}
-	<div class="scrim" on:click|self={() => (showManual = false)} role="presentation">
+	<div class="scrim" use:portal on:click|self={() => (showManual = false)} role="presentation">
 		<div class="modal">
 			<div class="modal-head"><h3>New order</h3><button class="x" on:click={() => (showManual = false)}>✕</button></div>
 			<form method="POST" action="?/create" use:enhance={afterSubmit}>

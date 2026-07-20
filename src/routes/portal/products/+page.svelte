@@ -25,6 +25,13 @@
 		};
 	}
 	function doSearch() { goto(`/portal/products?q=${encodeURIComponent(search)}`); }
+
+	// Move the modal to <body> so its fixed backdrop covers the full viewport (the
+	// AppShell's transformed content wrapper would otherwise clip it).
+	function portal(node) {
+		document.body.appendChild(node);
+		return { destroy() { node.parentNode && node.parentNode.removeChild(node); } };
+	}
 </script>
 
 <div class="page-head">
@@ -88,7 +95,7 @@
 
 <!-- Create / edit modal -->
 {#if editing}
-	<div class="scrim" on:click|self={() => (editing = null)} role="presentation">
+	<div class="scrim" use:portal on:click|self={() => (editing = null)} role="presentation">
 		<div class="modal">
 			<div class="modal-head"><h3>{editing.id ? 'Edit product' : 'New product'}</h3><button class="x" on:click={() => (editing = null)}>✕</button></div>
 			<form method="POST" action={editing.id ? '?/update' : '?/create'} use:enhance={afterSubmit}>
@@ -118,7 +125,7 @@
 
 <!-- Stock adjust modal -->
 {#if adjusting}
-	<div class="scrim" on:click|self={() => (adjusting = null)} role="presentation">
+	<div class="scrim" use:portal on:click|self={() => (adjusting = null)} role="presentation">
 		<div class="modal sm">
 			<div class="modal-head"><h3>Adjust stock — {adjusting.name}</h3><button class="x" on:click={() => (adjusting = null)}>✕</button></div>
 			<p class="hint">On hand <b>{adjusting.stock.on_hand}</b> · reserved <b>{adjusting.stock.reserved}</b> · available <b>{adjusting.stock.available}</b></p>

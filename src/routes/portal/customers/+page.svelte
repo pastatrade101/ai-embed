@@ -20,6 +20,11 @@
 	function afterAdd() {
 		return async ({ result, update }) => { await update(); if (result.type === 'success' && result.data?.ok) { adding = false; await invalidateAll(); } };
 	}
+	// Move the modal to <body> so its fixed backdrop covers the full viewport.
+	function portal(node) {
+		document.body.appendChild(node);
+		return { destroy() { node.parentNode && node.parentNode.removeChild(node); } };
+	}
 </script>
 
 <div class="page-head">
@@ -60,7 +65,7 @@
 {/if}
 
 {#if adding}
-	<div class="scrim" on:click|self={() => (adding = false)} role="presentation">
+	<div class="scrim" use:portal on:click|self={() => (adding = false)} role="presentation">
 		<div class="modal">
 			<div class="modal-head"><h3>Add customer</h3><button class="x" on:click={() => (adding = false)}>✕</button></div>
 			<form method="POST" action="?/add" use:enhance={afterAdd}>
