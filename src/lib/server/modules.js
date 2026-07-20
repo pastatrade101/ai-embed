@@ -45,7 +45,8 @@ const BY_KEY = new Map(MODULES.map((m) => [m.key, m]));
 export function defaultModuleState(client) {
 	const industry = client?.industry || 'tourism';
 	// Industries that sell physical goods benefit from Orders out of the box.
-	const goodsIndustries = new Set(['retail', 'restaurant', 'pharmacy']);
+	// (Keys must match src/lib/industries.js — 'pharmacy' isn't one; it's 'healthcare'.)
+	const goodsIndustries = new Set(['retail', 'restaurant']);
 	const state = {};
 	for (const m of MODULES) {
 		if (m.core) continue;
