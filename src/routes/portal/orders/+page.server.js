@@ -2,6 +2,7 @@
 // Gated behind the `orders` module (enable it in Portal → Modules). AI draft turns a
 // pasted customer message into a draft order the operator confirms.
 import { fail } from '@sveltejs/kit';
+import { getClientById } from '$lib/server/tenant.js';
 import { isModuleEnabled } from '$lib/server/modules.js';
 import { listOrders, createOrder, setOrderStatus, deleteOrder, ORDER_STATUSES, ORDER_STATUS_KEYS } from '$lib/server/orders.js';
 import { draftOrderFromMessage } from '$lib/server/order-extraction.js';
@@ -25,8 +26,8 @@ function parseItems(raw) {
 
 export const actions = {
 	// AI: extract a draft order from a natural-language message.
-	extract: async ({ request, locals, parent }) => {
-		const { client } = await parent();
+	extract: async ({ request, locals }) => {
+		const client = await getClientById(locals.user.client_id);
 		if (!isModuleEnabled(client, 'orders')) return fail(403, { error: 'The Orders module is not enabled.' });
 		const form = await request.formData();
 		const message = String(form.get('message') || '').trim();
@@ -40,8 +41,8 @@ export const actions = {
 	},
 
 	// Manual create (items come as a JSON string built in the browser).
-	create: async ({ request, locals, parent }) => {
-		const { client } = await parent();
+	create: async ({ request, locals }) => {
+		const client = await getClientById(locals.user.client_id);
 		if (!isModuleEnabled(client, 'orders')) return fail(403, { error: 'The Orders module is not enabled.' });
 		const form = await request.formData();
 		const items = parseItems(form.get('items'));

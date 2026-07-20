@@ -1,6 +1,7 @@
 // Portal ▸ Products & Inventory. Manage the catalogue + stock. Gated behind the
 // `inventory` module. Money is entered in major units and stored as minor units.
 import { fail } from '@sveltejs/kit';
+import { getClientById } from '$lib/server/tenant.js';
 import { isModuleEnabled } from '$lib/server/modules.js';
 import { listProducts, createProduct, updateProduct, deleteProduct } from '$lib/server/products.js';
 import { applyMovement, lowStock } from '$lib/server/inventory.js';
@@ -28,8 +29,8 @@ export async function load({ locals, parent, url }) {
 const splitList = (v) => String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
 
 export const actions = {
-	create: async ({ request, locals, parent }) => {
-		const { client } = await parent();
+	create: async ({ request, locals }) => {
+		const client = await getClientById(locals.user.client_id);
 		if (!isModuleEnabled(client, 'inventory')) return fail(403, { error: 'Enable the Inventory module first.' });
 		const f = await request.formData();
 		const currency = client.default_currency || 'USD';
@@ -55,8 +56,8 @@ export const actions = {
 		return { ok: `Product “${product.name}” added.` };
 	},
 
-	update: async ({ request, locals, parent }) => {
-		const { client } = await parent();
+	update: async ({ request, locals }) => {
+		const client = await getClientById(locals.user.client_id);
 		if (!isModuleEnabled(client, 'inventory')) return fail(403, { error: 'Enable the Inventory module first.' });
 		const f = await request.formData();
 		const id = String(f.get('id') || '');
@@ -81,8 +82,8 @@ export const actions = {
 	},
 
 	// Set opening / adjust stock via the ledger (never edits a total directly).
-	adjust: async ({ request, locals, parent }) => {
-		const { client } = await parent();
+	adjust: async ({ request, locals }) => {
+		const client = await getClientById(locals.user.client_id);
 		if (!isModuleEnabled(client, 'inventory')) return fail(403, { error: 'Enable the Inventory module first.' });
 		const f = await request.formData();
 		const productId = String(f.get('product_id') || '');
