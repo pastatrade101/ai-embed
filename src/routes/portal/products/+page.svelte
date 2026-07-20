@@ -14,9 +14,10 @@
 	let editing = null; // product object or {} for new
 	let adjusting = null;
 	let search = data.search || '';
+	let trackStock = false; // stock is opt-in; a product is a price by default
 
-	function openNew() { editing = { unit: 'unit', track_inventory: true, active: true, tax_rate: 0, min_stock: 0 }; }
-	function openEdit(p) { editing = { ...p, price: major(p.price_minor), cost: major(p.cost_minor), aliases: (p.aliases || []).join(', ') }; }
+	function openNew() { editing = { active: true }; trackStock = false; }
+	function openEdit(p) { editing = { ...p, price: major(p.price_minor), aliases: (p.aliases || []).join(', ') }; trackStock = p.track_inventory !== false; }
 
 	function afterSubmit() {
 		return async ({ result, update }) => {
@@ -36,8 +37,8 @@
 
 <div class="page-head">
 	<div>
-		<h1>Products & Inventory</h1>
-		<div class="sub">Your catalogue and live stock. The AI matches WhatsApp orders against these products.</div>
+		<h1>Products</h1>
+		<div class="sub">Prices the AI remembers. It fills these in as you confirm orders — you rarely need to add one by hand.</div>
 	</div>
 	{#if data.enabled}
 		<div class="actions">
@@ -67,20 +68,17 @@
 	</div>
 
 	{#if !products.length}
-		<div class="empty card"><div class="empty-ico">🧺</div><h3>{data.search ? 'No matches' : 'No products yet'}</h3><p>{data.search ? 'Try a different search.' : 'Add your first product so the AI can turn WhatsApp messages into orders.'}</p>{#if !data.search}<button class="btn" on:click={openNew}>+ New product</button>{/if}</div>
+		<div class="empty card"><div class="empty-ico">🧺</div><h3>{data.search ? 'No matches' : 'No prices remembered yet'}</h3><p>{data.search ? 'Try a different search.' : 'As you confirm orders, the AI remembers each item’s price here so it can auto-fill next time. You can also add one now.'}</p>{#if !data.search}<button class="btn" on:click={openNew}>+ New product</button>{/if}</div>
 	{:else}
 		<div class="card table-wrap">
 			<table>
-				<thead><tr><th>Product</th><th>SKU</th><th>Price</th><th>Available</th><th>On hand</th><th>Reserved</th><th></th></tr></thead>
+				<thead><tr><th>Product</th><th>Price</th><th>Stock</th><th></th></tr></thead>
 				<tbody>
 					{#each products as p (p.id)}
 						<tr class:inactive={!p.active} class:low={p.track_inventory && p.stock.available <= (p.min_stock || 0)}>
-							<td><div class="pname">{p.name}{#if !p.active}<span class="off">inactive</span>{/if}</div><div class="pmeta">{p.brand || ''} {p.unit ? `· per ${p.unit}` : ''}</div></td>
-							<td class="mono">{p.sku || '—'}</td>
+							<td><div class="pname">{p.name}{#if !p.active}<span class="off">inactive</span>{/if}</div>{#if (p.aliases || []).length}<div class="pmeta">also: {(p.aliases || []).join(', ')}</div>{/if}</td>
 							<td class="mono">{money(p.price_minor)}</td>
-							<td>{#if p.track_inventory}<b class:danger={p.stock.available <= (p.min_stock || 0)}>{p.stock.available}</b>{:else}<span class="untracked">not tracked</span>{/if}</td>
-							<td>{p.track_inventory ? p.stock.on_hand : '—'}</td>
-							<td>{p.track_inventory ? p.stock.reserved : '—'}</td>
+							<td>{#if p.track_inventory}<b class:danger={p.stock.available <= (p.min_stock || 0)}>{p.stock.available}</b> <span class="stk-sub">available{p.stock.reserved ? ` · ${p.stock.reserved} reserved` : ''}</span>{:else}<span class="untracked">price only</span>{/if}</td>
 							<td class="row-actions">
 								{#if p.track_inventory}<button class="link" on:click={() => (adjusting = p)}>Stock</button>{/if}
 								<button class="link" on:click={() => openEdit(p)}>Edit</button>
@@ -100,23 +98,16 @@
 			<div class="modal-head"><h3>{editing.id ? 'Edit product' : 'New product'}</h3><button class="x" on:click={() => (editing = null)}>✕</button></div>
 			<form method="POST" action={editing.id ? '?/update' : '?/create'} use:enhance={afterSubmit}>
 				{#if editing.id}<input type="hidden" name="id" value={editing.id} />{/if}
-				<input class="in" name="name" placeholder="Product name" value={editing.name || ''} required />
-				<div class="grid3">
-					<label class="fld"><span>Price ({currency})</span><input class="in" name="price" type="number" min="0" step="0.01" value={editing.price ?? ''} /></label>
-					<label class="fld"><span>Unit</span><input class="in" name="unit" placeholder="bag" value={editing.unit || 'unit'} /></label>
-					<label class="fld"><span>SKU</span><input class="in" name="sku" placeholder="optional" value={editing.sku || ''} /></label>
+				<div class="grid2">
+					<label class="fld"><span>Name</span><input class="in" name="name" placeholder="e.g. Phone case" value={editing.name || ''} required /></label>
+					<label class="fld"><span>Price ({currency})</span><input class="in" name="price" type="number" min="0" step="0.01" placeholder="0" value={editing.price ?? ''} /></label>
 				</div>
-				<div class="grid3">
-					<label class="fld"><span>Min stock</span><input class="in" name="min_stock" type="number" min="0" value={editing.min_stock ?? 0} /></label>
-					{#if !editing.id}<label class="fld"><span>Opening stock</span><input class="in" name="opening_stock" type="number" min="0" value="0" /></label>{/if}
-				</div>
-				<input class="in" name="image" placeholder="Image URL (optional)" value={(editing.images && editing.images[0]) || ''} />
-				<input class="in" name="aliases" placeholder="AI aliases / WhatsApp names (comma-separated)" value={editing.aliases || ''} />
-				<textarea class="in" name="description" rows="2" placeholder="Description (optional)">{editing.description || ''}</textarea>
+				<input class="in" name="aliases" placeholder="Also called… (helps the AI match — comma-separated, optional)" value={editing.aliases || ''} />
 				<div class="switches">
-					<label class="sw-l"><input type="checkbox" name="track_inventory" checked={editing.track_inventory !== false} /> Track stock</label>
+					<label class="sw-l"><input type="checkbox" name="track_inventory" bind:checked={trackStock} /> Track stock <span class="sw-hint">so I know if I can fulfill an order</span></label>
 					{#if editing.id}<label class="sw-l"><input type="checkbox" name="active" checked={editing.active !== false} /> Active</label>{/if}
 				</div>
+				{#if trackStock && !editing.id}<label class="fld"><span>Opening stock</span><input class="in" name="opening_stock" type="number" min="0" value="0" /></label>{/if}
 				<div class="modal-foot"><button type="button" class="btn ghost" on:click={() => (editing = null)}>Cancel</button><button class="btn" type="submit">{editing.id ? 'Save' : 'Add product'}</button></div>
 			</form>
 		</div>
@@ -193,6 +184,8 @@
 	.fld span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 0.2rem; }
 	.switches { display: flex; gap: 1.2rem; margin: 0.3rem 0 0.2rem; }
 	.sw-l { display: flex; align-items: center; gap: 0.4rem; color: var(--soft); font-size: 0.9rem; }
+	.sw-hint { color: var(--muted); font-size: 0.8rem; }
+	.stk-sub { color: var(--muted); font-size: 0.78rem; }
 	.modal-foot { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.6rem; }
 	code { background: rgba(var(--panel-rgb, 255, 255, 255), 0.08); padding: 0.05rem 0.3rem; border-radius: 5px; font-size: 0.85em; }
 	@media (max-width: 620px) { .grid3 { grid-template-columns: 1fr; } .grid2 { grid-template-columns: 1fr; } }

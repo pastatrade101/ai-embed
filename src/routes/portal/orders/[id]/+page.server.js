@@ -4,6 +4,9 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { isModuleEnabled } from '$lib/server/modules.js';
 import { getOrder, updateOrder, setOrderStatus, setPaymentStatus, deleteOrder, orderTimeline, ORDER_STATUSES, ORDER_STATUS_KEYS, PAYMENT_STATUSES, PAYMENT_STATUS_KEYS } from '$lib/server/orders.js';
 import { generateInvoiceFromOrder, getOrderInvoice } from '$lib/server/invoices.js';
+import { getClientById } from '$lib/server/tenant.js';
+import { createProduct, matchProduct } from '$lib/server/products.js';
+import { toMinor } from '$lib/server/money.js';
 import { env } from '$env/dynamic/private';
 
 export async function load({ params, locals, parent, url }) {
@@ -15,7 +18,19 @@ export async function load({ params, locals, parent, url }) {
 	const timeline = await orderTimeline(order.id, locals.user.client_id);
 	const { invoice } = await getOrderInvoice(locals.user.client_id, order);
 	const origin = env.APP_ORIGIN || env.PUBLIC_APP_URL || url.origin || '';
-	return { order, timeline, statuses: ORDER_STATUSES, paymentStatuses: PAYMENT_STATUSES, invoice, hostedBase: String(origin).replace(/\/$/, '') };
+	// Items the AI didn't recognise but you priced → offer to remember them as products
+	// (self-building price memory). Only when the Products module is on.
+	const inventoryOn = isModuleEnabled(client, 'inventory');
+	const newPriced = (order.items || []).filter((i) => !i.product_id && Number(i.unit_price) > 0 && String(i.description || '').trim());
+	return {
+		order,
+		timeline,
+		statuses: ORDER_STATUSES,
+		paymentStatuses: PAYMENT_STATUSES,
+		invoice,
+		hostedBase: String(origin).replace(/\/$/, ''),
+		rememberable: inventoryOn ? newPriced.length : 0
+	};
 }
 
 export const actions = {
@@ -65,6 +80,39 @@ export const actions = {
 		const { invoice, error: err } = await generateInvoiceFromOrder(locals.user.client_id, params.id);
 		if (err || !invoice) return fail(400, { error: 'Could not generate the invoice.' });
 		return { ok: `Invoice ${invoice.number} ready.` };
+	},
+
+	// Self-building price memory: remember the order's newly-priced, unmatched items as
+	// products so the AI auto-fills them next time. Links each order line to its product;
+	// reuses an existing product when the name already matches (no duplicates).
+	remember: async ({ params, locals }) => {
+		const clientId = locals.user.client_id;
+		const client = await getClientById(clientId);
+		if (!isModuleEnabled(client, 'inventory')) return fail(403, { error: 'Turn on Products to remember prices.' });
+		const { order } = await getOrder(clientId, params.id);
+		if (!order) return fail(404, { error: 'Order not found.' });
+		const currency = order.currency || client.default_currency || 'USD';
+		const items = Array.isArray(order.items) ? [...order.items] : [];
+		let remembered = 0;
+		for (const it of items) {
+			if (it.product_id || !(Number(it.unit_price) > 0) || !String(it.description || '').trim()) continue;
+			const name = String(it.description).trim();
+			const match = await matchProduct(clientId, name);
+			let productId = match.product?.id || null;
+			if (!productId) {
+				// price memory by default — no stock tracking unless the operator opts in later
+				const { product } = await createProduct(clientId, { name, price_minor: toMinor(it.unit_price, currency), currency, track_inventory: false });
+				productId = product?.id || null;
+			}
+			if (productId) {
+				it.product_id = productId;
+				delete it.unmatched;
+				remembered++;
+			}
+		}
+		if (!remembered) return fail(400, { error: 'Nothing new to remember.' });
+		await updateOrder(clientId, params.id, { items });
+		return { ok: `Remembered ${remembered} price${remembered === 1 ? '' : 's'} — the AI will auto-fill next time.` };
 	},
 
 	remove: async ({ params, locals }) => {

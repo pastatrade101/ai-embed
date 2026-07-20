@@ -67,6 +67,13 @@
 	</div>
 </div>
 
+{#if data.rememberable > 0}
+	<div class="remember">
+		<span>✨ You priced {data.rememberable} item{data.rememberable === 1 ? '' : 's'} the AI didn’t recognise. Remember {data.rememberable === 1 ? 'it' : 'them'} so it auto-fills next time?</span>
+		<form method="POST" action="?/remember" use:enhance={afterSave}><button class="btn sm" type="submit">Remember price{data.rememberable === 1 ? '' : 's'}</button></form>
+	</div>
+{/if}
+
 <div class="cols">
 	<div class="main">
 		<div class="card">
@@ -248,6 +255,8 @@
 	.inv-total { font-weight: 700; color: var(--strong); }
 	.inv-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 	.muted-sm { color: var(--muted); font-size: 0.85rem; margin: 0 0 0.6rem; }
+	.remember { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; background: color-mix(in srgb, var(--mint) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--mint) 40%, var(--edge)); border-radius: 12px; padding: 0.7rem 0.9rem; margin-bottom: 1rem; }
+	.remember span { flex: 1; color: var(--soft); font-size: 0.9rem; min-width: 200px; }
 	.danger { color: #fca5a5; width: 100%; }
 	.tl { list-style: none; margin: 0; padding: 0; }
 	.tl li { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.85rem; color: var(--soft); }

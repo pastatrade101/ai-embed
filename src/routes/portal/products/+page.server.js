@@ -36,18 +36,10 @@ export const actions = {
 		const currency = client.default_currency || 'USD';
 		const { product, error, tableMissing } = await createProduct(locals.user.client_id, {
 			name: f.get('name'),
-			sku: f.get('sku'),
-			unit: f.get('unit') || 'unit',
-			brand: f.get('brand'),
-			description: f.get('description'),
 			price_minor: toMinor(f.get('price'), currency),
-			cost_minor: toMinor(f.get('cost'), currency),
 			currency,
-			tax_rate: Number(f.get('tax_rate')) || 0,
 			track_inventory: f.get('track_inventory') === 'on',
-			min_stock: Number(f.get('min_stock')) || 0,
-			aliases: splitList(f.get('aliases')),
-			images: f.get('image') ? [String(f.get('image')).trim()] : []
+			aliases: splitList(f.get('aliases'))
 		});
 		if (error) return fail(400, { error: tableMissing ? 'Run db/024_inventory.sql first.' : error.message === 'name_required' ? 'Product name is required.' : 'Could not create product.' });
 		// Optional opening stock.
@@ -64,18 +56,10 @@ export const actions = {
 		const currency = client.default_currency || 'USD';
 		const patch = {
 			name: f.get('name'),
-			sku: f.get('sku'),
-			unit: f.get('unit') || 'unit',
-			brand: f.get('brand'),
-			description: f.get('description'),
 			price_minor: toMinor(f.get('price'), currency),
-			cost_minor: toMinor(f.get('cost'), currency),
-			tax_rate: Number(f.get('tax_rate')) || 0,
 			track_inventory: f.get('track_inventory') === 'on',
-			min_stock: Number(f.get('min_stock')) || 0,
 			active: f.get('active') === 'on',
-			aliases: splitList(f.get('aliases')),
-			images: f.get('image') ? [String(f.get('image')).trim()] : []
+			aliases: splitList(f.get('aliases'))
 		};
 		const { error } = await updateProduct(locals.user.client_id, id, patch);
 		return error ? fail(400, { error: 'Could not save product.' }) : { ok: 'Saved.' };
