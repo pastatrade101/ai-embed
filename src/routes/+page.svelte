@@ -49,6 +49,16 @@
 		{ n: '03', t: 'Share your assistant', d: 'WhatsApp, Instagram bio, Facebook, Google Business, QR code, your website.' },
 		{ n: '04', t: 'Receive sales-ready leads', d: 'Qualified customers arrive in your WhatsApp with all the important details.' }
 	];
+	const proposalPower = [
+		'Drafts the quote straight from the chat',
+		'Priced from your real catalogue — never guessed',
+		'A premium, branded quotation page',
+		'Customers accept in a single tap',
+		'Smart upsell & cross-sell suggestions',
+		'Stays in sync as the details change',
+		'See when it’s opened and accepted',
+		'Explains why it recommended each option'
+	];
 	const builtWith = ['Your prices', 'Your products & services', 'Your availability', 'Your FAQs', 'Your policies', 'Your process'];
 	const channels = ['Instagram', 'WhatsApp', 'Facebook', 'Google Business', 'Your website', 'QR Codes'];
 	const reasons = [
@@ -93,6 +103,7 @@
 		{ q: 'Do I need a website?', a: 'No. Makutano AI creates a hosted AI page automatically — just share the link or QR code. If you do have a website, it can scan and import your content for you.' },
 		{ q: 'Does the AI use my own prices?', a: 'Yes. It answers only from your verified catalogue — never generic internet knowledge — so every price, date and detail is accurate.' },
 		{ q: 'Can customers still reach me on WhatsApp?', a: 'Yes. The AI hands sales-ready customers directly to your WhatsApp, carrying the full conversation so you pick up right where it left off.' },
+		{ q: 'Can it create quotations and proposals?', a: 'Yes. When a customer is ready to buy, Makutano AI drafts a full quotation from the conversation — priced from your real catalogue — which you review in a click. Your customer opens a premium branded page and accepts in one tap, and you can see the moment it’s viewed and accepted.' },
 		{ q: 'What languages does it speak?', a: 'It replies in the customer’s language automatically, and can read photos and PDFs they send.' },
 		{ q: 'How do I add my information?', a: 'Import from CSV, JSON or PDF, paste your content, or point it at your website and let it import automatically. The AI organises everything.' },
 		{ q: 'How much does the AI cost to run?', a: 'Every plan includes a generous monthly AI allowance shown as simple usage — no tokens to think about — with clear forecasts and top-ups if you ever need more.' },
@@ -103,7 +114,7 @@
 	const SITE = 'Makutano AI';
 	const SEO_TITLE = 'Makutano AI — AI Sales Assistant for Every Business';
 	const SEO_DESC =
-		'The complete AI team for any business: an assistant that answers customers, recommends the right option and qualifies leads 24/7 — plus an AI analyst that reads your numbers, an AI researcher that fills knowledge gaps, website auto-sync and a sales pipeline. No website needed.';
+		'The complete AI team for any business: an assistant that answers customers, recommends the right option and qualifies leads 24/7 — then drafts branded quotations customers accept in one tap. Plus an AI analyst that reads your numbers, an AI researcher that fills knowledge gaps, website auto-sync and a sales pipeline. No website needed.';
 	$: seoOrigin = data.origin ?? 'https://ai.makutano.co.tz';
 	$: canonicalUrl = `${seoOrigin}/`;
 	$: ogImage = `${seoOrigin}/og-image.png`;
@@ -301,6 +312,43 @@
 		</div>
 	</section>
 
+	<!-- AI PROPOSALS -->
+	<section class="proposals">
+		<div class="proposals-bg"></div>
+		<div class="wrap grid-2 aligned">
+			<div class="proposals-copy">
+				<div class="label">New · AI Proposals &amp; Quotations</div>
+				<h2>From a conversation to a signed quotation — automatically.</h2>
+				<p class="cream-muted">The moment a customer is ready to buy, Makutano AI turns the whole conversation into a polished, branded quotation — priced from your real catalogue. Review it in a click; your customer opens a beautiful page and accepts in a single tap.</p>
+				<ul class="cap-grid">
+					{#each proposalPower as c}
+						<li><span class="dot"></span>{c}</li>
+					{/each}
+				</ul>
+				<div class="cta-row">
+					<a class="btn gold" href={ONBOARD}>Start sending AI quotes <Icon name="arrow-right" size={18} /></a>
+				</div>
+			</div>
+			<div class="quote-mock">
+				<span class="qm-accent"></span>
+				<div class="qm-top">
+					<div class="qm-brand"><span class="qm-logo">GS</span><span>Goldfinch Studio</span></div>
+					<span class="qm-status"><span class="qm-dot"></span>Accepted</span>
+				</div>
+				<div class="qm-kind">Quotation · QUO-2026-0148</div>
+				<div class="qm-title">Website &amp; Brand Launch Package</div>
+				<div class="qm-items">
+					<div class="qm-item"><span>Website design &amp; build</span><b>$2,400</b></div>
+					<div class="qm-item"><span>Brand identity kit</span><b>$850</b></div>
+					<div class="qm-item"><span>3 months of support</span><b>$600</b></div>
+				</div>
+				<div class="qm-total"><span>Total</span><b>$3,850</b></div>
+				<div class="qm-accept">Accept quotation</div>
+				<div class="qm-foot"><span class="qm-match">96%</span> AI match to this customer</div>
+			</div>
+		</div>
+	</section>
+
 	<!-- HOW IT WORKS -->
 	<section id="how" class="how">
 		<div class="wrap">
@@ -341,6 +389,7 @@
 				<div class="b b-card"><div class="b-ico"><Icon name="calendar" size={22} /></div><h3>Real-Time Availability</h3><p>"Do you have it available next week?" The AI checks your real schedule before answering.</p></div>
 				<div class="b b-gold"><div class="b-ico b-ico-ink"><Icon name="message-circle" size={26} /></div><h3>WhatsApp Handoff</h3><p>Sales-ready customers land directly in your WhatsApp. No copying. No exporting. No CRM headaches.</p></div>
 				<div class="b b-card b-wide"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>AI Lead Qualification</h3><p>Budget, timing, needs, interests & buying intent — extracted automatically into a clean lead record before you even reply.</p></div>
+					<div class="b b-card b-wide"><div class="b-ico"><Icon name="file-text" size={22} /></div><h3>AI Proposals & Quotations</h3><p>Turn a ready-to-buy chat into a branded quotation priced from your catalogue — your customer opens a premium page and accepts in one tap.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>AI Data Analyst</h3><p>Ask your business anything — "What converts best?", "Where are leads dropping off?" — answered from your real numbers, never guessed.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="search" size={22} /></div><h3>AI Research Assistant</h3><p>Point it at a topic customers keep asking about; it researches the web and drafts a ready-to-publish knowledge entry for you to approve.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="refresh" size={22} /></div><h3>Website Sync</h3><p>Connect your website and it imports your pages automatically — deep-scanning your whole site — and keeps your AI in sync as things change.</p></div>
@@ -1130,6 +1179,188 @@
 	}
 	.cm-ai b {
 		color: var(--gold-soft);
+	}
+
+	/* AI Proposals (dark forest) */
+	.proposals {
+		position: relative;
+		isolation: isolate;
+		overflow: hidden;
+		background: var(--forest);
+		color: var(--cream);
+		padding: 6rem 0;
+	}
+	@media (min-width: 860px) {
+		.proposals {
+			padding: 8rem 0;
+		}
+		.proposals .grid-2 {
+			grid-template-columns: 1.08fr 0.92fr;
+			align-items: center;
+		}
+	}
+	.proposals-bg {
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		background:
+			radial-gradient(55% 60% at 92% 12%, rgba(224, 178, 76, 0.2), transparent 60%),
+			radial-gradient(50% 60% at 4% 92%, rgba(44, 107, 82, 0.42), transparent 60%);
+	}
+	.proposals h2 {
+		color: var(--cream);
+	}
+	.proposals .cta-row {
+		margin-top: 2rem;
+	}
+	.quote-mock {
+		position: relative;
+		background: #fff;
+		color: var(--ink);
+		border-radius: 22px;
+		padding: 1.6rem 1.6rem 1.4rem;
+		box-shadow: 0 40px 70px -30px rgba(0, 0, 0, 0.6);
+		overflow: hidden;
+		width: 100%;
+		max-width: 420px;
+		justify-self: center;
+		animation: heroFloat 8s ease-in-out infinite;
+	}
+	.qm-accent {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 4px;
+		background: linear-gradient(90deg, var(--gold), var(--gold-soft));
+	}
+	.qm-top {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.75rem;
+		margin-bottom: 1.1rem;
+	}
+	.qm-brand {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-weight: 650;
+		font-size: 0.9rem;
+	}
+	.qm-logo {
+		width: 32px;
+		height: 32px;
+		border-radius: 9px;
+		display: grid;
+		place-items: center;
+		background: var(--forest);
+		color: var(--cream);
+		font-size: 0.75rem;
+		font-weight: 800;
+	}
+	.qm-status {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		font-size: 0.72rem;
+		font-weight: 700;
+		color: #16a34a;
+		background: rgba(22, 163, 74, 0.1);
+		border: 1px solid rgba(22, 163, 74, 0.25);
+		border-radius: 999px;
+		padding: 0.25rem 0.6rem;
+	}
+	.qm-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #16a34a;
+	}
+	.qm-kind {
+		font-size: 0.68rem;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.qm-title {
+		margin: 0.35rem 0 1.1rem;
+		font-size: 1.2rem;
+		font-weight: 680;
+		letter-spacing: -0.01em;
+		color: var(--ink);
+	}
+	.qm-items {
+		display: flex;
+		flex-direction: column;
+	}
+	.qm-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		padding: 0.7rem 0;
+		border-top: 1px solid var(--line);
+		font-size: 0.9rem;
+		color: var(--ink-2);
+	}
+	.qm-item:first-child {
+		border-top: 0;
+	}
+	.qm-item b {
+		color: var(--ink);
+		font-variant-numeric: tabular-nums;
+	}
+	.qm-total {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		margin-top: 0.5rem;
+		padding-top: 0.9rem;
+		border-top: 2px solid var(--line);
+	}
+	.qm-total span {
+		font-size: 0.85rem;
+		color: var(--muted);
+		font-weight: 600;
+	}
+	.qm-total b {
+		font-size: 1.7rem;
+		font-weight: 780;
+		letter-spacing: -0.02em;
+		color: var(--ink);
+		font-variant-numeric: tabular-nums;
+	}
+	.qm-accept {
+		margin-top: 1.1rem;
+		text-align: center;
+		background: var(--forest);
+		color: var(--cream);
+		border-radius: 12px;
+		padding: 0.8rem;
+		font-size: 0.9rem;
+		font-weight: 650;
+	}
+	.qm-foot {
+		margin-top: 0.9rem;
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		font-size: 0.78rem;
+		color: var(--muted);
+	}
+	.qm-match {
+		display: inline-grid;
+		place-items: center;
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: rgba(224, 178, 76, 0.16);
+		color: var(--forest);
+		font-size: 0.72rem;
+		font-weight: 800;
+		border: 2px solid rgba(224, 178, 76, 0.5);
 	}
 
 	/* How */
