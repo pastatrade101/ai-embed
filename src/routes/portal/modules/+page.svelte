@@ -45,7 +45,7 @@
 				</div>
 				<div class="mod-name">{m.name}</div>
 				<div class="mod-desc">{m.desc}</div>
-				{#if m.enabled && !m.core}<a class="mod-open" href={`/portal/${m.key === 'orders' ? 'orders' : ''}`}>Open →</a>{/if}
+				{#if m.enabled && !m.core && m.href}<a class="mod-open" href={m.href}>Open →</a>{/if}
 			</div>
 		{/each}
 	</div>

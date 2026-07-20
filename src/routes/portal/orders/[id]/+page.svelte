@@ -22,8 +22,8 @@
 	$: itemsJson = JSON.stringify(items.filter((it) => String(it.description).trim()));
 	$: liveSubtotal = items.reduce((a, it) => a + (Number(it.qty) || 0) * (Number(it.unit_price) || 0), 0);
 
-	// The forward pipeline for the primary CTA.
-	const NEXT = { new: 'confirmed', ai_parsed: 'confirmed', pending_confirmation: 'confirmed', confirmed: 'preparing', preparing: 'ready', ready: 'out_for_delivery', out_for_delivery: 'delivered', delivered: 'completed' };
+	// The forward pipeline for the primary CTA (Draft → Confirmed → Processing → Completed).
+	const NEXT = { draft: 'confirmed', confirmed: 'processing', processing: 'completed' };
 	$: nextStatus = NEXT[o?.status];
 
 	function afterSave() {
@@ -53,7 +53,7 @@
 		{#if nextStatus}
 			<form method="POST" action="?/status" use:enhance={afterSave} style="display:inline">
 				<input type="hidden" name="status" value={nextStatus} />
-				<button class="btn">{o.status === 'pending_confirmation' || o.status === 'ai_parsed' || o.status === 'new' ? '✓ Confirm order' : `→ ${smeta(nextStatus).label}`}</button>
+				<button class="btn">{o.status === 'draft' ? '✓ Confirm order' : `→ ${smeta(nextStatus).label}`}</button>
 			</form>
 		{/if}
 		<select class="statussel" on:change={(e) => { const f = e.target.closest('.head-actions').querySelector('form.jump'); f.querySelector('[name=status]').value = e.target.value; f.requestSubmit(); }}>

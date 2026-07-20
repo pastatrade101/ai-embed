@@ -4,35 +4,61 @@
 // into each other later. FAILS OPEN before migration 023 (reads return
 // empty/null with tableMissing:true; the WhatsApp auto-draft silently no-ops).
 import { supabase } from './supabase.js';
-import { computeTotals } from './proposals.js';
+import { isModuleEnabled } from './modules.js';
+import { reserveForOrder, releaseForOrder, deductForOrder } from './inventory.js';
 
 const COLS =
-	'id, client_id, lead_id, conversation_id, number, status, source, customer_name, customer_phone, customer_email, currency, items, subtotal, discount, tax, total, delivery_date, delivery_address, notes, internal_notes, confidence, assigned_to, meta, created_at, updated_at, confirmed_at, delivered_at, completed_at';
+	'id, client_id, lead_id, customer_id, conversation_id, number, status, payment_status, source, customer_name, customer_phone, customer_email, currency, items, subtotal, discount, tax, total, delivery_date, delivery_address, notes, internal_notes, confidence, assigned_to, meta, created_at, updated_at, confirmed_at, delivered_at, completed_at';
 
-// The order lifecycle. `group` drives the Kanban columns; `terminal` statuses stop
-// the flow. Keep this the single source of truth for statuses across the app.
+// The order lifecycle — deliberately just 5 states (Draft → Confirmed → Processing →
+// Completed / Cancelled). Kept intentionally simple; fulfilment detail lives in the
+// timeline, not in more statuses. Single source of truth across the app.
 export const ORDER_STATUSES = [
-	{ key: 'new', label: 'New', group: 'intake', color: '#7c8b83' },
-	{ key: 'ai_parsed', label: 'AI Parsed', group: 'intake', color: '#8b7fd6' },
-	{ key: 'pending_confirmation', label: 'Pending Confirmation', group: 'intake', color: '#e0b24c' },
-	{ key: 'confirmed', label: 'Confirmed', group: 'progress', color: '#2c9c6a' },
-	{ key: 'preparing', label: 'Preparing', group: 'progress', color: '#3a9bd6' },
-	{ key: 'packed', label: 'Packed', group: 'progress', color: '#3a9bd6' },
-	{ key: 'ready', label: 'Ready', group: 'progress', color: '#3a9bd6' },
-	{ key: 'out_for_delivery', label: 'Out For Delivery', group: 'fulfilment', color: '#d6873a' },
-	{ key: 'delivered', label: 'Delivered', group: 'fulfilment', color: '#2c9c6a' },
-	{ key: 'completed', label: 'Completed', group: 'done', color: '#16a34a', terminal: true },
-	{ key: 'cancelled', label: 'Cancelled', group: 'cancelled', color: '#dc2626', terminal: true },
-	{ key: 'returned', label: 'Returned', group: 'cancelled', color: '#dc2626', terminal: true }
+	{ key: 'draft', label: 'Draft', color: '#e0b24c' },
+	{ key: 'confirmed', label: 'Confirmed', color: '#2c9c6a' },
+	{ key: 'processing', label: 'Processing', color: '#3a9bd6' },
+	{ key: 'completed', label: 'Completed', color: '#16a34a', terminal: true },
+	{ key: 'cancelled', label: 'Cancelled', color: '#dc2626', terminal: true }
 ];
 export const ORDER_STATUS_KEYS = ORDER_STATUSES.map((s) => s.key);
 const STATUS_BY_KEY = new Map(ORDER_STATUSES.map((s) => [s.key, s]));
-export const statusMeta = (key) => STATUS_BY_KEY.get(key) || { key, label: key, group: 'intake', color: '#7c8b83' };
+export const statusMeta = (key) => STATUS_BY_KEY.get(key) || { key, label: key, color: '#7c8b83' };
+
+// Payment status is a SEPARATE track from fulfilment.
+export const PAYMENT_STATUSES = [
+	{ key: 'unpaid', label: 'Unpaid', color: '#7c8b83' },
+	{ key: 'pending', label: 'Pending', color: '#e0b24c' },
+	{ key: 'paid', label: 'Paid', color: '#16a34a' },
+	{ key: 'failed', label: 'Failed', color: '#dc2626' }
+];
+export const PAYMENT_STATUS_KEYS = PAYMENT_STATUSES.map((s) => s.key);
 
 const n2 = (v) => {
 	const x = Number(v);
 	return Number.isFinite(x) ? x : 0;
 };
+
+// Normalise line items + compute money. Unlike the proposal engine's computeTotals,
+// this PRESERVES product_id + match metadata so confirmed orders can reserve stock.
+export function computeOrderTotals(rawItems = [], discount = 0, tax = 0) {
+	const items = (Array.isArray(rawItems) ? rawItems : [])
+		.map((li) => {
+			const qty = li.qty == null || li.qty === '' ? 1 : n2(li.qty);
+			const unit = n2(li.unit_price);
+			const amount = li.amount != null && li.amount !== '' ? n2(li.amount) : qty * unit;
+			const out = { description: String(li.description ?? '').trim(), qty, unit_price: unit, amount: Math.round(amount * 100) / 100 };
+			if (li.product_id) out.product_id = li.product_id;
+			if (li.unit) out.unit = String(li.unit);
+			if (li.detail) out.detail = String(li.detail).trim();
+			if (li.match_confidence != null) out.match_confidence = li.match_confidence;
+			if (li.unmatched) out.unmatched = true;
+			return out;
+		})
+		.filter((li) => li.description || li.amount);
+	const subtotal = Math.round(items.reduce((a, li) => a + li.amount, 0) * 100) / 100;
+	const total = Math.max(0, Math.round((subtotal - n2(discount) + n2(tax)) * 100) / 100);
+	return { items, subtotal, total };
+}
 
 /** True when the error is "orders table doesn't exist yet" (migration 023). */
 export function isMissingOrders(error) {
@@ -65,14 +91,16 @@ export async function addOrderEvent(orderId, clientId, type, meta = {}) {
 
 /** Create an order from a partial. Computes totals, assigns a number, records an event. */
 export async function createOrder(clientId, data = {}) {
-	const { items, subtotal, total } = computeTotals(data.items, data.discount, data.tax);
-	const status = ORDER_STATUS_KEYS.includes(data.status) ? data.status : 'new';
+	const { items, subtotal, total } = computeOrderTotals(data.items, data.discount, data.tax);
+	const status = ORDER_STATUS_KEYS.includes(data.status) ? data.status : 'draft';
 	const row = {
 		client_id: clientId,
 		lead_id: data.lead_id || null,
+		customer_id: data.customer_id || null,
 		conversation_id: data.conversation_id || null,
 		number: await nextNumber(clientId),
 		status,
+		payment_status: PAYMENT_STATUS_KEYS.includes(data.payment_status) ? data.payment_status : 'unpaid',
 		source: data.source || 'manual',
 		customer_name: (data.customer_name ?? '').trim() || null,
 		customer_phone: (data.customer_phone ?? '').trim() || null,
@@ -114,7 +142,7 @@ export async function updateOrder(clientId, id, patch = {}) {
 		const items = 'items' in patch ? patch.items : cur?.items ?? [];
 		const discount = 'discount' in patch ? patch.discount : cur?.discount ?? 0;
 		const tax = 'tax' in patch ? patch.tax : cur?.tax ?? 0;
-		const t = computeTotals(items, discount, tax);
+		const t = computeOrderTotals(items, discount, tax);
 		set.items = t.items;
 		set.subtotal = t.subtotal;
 		set.discount = n2(discount);
@@ -127,17 +155,46 @@ export async function updateOrder(clientId, id, patch = {}) {
 	return { order: data, error: null };
 }
 
-/** Move an order to a new status, stamping the lifecycle timestamps + a timeline event. */
-export async function setOrderStatus(clientId, id, status) {
+/** Move an order to a new status, stamping the lifecycle timestamps + a timeline event.
+ *  When the Inventory module is on, confirmation RESERVES stock (blocking on shortage
+ *  unless backorders are allowed), cancellation/return RELEASES it, and delivery/
+ *  completion DEDUCTS it. All stock ops are atomic (Postgres functions) and fail open
+ *  when inventory isn't set up, so orders keep working without stock control. */
+export async function setOrderStatus(clientId, id, status, { allowBackorder = false } = {}) {
 	if (!ORDER_STATUS_KEYS.includes(status)) return { ok: false, error: 'bad_status' };
+
+	// Is the Inventory module enabled for this tenant?
+	let inventoryOn = false;
+	try {
+		const { data: client } = await supabase.from('clients').select('id, modules').eq('id', clientId).maybeSingle();
+		inventoryOn = client ? isModuleEnabled(client, 'inventory') : false;
+	} catch {
+		/* fail open → no stock control */
+	}
+
+	// Reserve BEFORE flipping to confirmed so a shortage blocks the transition.
+	if (inventoryOn && status === 'confirmed') {
+		const { order } = await getOrder(clientId, id);
+		if (order) {
+			const res = await reserveForOrder(clientId, order, { allowBackorder });
+			if (res.ok === false && res.shortages) return { ok: false, error: 'insufficient_stock', shortages: res.shortages };
+		}
+	}
+
 	const now = new Date().toISOString();
 	const set = { status, updated_at: now };
 	if (status === 'confirmed') set.confirmed_at = now;
-	if (status === 'delivered') set.delivered_at = now;
 	if (status === 'completed') set.completed_at = now;
 	const { data, error } = await supabase.from('orders').update(set).eq('id', id).eq('client_id', clientId).select('id, status').single();
-	if (!error) await addOrderEvent(id, clientId, `status_${status}`, {});
-	return { ok: !error, error, order: data };
+	if (error) return { ok: false, error, order: null };
+	await addOrderEvent(id, clientId, `status_${status}`, {});
+
+	// Post-transition stock effects (idempotent; safe if inventory not set up).
+	if (inventoryOn) {
+		if (status === 'cancelled') await releaseForOrder(clientId, id);
+		if (status === 'completed') await deductForOrder(clientId, id);
+	}
+	return { ok: true, order: data };
 }
 
 /** Single order, scoped to the client. */
@@ -170,8 +227,8 @@ export async function orderStats(clientId) {
 	if (tableMissing) return { tableMissing: true };
 	const startOfToday = new Date();
 	startOfToday.setHours(0, 0, 0, 0);
-	const isRevenue = (s) => ['confirmed', 'preparing', 'packed', 'ready', 'out_for_delivery', 'delivered', 'completed'].includes(s);
-	const openStatuses = new Set(['new', 'ai_parsed', 'pending_confirmation', 'confirmed', 'preparing', 'packed', 'ready', 'out_for_delivery']);
+	const isRevenue = (s) => ['confirmed', 'processing', 'completed'].includes(s);
+	const openStatuses = new Set(['draft', 'confirmed', 'processing']);
 	let ordersToday = 0;
 	let revenueToday = 0;
 	let revenueMonth = 0;
@@ -188,7 +245,7 @@ export async function orderStats(clientId) {
 			if (created >= startOfMonth) revenueMonth += Number(o.total) || 0;
 		}
 		if (openStatuses.has(o.status)) pending++;
-		if (['ai_parsed', 'pending_confirmation'].includes(o.status)) awaitingConfirmation++;
+		if (o.status === 'draft') awaitingConfirmation++;
 	}
 	return {
 		total: orders.length,

@@ -26,8 +26,9 @@ export const MODULES = [
 	// ---- Operations (toggleable) ----
 	{ key: 'orders', name: 'Order Management', group: 'Operations', defaultOn: false, href: '/portal/orders', icon: 'M9 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M20 22a1 1 0 1 0 0-2 1 1 0 0 0 0 2z M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6', desc: 'Turn a WhatsApp message into a confirmed order. Kanban, table & calendar views.' },
 
+	{ key: 'inventory', name: 'Products & Inventory', group: 'Operations', defaultOn: false, href: '/portal/products', icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11', desc: 'Products, stock ledger, warehouses, reservations & low-stock alerts.' },
+
 	// ---- Roadmap (coming soon — visible so tenants see where this is going) ----
-	{ key: 'inventory', name: 'Products & Inventory', group: 'Operations', comingSoon: true, icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11', desc: 'Stock, suppliers, warehouses, low-stock alerts, AI demand forecast.' },
 	{ key: 'invoicing', name: 'Invoices', group: 'Finance', comingSoon: true, icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', desc: 'Auto invoices with tax, partial payments & WhatsApp delivery.' },
 	{ key: 'payments', name: 'Payments', group: 'Finance', comingSoon: true, icon: 'M2 5h20v14H2z M2 10h20', desc: 'Cash, bank, mobile money & cards — paid, partial, overdue.' },
 	{ key: 'delivery', name: 'Delivery', group: 'Operations', comingSoon: true, icon: 'M1 3h15v13H1z M16 8h4l3 3v5h-7V8z M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z M18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', desc: 'Drivers, routes, proof of delivery & customer signatures.' },
@@ -84,6 +85,7 @@ export function moduleCatalog(client) {
 		group: m.group,
 		desc: m.desc,
 		icon: m.icon,
+		href: m.href || null,
 		core: !!m.core,
 		comingSoon: !!m.comingSoon,
 		enabled: isModuleEnabled(client, m.key),

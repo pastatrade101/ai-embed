@@ -8,6 +8,8 @@ import { supabase } from './supabase.js';
 import { serverIndustry } from './industries.js';
 import { catalogueText } from './proposal-ai.js';
 import { createOrder } from './orders.js';
+import { matchProduct, listCatalogueForMatching } from './products.js';
+import { fromMinor } from './money.js';
 
 const ORDER_SCHEMA = {
 	type: 'object',
@@ -85,10 +87,39 @@ Return the structured object only.`;
 }
 
 /** Re-price extracted items against the catalogue (defence-in-depth: the stored price
- *  wins over whatever the model returned, so a draft can never carry an invented price). */
+ *  wins over whatever the model returned, so a draft can never carry an invented price).
+ *  Prefers the real products catalogue (attaching product_id so stock can be reserved),
+ *  falling back to knowledge_items for tenants that haven't built a product catalogue. */
 async function priceAgainstCatalogue(clientId, items) {
 	const list = Array.isArray(items) ? items : [];
 	if (!list.length) return [];
+
+	// Products catalogue path — links each item to a product for inventory reservation.
+	if (await listCatalogueForMatching(clientId)) {
+		const out = [];
+		for (const it of list) {
+			const name = String(it.description || '').trim();
+			if (!name) continue;
+			const { product, confidence, alternatives } = await matchProduct(clientId, name);
+			if (product) {
+				out.push({
+					description: product.name,
+					qty: Math.max(1, Number(it.qty) || 1),
+					unit_price: fromMinor(product.price_minor, product.currency), // minor units → order's numeric
+					unit: product.unit || undefined,
+					product_id: product.id,
+					match_confidence: confidence,
+					alternatives: alternatives || []
+				});
+			} else {
+				// Unknown product: keep the customer's wording, price 0, flag for review.
+				out.push({ description: name, qty: Math.max(1, Number(it.qty) || 1), unit_price: 0, product_id: null, unmatched: true });
+			}
+		}
+		return out;
+	}
+
+	// Fallback: knowledge_items catalogue (no products module / empty catalogue).
 	let priced = [];
 	try {
 		const { data } = await supabase.from('knowledge_items').select('title, price_amount').eq('client_id', clientId).limit(300);
@@ -115,9 +146,8 @@ async function priceAgainstCatalogue(clientId, items) {
 }
 
 /**
- * Extract + persist a draft order from a message. Confidence decides the entry status:
- *   ≥ 70 → pending_confirmation (a clean order, awaiting the operator's OK)
- *   < 70 → ai_parsed            (needs review)
+ * Extract + persist a DRAFT order from a message (the operator reviews & confirms).
+ * Confidence is stored for a "needs review" cue but never auto-confirms.
  * Returns { order, extraction, skipped }.
  */
 export async function draftOrderFromMessage({ client, message, from = null, leadId = null, conversationId = null, source = 'whatsapp' }) {
@@ -134,7 +164,7 @@ export async function draftOrderFromMessage({ client, message, from = null, lead
 		lead_id: leadId,
 		conversation_id: conversationId,
 		source,
-		status: confidence >= 70 ? 'pending_confirmation' : 'ai_parsed',
+		status: 'draft',
 		customer_name: ex.customer_name || null,
 		customer_phone: from || null,
 		currency: client.default_currency || 'USD',

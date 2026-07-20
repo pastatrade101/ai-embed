@@ -19,8 +19,13 @@ export const actions = {
 		const form = await request.formData();
 		const status = String(form.get('status') || '');
 		if (!ORDER_STATUS_KEYS.includes(status)) return fail(400, { error: 'Invalid status.' });
-		const { ok } = await setOrderStatus(locals.user.client_id, params.id, status);
-		return ok ? { ok: 'Status updated.' } : fail(400, { error: 'Could not update.' });
+		const res = await setOrderStatus(locals.user.client_id, params.id, status);
+		if (res.ok) return { ok: 'Status updated.' };
+		if (res.error === 'insufficient_stock') {
+			const detail = (res.shortages || []).map((s) => `${s.requested} needed, ${s.available} in stock`).join('; ');
+			return fail(409, { error: `Not enough stock to confirm — ${detail}. Restock or enable backorders.` });
+		}
+		return fail(400, { error: 'Could not update.' });
 	},
 
 	save: async ({ request, params, locals }) => {

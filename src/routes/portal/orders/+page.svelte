@@ -16,14 +16,15 @@
 	const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—');
 	const smeta = (key) => statuses.find((s) => s.key === key) || { key, label: key, color: '#7c8b83' };
 
-	// Board columns — the operating pipeline, terminal states folded into one "Done".
+	// Board columns = the 5 order statuses, one to one.
 	const COLUMNS = [
-		{ id: 'pending_confirmation', label: 'To Confirm', keys: ['new', 'ai_parsed', 'pending_confirmation'] },
+		{ id: 'draft', label: 'Draft', keys: ['draft'] },
 		{ id: 'confirmed', label: 'Confirmed', keys: ['confirmed'] },
-		{ id: 'preparing', label: 'Preparing', keys: ['preparing', 'packed', 'ready'] },
-		{ id: 'out_for_delivery', label: 'Delivery', keys: ['out_for_delivery', 'delivered'] },
-		{ id: 'completed', label: 'Done', keys: ['completed', 'cancelled', 'returned'] }
+		{ id: 'processing', label: 'Processing', keys: ['processing'] },
+		{ id: 'completed', label: 'Completed', keys: ['completed'] },
+		{ id: 'cancelled', label: 'Cancelled', keys: ['cancelled'] }
 	];
+	const payLabel = { unpaid: 'Unpaid', pending: 'Pending', paid: 'Paid', failed: 'Failed' };
 	$: byColumn = COLUMNS.map((c) => ({ ...c, items: orders.filter((o) => c.keys.includes(o.status)) }));
 
 	// Manual order item editor.
@@ -100,7 +101,8 @@
 							<div class="oitems">{(o.items || []).length} item{(o.items || []).length === 1 ? '' : 's'}{o.delivery_date ? ` · ${fmtDate(o.delivery_date)}` : ''}</div>
 							<div class="ocard-bot">
 								<span class="ototal">{money(o.total)}</span>
-								{#if o.confidence != null}<span class="conf" class:low={o.confidence < 70}>AI {o.confidence}%</span>{/if}
+								<span class="pay p-{o.payment_status || 'unpaid'}">{payLabel[o.payment_status] || 'Unpaid'}</span>
+								{#if o.confidence != null && o.status === 'draft'}<span class="conf" class:low={o.confidence < 70}>AI {o.confidence}%</span>{/if}
 							</div>
 						</a>
 					{/each}
@@ -212,6 +214,11 @@
 	.conf { font-size: 0.68rem; font-weight: 700; color: #6ee7a8; background: rgba(22, 163, 74, 0.16); padding: 0.1rem 0.4rem; border-radius: 999px; }
 	.conf.low { color: #fcd34d; background: rgba(245, 158, 11, 0.16); }
 	.conf.sm { margin-left: 0.5rem; }
+	.pay { font-size: 0.66rem; font-weight: 700; padding: 0.1rem 0.4rem; border-radius: 999px; }
+	.pay.p-unpaid { color: var(--muted); background: rgba(var(--panel-rgb, 255, 255, 255), 0.08); }
+	.pay.p-pending { color: #fcd34d; background: rgba(245, 158, 11, 0.16); }
+	.pay.p-paid { color: #6ee7a8; background: rgba(22, 163, 74, 0.16); }
+	.pay.p-failed { color: #fca5a5; background: rgba(220, 38, 38, 0.16); }
 
 	.table-wrap { overflow-x: auto; padding: 0; }
 	table { width: 100%; border-collapse: collapse; }

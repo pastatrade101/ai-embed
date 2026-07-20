@@ -52,6 +52,12 @@
 					<span class="nav-label">Orders</span>
 				</a>
 			{/if}
+			{#if hasModule('inventory')}
+				<a href="/portal/products" class="nav-item" title="Products & Inventory" aria-label="Products and Inventory" class:active={active(routeId, '/portal/products')}>
+					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z"/><path d="M2.32 6.16 12 11l9.68-4.84"/><path d="M12 22.76V11"/></svg></span>
+					<span class="nav-label">Products</span>
+				</a>
+			{/if}
 			<a href="/portal/conversations" class="nav-item" title="Conversations" aria-label="Conversations" class:active={active(routeId, '/portal/conversations')}>
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
 				<span class="nav-label">Conversations</span>
