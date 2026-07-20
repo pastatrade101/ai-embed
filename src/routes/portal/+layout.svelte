@@ -30,51 +30,29 @@
 	<svelte:fragment slot="nav">
 		<div class="nav-group">
 			<p class="nav-heading">Manage</p>
-			<a href="/portal" class="nav-item" title="Overview" aria-label="Overview" class:active={active(routeId, '/portal', true)}>
+			<a href="/portal" class="nav-item" title="Dashboard" aria-label="Dashboard" class:active={active(routeId, '/portal', true)}>
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></span>
-				<span class="nav-label">Overview</span>
+				<span class="nav-label">Dashboard</span>
 			</a>
 			{#if hasModule('orders')}
 				<a href="/portal/inbox" class="nav-item" title="Inbox" aria-label="Inbox" class:active={active(routeId, '/portal/inbox')}>
 					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg></span>
 					<span class="nav-label">Inbox</span>
 				</a>
-			{/if}
-			<a href="/portal/knowledge" class="nav-item" title="Knowledge" aria-label="Knowledge" class:active={active(routeId, '/portal/knowledge')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span>
-				<span class="nav-label">Knowledge</span>
-			</a>
-			<a href="/portal/leads" class="nav-item" title="Leads" aria-label="Leads" class:active={active(routeId, '/portal/leads')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.9.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
-				<span class="nav-label">Leads</span>
-			</a>
-			<a href="/portal/customers" class="nav-item" title="Customers" aria-label="Customers" class:active={active(routeId, '/portal/customers')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
-				<span class="nav-label">Customers</span>
-			</a>
-			<a href="/portal/proposals" class="nav-item" title="Proposals" aria-label="Proposals" class:active={active(routeId, '/portal/proposals')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></span>
-				<span class="nav-label">Proposals</span>
-			</a>
-			{#if hasModule('orders')}
 				<a href="/portal/orders" class="nav-item" title="Orders" aria-label="Orders" class:active={active(routeId, '/portal/orders')}>
 					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span>
 					<span class="nav-label">Orders</span>
 				</a>
 			{/if}
 			{#if hasModule('inventory')}
-				<a href="/portal/products" class="nav-item" title="Products & Inventory" aria-label="Products and Inventory" class:active={active(routeId, '/portal/products')}>
+				<a href="/portal/products" class="nav-item" title="Products" aria-label="Products" class:active={active(routeId, '/portal/products')}>
 					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z"/><path d="M2.32 6.16 12 11l9.68-4.84"/><path d="M12 22.76V11"/></svg></span>
 					<span class="nav-label">Products</span>
 				</a>
 			{/if}
-			<a href="/portal/conversations" class="nav-item" title="Conversations" aria-label="Conversations" class:active={active(routeId, '/portal/conversations')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
-				<span class="nav-label">Conversations</span>
-			</a>
-			<a href="/portal/insights" class="nav-item" title="AI Insights" aria-label="AI Insights" class:active={active(routeId, '/portal/insights')}>
-				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a7 7 0 0 0-4 12.7V17a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2.3A7 7 0 0 0 12 2z"/><path d="M9 21h6"/></svg></span>
-				<span class="nav-label">AI Insights</span>
+			<a href="/portal/customers" class="nav-item" title="Customers" aria-label="Customers" class:active={active(routeId, '/portal/customers')}>
+				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+				<span class="nav-label">Customers</span>
 			</a>
 		</div>
 		<div class="nav-group">

@@ -13,17 +13,11 @@
 
 	// key → destination + label + hint + which module gates it (null = always shown).
 	const ALL = [
-		{ label: 'Overview', hint: 'Dashboard', href: '/portal', module: null, icon: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z' },
+		{ label: 'Dashboard', hint: 'Overview', href: '/portal', module: null, icon: 'M3 3h7v9H3z M14 3h7v5h-7z M14 12h7v9h-7z M3 16h7v5H3z' },
 		{ label: 'Inbox', hint: 'Review draft orders', href: '/portal/inbox', module: 'orders', icon: 'M22 12h-6l-2 3h-4l-2-3H2 M5.45 5.11 2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z' },
 		{ label: 'Orders', hint: 'Order board', href: '/portal/orders', module: 'orders', icon: 'M9 22a1 1 0 100-2 1 1 0 000 2z M20 22a1 1 0 100-2 1 1 0 000 2z M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6' },
-		{ label: 'AI draft an order', hint: 'From a customer message', href: '/portal/orders?new=ai', module: 'orders', icon: 'M12 2v20 M2 12h20' },
-		{ label: 'Products', hint: 'Catalogue & stock', href: '/portal/products', module: 'inventory', icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11' },
-		{ label: 'Leads', hint: 'CRM pipeline', href: '/portal/leads', module: null, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 11a4 4 0 100-8 4 4 0 000 8z' },
-		{ label: 'Customers', hint: 'People & spend', href: '/portal/customers', module: null, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
-		{ label: 'Quotations', hint: 'Proposals', href: '/portal/proposals', module: null, icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z M14 2v6h6' },
-		{ label: 'Knowledge', hint: 'What the AI knows', href: '/portal/knowledge', module: null, icon: 'M4 19.5A2.5 2.5 0 016.5 17H20 M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z' },
-		{ label: 'Conversations', hint: 'All chats', href: '/portal/conversations', module: null, icon: 'M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z' },
-		{ label: 'AI Insights', hint: 'Analytics', href: '/portal/insights', module: null, icon: 'M12 2a7 7 0 00-4 12.7V17a1 1 0 001 1h6a1 1 0 001-1v-2.3A7 7 0 0012 2z M9 21h6' },
+		{ label: 'Products', hint: 'Prices & stock', href: '/portal/products', module: 'inventory', icon: 'M12.89 1.45l8 4A2 2 0 0 1 22 7.24v9.53a2 2 0 0 1-1.11 1.79l-8 4a2 2 0 0 1-1.79 0l-8-4a2 2 0 0 1-1.11-1.79V7.24a2 2 0 0 1 1.11-1.79l8-4a2 2 0 0 1 1.79 0z M2.32 6.16 12 11l9.68-4.84 M12 22.76V11' },
+		{ label: 'Customers', hint: 'People & orders', href: '/portal/customers', module: null, icon: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2 M9 7a4 4 0 100 8 4 4 0 000-8z M23 21v-2a4 4 0 00-3-3.87 M16 3.13a4 4 0 010 7.75' },
 		{ label: 'Modules', hint: 'Marketplace', href: '/portal/modules', module: null, icon: 'M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z' },
 		{ label: 'WhatsApp', hint: 'Connect your number', href: '/portal/whatsapp', module: null, icon: 'M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z' },
 		{ label: 'Settings', hint: 'Workspace', href: '/portal/settings', module: null, icon: 'M12 15a3 3 0 100-6 3 3 0 000 6z M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-2.82 1.17V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4' },
