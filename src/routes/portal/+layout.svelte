@@ -1,11 +1,15 @@
 <script>
 	import { page } from '$app/stores';
 	import AppShell from '$lib/components/AppShell.svelte';
+	import CommandPalette from '$lib/components/CommandPalette.svelte';
 	import { readableInk } from '$lib/luminance.js';
 	export let data;
+	let palette;
 
 	$: routeId = $page.route?.id ?? '';
 	$: client = data.client;
+	$: modules = data.enabledModules ?? [];
+	$: hasModule = (k) => modules.includes(k);
 	// Take routeId as an arg so the template expression depends on it directly —
 	// otherwise the class binding never re-evaluates on client-side navigation.
 	const active = (rid, base, exact = false) => (exact ? rid === base : rid?.startsWith(base));
@@ -42,6 +46,12 @@
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h6"/></svg></span>
 				<span class="nav-label">Proposals</span>
 			</a>
+			{#if hasModule('orders')}
+				<a href="/portal/orders" class="nav-item" title="Orders" aria-label="Orders" class:active={active(routeId, '/portal/orders')}>
+					<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg></span>
+					<span class="nav-label">Orders</span>
+				</a>
+			{/if}
 			<a href="/portal/conversations" class="nav-item" title="Conversations" aria-label="Conversations" class:active={active(routeId, '/portal/conversations')}>
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
 				<span class="nav-label">Conversations</span>
@@ -53,6 +63,10 @@
 		</div>
 		<div class="nav-group">
 			<p class="nav-heading">Account</p>
+			<a href="/portal/modules" class="nav-item" title="Modules" aria-label="Modules" class:active={active(routeId, '/portal/modules')}>
+				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+				<span class="nav-label">Modules</span>
+			</a>
 			<a href="/portal/whatsapp" class="nav-item" title="WhatsApp" aria-label="WhatsApp" class:active={active(routeId, '/portal/whatsapp')}>
 				<span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
 				<span class="nav-label">WhatsApp</span>
@@ -68,7 +82,23 @@
 		</div>
 	</svelte:fragment>
 
-	<span slot="topbar" class="badge dot {client.is_active ? '' : 'off'}">{client.is_active ? 'assistant live' : 'assistant paused'}</span>
+	<svelte:fragment slot="topbar">
+		<button class="cmdk" on:click={() => palette?.openPalette()} title="Search — ⌘K" aria-label="Open command palette">
+			<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+			<span>Search</span>
+			<kbd>⌘K</kbd>
+		</button>
+		<span class="badge dot {client.is_active ? '' : 'off'}">{client.is_active ? 'assistant live' : 'assistant paused'}</span>
+	</svelte:fragment>
 
 	<slot />
 </AppShell>
+
+<CommandPalette bind:this={palette} modules={modules} />
+
+<style>
+	.cmdk { display: inline-flex; align-items: center; gap: 0.45rem; background: rgba(var(--panel-rgb, 255, 255, 255), 0.05); border: 1px solid var(--edge); border-radius: 9px; color: var(--muted); font: inherit; font-size: 0.85rem; padding: 0.35rem 0.7rem; cursor: pointer; }
+	.cmdk:hover { border-color: var(--mint); color: var(--soft); }
+	.cmdk kbd { font-size: 0.68rem; border: 1px solid var(--edge); border-radius: 4px; padding: 0.02rem 0.28rem; }
+	@media (max-width: 640px) { .cmdk span { display: none; } }
+</style>

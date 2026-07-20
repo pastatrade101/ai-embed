@@ -5,6 +5,8 @@ import { scoreLead, leadTier, topInterests, pipeline, activityFeed, aiTasks } fr
 import { usageSummary } from '$lib/server/credits.js';
 import { growthAdvisor } from '$lib/server/growth-advisor.js';
 import { gatingOn } from '$lib/server/gating.js';
+import { isModuleEnabled } from '$lib/server/modules.js';
+import { orderStats } from '$lib/server/orders.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -87,5 +89,8 @@ export async function load({ locals, parent }) {
 				: null
 	};
 
-	return { ...ws, leads: scoredLeads, dash };
+	// Orders module widgets (only when enabled; fails open if migration 023 not run).
+	const orders = isModuleEnabled(client, 'orders') ? await orderStats(clientId) : null;
+
+	return { ...ws, leads: scoredLeads, dash, orders: orders && !orders.tableMissing ? orders : null };
 }

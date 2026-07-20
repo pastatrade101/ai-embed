@@ -190,6 +190,34 @@
 	</div>
 </div>
 
+{#if data.orders}
+	<div class="orders-strip">
+		<div class="strip-head"><span>Orders</span><a href="/portal/orders">Open board →</a></div>
+		<div class="kpi-grid">
+			<div class="card kpi">
+				<div class="k">Revenue today</div>
+				<div class="v" style="font-size:1.5rem">{data.orders.currency} {data.orders.revenueToday.toLocaleString()}</div>
+				<div class="foot">{data.orders.ordersToday} order{data.orders.ordersToday === 1 ? '' : 's'} today</div>
+			</div>
+			<div class="card kpi">
+				<div class="k">Revenue this month</div>
+				<div class="v" style="font-size:1.5rem">{data.orders.currency} {data.orders.revenueMonth.toLocaleString()}</div>
+				<div class="foot">confirmed & beyond</div>
+			</div>
+			<div class="card kpi">
+				<div class="k">Open orders</div>
+				<div class="v">{data.orders.pending}</div>
+				<div class="foot">in the pipeline</div>
+			</div>
+			<div class="card kpi" class:alert={data.orders.awaitingConfirmation > 0}>
+				<div class="k">Awaiting confirmation</div>
+				<div class="v">{data.orders.awaitingConfirmation}</div>
+				<div class="foot">{data.orders.awaitingConfirmation > 0 ? 'AI drafts to review' : 'all caught up'}</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <!-- 3 & 4. AI insights + tasks -->
 <div class="two-col">
 	<div class="card">
@@ -526,6 +554,11 @@
 		gap: 0.85rem;
 		margin: 0.85rem 0;
 	}
+	.orders-strip { margin-top: 0.4rem; }
+	.strip-head { display: flex; align-items: center; justify-content: space-between; margin: 0.4rem 0 0; }
+	.strip-head span { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+	.strip-head a { color: var(--mint); font-weight: 600; font-size: 0.82rem; text-decoration: none; }
+	.kpi.alert { border-color: color-mix(in srgb, var(--warn, #e0b24c) 50%, var(--edge)); }
 	.kpi .k {
 		font-size: 0.72rem;
 		text-transform: uppercase;
