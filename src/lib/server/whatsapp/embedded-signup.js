@@ -74,14 +74,18 @@ async function discoverWabaAndPhone(accessToken, cfg) {
  * @param {string} p.phoneNumberId   the number the tenant chose
  * @returns {Promise<{ok:boolean, connection?:object, error?:string, code?:string, status?:number}>}
  */
-export async function connectFromCode({ clientId, code, wabaId = null, phoneNumberId = null }) {
+export async function connectFromCode({ clientId, code, wabaId = null, phoneNumberId = null, redirectUri = null }) {
 	const cfg = metaAppConfig();
 	if (!cfg.appId || !cfg.appSecret || !cfg.configId) return { ok: false, error: 'embedded_signup_not_configured' };
 	if (!code) return { ok: false, error: 'missing_code' };
 
 	try {
-		// 1. Exchange the code for a business-scoped access token.
-		const tok = await graph('oauth/access_token', { query: { client_id: cfg.appId, client_secret: cfg.appSecret, code } });
+		// 1. Exchange the code for a business-scoped access token. When the app has Strict
+		//    Mode on, Meta validates redirect_uri against the Valid OAuth Redirect URIs, so
+		//    we echo the origin the browser SDK ran on (must be registered in the app).
+		const exchangeQuery = { client_id: cfg.appId, client_secret: cfg.appSecret, code };
+		if (redirectUri) exchangeQuery.redirect_uri = redirectUri;
+		const tok = await graph('oauth/access_token', { query: exchangeQuery });
 		const accessToken = tok.access_token;
 		if (!accessToken) return { ok: false, error: 'no_access_token_returned' };
 		const tokenExpiresAt = tok.expires_in ? new Date(Date.now() + Number(tok.expires_in) * 1000).toISOString() : null;

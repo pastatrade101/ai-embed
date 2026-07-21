@@ -76,10 +76,14 @@
 
 	async function finish(code) {
 		try {
+			// Meta validates the code-exchange redirect_uri against the app's Valid OAuth
+			// Redirect URIs (Strict Mode). Send the origin the SDK ran on so the server can
+			// pass an identical redirect_uri — must be registered in the Meta app.
+			const redirectUri = `${window.location.origin}/`;
 			const res = await fetch('/api/whatsapp/connect', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ code, phoneNumberId: captured.phoneNumberId, wabaId: captured.wabaId })
+				body: JSON.stringify({ code, phoneNumberId: captured.phoneNumberId, wabaId: captured.wabaId, redirectUri })
 			});
 			const json = await res.json();
 			if (json.ok) await invalidateAll();

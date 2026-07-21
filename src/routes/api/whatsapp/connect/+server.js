@@ -25,6 +25,6 @@ export async function POST({ request, locals }) {
 	if (!body.code) {
 		return json({ ok: false, error: 'Missing authorization code (was the popup completed?).' }, { status: 422 });
 	}
-	const res = await connectFromCode({ clientId: user.client_id, code: body.code, wabaId: body.wabaId || null, phoneNumberId: body.phoneNumberId || null });
+	const res = await connectFromCode({ clientId: user.client_id, code: body.code, wabaId: body.wabaId || null, phoneNumberId: body.phoneNumberId || null, redirectUri: body.redirectUri || null });
 	return json(res, { status: res.ok ? 200 : res.status && res.status >= 400 ? 502 : 400 });
 }
