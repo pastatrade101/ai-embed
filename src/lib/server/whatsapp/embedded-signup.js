@@ -38,6 +38,34 @@ async function graph(path, { token, method = 'GET', query = {}, body = null } = 
 }
 
 /**
+ * Discover the WABA + first phone number the exchanged token grants access to.
+ * The browser provides these on a FRESH Embedded Signup, but NOT on the "Reconnect"
+ * flow (Meta returns only the code) — so we resolve them from the token itself:
+ * debug_token → granular_scopes (WABA ids) → /{waba}/phone_numbers. Returns
+ * { wabaId, phoneNumberId, displayPhoneNumber, verifiedName } or null.
+ */
+async function discoverWabaAndPhone(accessToken, cfg) {
+	try {
+		const dbg = await graph('debug_token', { query: { input_token: accessToken, access_token: `${cfg.appId}|${cfg.appSecret}` } });
+		const scopes = dbg?.data?.granular_scopes || [];
+		const wabaIds = new Set();
+		for (const s of scopes) if (/whatsapp_business/.test(s.scope || '')) (s.target_ids || []).forEach((id) => wabaIds.add(id));
+		for (const wid of wabaIds) {
+			try {
+				const pn = await graph(`${wid}/phone_numbers`, { token: accessToken, query: { fields: 'id,display_phone_number,verified_name' } });
+				const first = (pn?.data || [])[0];
+				if (first?.id) return { wabaId: wid, phoneNumberId: first.id, displayPhoneNumber: first.display_phone_number || null, verifiedName: first.verified_name || null };
+			} catch (e) {
+				log.warn('phone_numbers_lookup_failed', { wabaId: wid, message: e.message });
+			}
+		}
+	} catch (e) {
+		log.warn('debug_token_failed', { message: e.message });
+	}
+	return null;
+}
+
+/**
  * Complete Embedded Signup for a tenant from the browser's authorization code.
  * @param {object} p
  * @param {string} p.clientId
@@ -46,10 +74,10 @@ async function graph(path, { token, method = 'GET', query = {}, body = null } = 
  * @param {string} p.phoneNumberId   the number the tenant chose
  * @returns {Promise<{ok:boolean, connection?:object, error?:string, code?:string, status?:number}>}
  */
-export async function connectFromCode({ clientId, code, wabaId, phoneNumberId }) {
+export async function connectFromCode({ clientId, code, wabaId = null, phoneNumberId = null }) {
 	const cfg = metaAppConfig();
 	if (!cfg.appId || !cfg.appSecret || !cfg.configId) return { ok: false, error: 'embedded_signup_not_configured' };
-	if (!code || !phoneNumberId) return { ok: false, error: 'missing_code_or_phone_number_id' };
+	if (!code) return { ok: false, error: 'missing_code' };
 
 	try {
 		// 1. Exchange the code for a business-scoped access token.
@@ -58,16 +86,30 @@ export async function connectFromCode({ clientId, code, wabaId, phoneNumberId })
 		if (!accessToken) return { ok: false, error: 'no_access_token_returned' };
 		const tokenExpiresAt = tok.expires_in ? new Date(Date.now() + Number(tok.expires_in) * 1000).toISOString() : null;
 
+		// 1b. On the "Reconnect" flow Meta returns only the code — no phone_number_id/
+		//     waba_id — so discover them from the token itself. (Fresh signup already
+		//     passes them, and we still fall through to the authoritative read below.)
+		let displayPhoneNumber = null;
+		let verifiedName = null;
+		if (!phoneNumberId || !wabaId) {
+			const found = await discoverWabaAndPhone(accessToken, cfg);
+			if (found) {
+				wabaId = wabaId || found.wabaId;
+				phoneNumberId = phoneNumberId || found.phoneNumberId;
+				displayPhoneNumber = found.displayPhoneNumber;
+				verifiedName = found.verifiedName;
+			}
+		}
+		if (!phoneNumberId) return { ok: false, error: 'no_whatsapp_number_found', code: 'no_whatsapp_number_found', status: 404 };
+
 		// 2. Read the number's details WITH THE EXCHANGED TOKEN. This is AUTHORITATIVE:
 		//    a token that cannot read this phone_number_id does not own it, so we refuse
 		//    to store a connection for it. This is what stops a tenant from claiming
 		//    another tenant's number by passing a phone_number_id it doesn't control.
-		let displayPhoneNumber = null;
-		let verifiedName = null;
 		try {
 			const num = await graph(phoneNumberId, { token: accessToken, query: { fields: 'display_phone_number,verified_name' } });
-			displayPhoneNumber = num.display_phone_number || null;
-			verifiedName = num.verified_name || null;
+			displayPhoneNumber = num.display_phone_number || displayPhoneNumber;
+			verifiedName = num.verified_name || verifiedName;
 		} catch (e) {
 			log.warn('phone_ownership_check_failed', { clientId, phoneNumberId, message: e.message });
 			return { ok: false, error: 'number_not_accessible', code: 'number_not_accessible', status: 403 };

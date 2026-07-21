@@ -20,9 +20,11 @@ export async function POST({ request, locals }) {
 	} catch {
 		return json({ ok: false, error: 'Invalid JSON body' }, { status: 400 });
 	}
-	if (!body.code || !body.phoneNumberId) {
-		return json({ ok: false, error: 'Missing authorization code or phone number id (was the popup completed?).' }, { status: 422 });
+	// Only the code is required — the server discovers the WABA + phone number from the
+	// token when the browser didn't provide them (e.g. Meta's "Reconnect" flow).
+	if (!body.code) {
+		return json({ ok: false, error: 'Missing authorization code (was the popup completed?).' }, { status: 422 });
 	}
-	const res = await connectFromCode({ clientId: user.client_id, code: body.code, wabaId: body.wabaId, phoneNumberId: body.phoneNumberId });
+	const res = await connectFromCode({ clientId: user.client_id, code: body.code, wabaId: body.wabaId || null, phoneNumberId: body.phoneNumberId || null });
 	return json(res, { status: res.ok ? 200 : res.status && res.status >= 400 ? 502 : 400 });
 }
