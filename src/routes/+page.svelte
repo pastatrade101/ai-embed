@@ -792,11 +792,15 @@
 		align-items: center;
 		min-height: 100vh;
 		min-height: 100svh;
+		/* Photo sits at the very back; the .hero-bg colour layer tints it on top. */
+		background: url('/hero.jpg') center / cover no-repeat;
 	}
 	.hero-bg {
 		position: absolute;
 		inset: 0;
 		z-index: -1;
+		/* Overlay the brand colour on top of hero.jpg at 60% so the photo shows through. */
+		opacity: 0.6;
 		background:
 			radial-gradient(90% 60% at 78% 8%, rgba(224, 178, 76, 0.5), transparent 55%),
 			radial-gradient(70% 50% at 12% 100%, rgba(44, 107, 82, 0.55), transparent 60%),
