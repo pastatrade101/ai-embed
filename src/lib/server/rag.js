@@ -146,9 +146,14 @@ function buildPersona(client, ind) {
 		? `When you can't help or the customer wants a human: ${client.escalation}`
 		: `If you don't have a detail, say so and offer to connect them to the team.`;
 
-	const leadRule = client.auto_lead_capture === false
-		? "Do not push for contact details unless the customer offers them."
-		: 'On buying intent, invite the customer to share their name and a WhatsApp number and/or email, then call create_lead to save it.';
+	// Lead-free industries (e.g. government) have no create_lead tool — the persona
+	// must not tell the model to capture contacts it can't save.
+	const hasLeadTool = Array.isArray(ind.tools) && ind.tools.some((t) => t.name === 'create_lead');
+	const leadRule = !hasLeadTool
+		? 'This assistant does not collect leads or personal contact details. If someone needs a human or something you cannot resolve, point them to the official channels (portal/app or the responsible office) — do not ask for their name, phone, or email.'
+		: client.auto_lead_capture === false
+			? 'Do not push for contact details unless the customer offers them.'
+			: 'On buying intent, invite the customer to share their name and a WhatsApp number and/or email, then call create_lead to save it.';
 
 	// The qualification workflow is the industry's sales/intake script — the one
 	// deeply vertical part of this prompt, so it comes from the Industry Registry.
