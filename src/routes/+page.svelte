@@ -579,7 +579,7 @@
 		--line: rgba(18, 53, 40, 0.12);
 		background: var(--bg);
 		color: var(--ink);
-		font-family: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+		font-family: 'Lexend Deca', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		letter-spacing: -0.011em;
 		min-height: 100vh;

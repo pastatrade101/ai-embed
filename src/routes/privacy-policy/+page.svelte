@@ -289,7 +289,7 @@
 		--card: #ffffff;
 		background: var(--bg);
 		color: var(--ink);
-		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+		font-family: 'Lexend Deca', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 		min-height: 100vh;
 		-webkit-font-smoothing: antialiased;
 	}

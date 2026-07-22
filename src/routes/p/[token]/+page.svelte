@@ -291,7 +291,7 @@
 		--bg: #f4f3f0; --card: #ffffff; --text: #17211d; --muted: #63706a; --faint: #6b7770;
 		--line: #eae7e0; --soft: #f4f2ee; --shadow: 0 1px 2px rgba(20, 40, 33, 0.04), 0 18px 40px -28px rgba(20, 40, 33, 0.22);
 		min-height: 100vh; padding: clamp(16px, 4vw, 40px) 14px calc(96px + env(safe-area-inset-bottom));
-		font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+		font-family: 'Lexend Deca', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 		color: var(--text); box-sizing: border-box; -webkit-font-smoothing: antialiased;
 		background: radial-gradient(120% 60% at 50% -10%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 60%), var(--bg);
 	}

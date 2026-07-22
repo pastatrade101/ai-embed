@@ -885,7 +885,7 @@
 		overflow-x: clip;
 		background: radial-gradient(140% 90% at 50% -10%, var(--bg-2) 0%, var(--bg) 55%);
 		color: var(--ink);
-		font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+		font-family: 'Lexend Deca', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 		-webkit-font-smoothing: antialiased;
 		letter-spacing: -0.011em;
 	}
