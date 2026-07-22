@@ -1438,6 +1438,27 @@
 		background: var(--bg-2);
 		border: 1px solid var(--hair-2);
 	}
+	.prose :global(table) {
+		border-collapse: collapse;
+		margin: 0 0 12px;
+		font-size: 0.92em;
+		display: block;
+		width: max-content;
+		max-width: 100%;
+		overflow-x: auto;
+	}
+	.prose :global(th),
+	.prose :global(td) {
+		border: 1px solid var(--hair-2);
+		padding: 6px 10px;
+		text-align: left;
+		vertical-align: top;
+	}
+	.prose :global(th) {
+		background: var(--bg-2);
+		font-weight: 660;
+		white-space: nowrap;
+	}
 	.prose :global(img) {
 		max-width: 100%;
 		height: auto;

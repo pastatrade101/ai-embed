@@ -8,6 +8,16 @@ function esc(s) {
 	return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 }
 
+// --- GFM tables (assistant output loves tabulating; render them properly) ----
+const tableCells = (line) => line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+function isTableSep(line) {
+	const t = line.trim();
+	if (t.indexOf('|') === -1 && !/^:?-{1,}:?$/.test(t)) return false;
+	const cells = t.replace(/^\|/, '').replace(/\|$/, '').split('|');
+	return cells.length > 0 && cells.every((c) => /^\s*:?-{1,}:?\s*$/.test(c));
+}
+const isTableRow = (line) => /\|/.test(line) && line.trim() !== '' && !isTableSep(line);
+
 /** Render a subset of Markdown to a safe HTML string. */
 export function renderMarkdown(raw) {
 	let s = esc(raw ?? '');
@@ -33,7 +43,24 @@ export function renderMarkdown(raw) {
 			listType = null;
 		}
 	};
-	for (const line of lines) {
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		// GFM table: a row of `| … |` immediately followed by a `|---|` separator.
+		if (isTableRow(line) && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+			flushPara();
+			flushList();
+			const header = tableCells(line);
+			let j = i + 2;
+			let body = '';
+			while (j < lines.length && isTableRow(lines[j])) {
+				const cells = tableCells(lines[j]);
+				body += '<tr>' + header.map((_, k) => '<td>' + (cells[k] ?? '') + '</td>').join('') + '</tr>';
+				j++;
+			}
+			out += '<table><thead><tr>' + header.map((c) => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + body + '</tbody></table>';
+			i = j - 1;
+			continue;
+		}
 		const ul = line.match(/^\s*[-*]\s+(.*)$/);
 		const ol = line.match(/^\s*\d+\.\s+(.*)$/);
 		if (ul) {

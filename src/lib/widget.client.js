@@ -628,6 +628,14 @@
 
 	// Minimal, safe markdown → HTML for assistant messages. Escapes first, then
 	// only inserts tags we control (bold, italic, code, links, lists, paragraphs).
+	function tblCells(line) { return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(function (c) { return c.trim(); }); }
+	function isTblSep(line) {
+		var t = line.trim();
+		if (t.indexOf('|') === -1 && !/^:?-{1,}:?$/.test(t)) return false;
+		var cells = t.replace(/^\|/, '').replace(/\|$/, '').split('|');
+		return cells.length > 0 && cells.every(function (c) { return /^\s*:?-{1,}:?\s*$/.test(c); });
+	}
+	function isTblRow(line) { return /\|/.test(line) && line.trim() !== '' && !isTblSep(line); }
 	function md(raw) {
 		var s = esc(raw);
 		s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -643,6 +651,18 @@
 		function flushList() { if (listType) { out += '</' + listType + '>'; listType = null; } }
 		for (var i = 0; i < lines.length; i++) {
 			var line = lines[i];
+			if (isTblRow(line) && i + 1 < lines.length && isTblSep(lines[i + 1])) {
+				flushPara(); flushList();
+				var header = tblCells(line), j = i + 2, body = '';
+				while (j < lines.length && isTblRow(lines[j])) {
+					var cells = tblCells(lines[j]);
+					body += '<tr>' + header.map(function (_, k) { return '<td>' + (cells[k] != null ? cells[k] : '') + '</td>'; }).join('') + '</tr>';
+					j++;
+				}
+				out += '<table><thead><tr>' + header.map(function (c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>' + body + '</tbody></table>';
+				i = j - 1;
+				continue;
+			}
 			var ul = line.match(/^\s*[-*]\s+(.*)$/);
 			var ol = line.match(/^\s*\d+\.\s+(.*)$/);
 			if (ul) { flushPara(); if (listType !== 'ul') { flushList(); out += '<ul>'; listType = 'ul'; } out += '<li>' + ul[1] + '</li>'; }
@@ -709,6 +729,9 @@
 			'.mk-msg p{margin:0 0 .5em}.mk-msg p:last-child{margin-bottom:0}' +
 			'.mk-msg ul,.mk-msg ol{margin:.3em 0;padding-left:1.15em}.mk-msg li{margin:.12em 0}' +
 			'.mk-msg strong{font-weight:700}.mk-msg code{background:rgba(0,0,0,.06);padding:.05em .3em;border-radius:4px;font-size:.85em;font-family:ui-monospace,Menlo,monospace}' +
+			'.mk-msg table{border-collapse:collapse;margin:.4em 0;font-size:.82em;display:block;width:max-content;max-width:100%;overflow-x:auto}' +
+			'.mk-msg th,.mk-msg td{border:1px solid rgba(0,0,0,.14);padding:.28em .5em;text-align:left;vertical-align:top}' +
+			'.mk-msg th{background:rgba(0,0,0,.05);font-weight:700;white-space:nowrap}' +
 			'.mk-msg a{text-decoration:underline}.mk-assistant a{color:var(--mk-brand)}.mk-user a{color:#fff}' +
 			'.mk-user{white-space:pre-wrap}' +
 			'.mk-powered{text-align:center;font-size:.68em;color:#9aa8a2;padding:.35em;background:#fff;border-top:1px solid #eef2f0}' +
