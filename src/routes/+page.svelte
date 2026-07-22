@@ -799,8 +799,8 @@
 		position: absolute;
 		inset: 0;
 		z-index: -1;
-		/* Overlay the brand colour on top of hero.jpg at 60% so the photo shows through. */
-		opacity: 0.6;
+		/* Overlay the brand colour on top of hero.jpg at 80% so the photo shows through. */
+		opacity: 0.8;
 		background:
 			radial-gradient(90% 60% at 78% 8%, rgba(224, 178, 76, 0.5), transparent 55%),
 			radial-gradient(70% 50% at 12% 100%, rgba(44, 107, 82, 0.55), transparent 60%),
