@@ -9,6 +9,7 @@ import { searchTours, getTourPrice } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
 import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
+import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse } from './govdata.js';
 
 /** Tool schemas exposed to Claude now live in the Industry Registry — each
  *  industry declares its own toolset (rag.js reads `serverIndustry(client).tools`).
@@ -29,6 +30,24 @@ export async function runTool(name, input, ctx) {
 
 	if (name === 'get_tour_price') {
 		return getTourPrice(ctx.client.id, input ?? {});
+	}
+
+	// Live TAUSI land-sales lookups (public gov data; tenant-independent). Each
+	// returns an AI-readable string and never throws — unreachable → graceful msg.
+	if (name === 'land_national_summary') {
+		return landNationalSummary(input?.status);
+	}
+
+	if (name === 'land_council_projects') {
+		return landCouncilProjects(input?.council ?? input?.administrative_area_code, input?.status);
+	}
+
+	if (name === 'land_area_codes') {
+		return landAreaCodes();
+	}
+
+	if (name === 'land_lot_use') {
+		return landLotUse();
 	}
 
 	if (name === 'search_knowledge') {

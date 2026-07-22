@@ -65,6 +65,53 @@ const createLeadGeneric = (interestDesc) => ({
 	}
 });
 
+// ---- Live government-data tools (TAUSI land sales) --------------------------
+
+// Public, no-token TAUSI land-sales lookups. Backed by govdata.js, which fetches
+// the live citizen catalogue at request time so the assistant answers with
+// CURRENT projects/plots instead of guessing. Attached only to the `government`
+// industry (see SERVER.government below).
+const TAUSI_LAND_TOOLS = [
+	{
+		name: 'land_national_summary',
+		description:
+			'Get CURRENT per-council totals of government land projects and plots from the live TAUSI portal. Use for "how much land is available/sold", national or regional overviews, or to discover which councils have land (each row includes its administrative area code). Returns live data — never guess these numbers.',
+		input_schema: {
+			type: 'object',
+			properties: { status: { type: 'string', enum: ['open', 'sold'], description: "'open' = available for sale, 'sold' = already sold" } },
+			required: ['status']
+		}
+	},
+	{
+		name: 'land_council_projects',
+		description:
+			'List the CURRENT government land projects in one council/area from the live TAUSI portal. Use when the customer names an area (e.g. "Dodoma", "Arusha"). Accepts the council name OR its administrative area code.',
+		input_schema: {
+			type: 'object',
+			properties: {
+				council: { type: 'string', description: 'Council/area name (e.g. "Dodoma") or its administrative area code' },
+				status: { type: 'string', enum: ['open', 'sold'], description: "'open' = available, 'sold' = sold" }
+			},
+			required: ['council', 'status']
+		}
+	},
+	{
+		name: 'land_area_codes',
+		description: 'List councils that currently have land in the TAUSI portal, each with its administrative area code. Use to resolve or confirm a council the customer mentioned.',
+		input_schema: { type: 'object', properties: {} }
+	},
+	{
+		name: 'land_lot_use',
+		description: 'List the lot-use categories (residential, commercial, etc.) used in TAUSI land projects.',
+		input_schema: { type: 'object', properties: {} }
+	}
+];
+
+// Appended to the government qualify script so the model knows WHEN to reach for
+// the live tools and to never fabricate land data.
+const TAUSI_LAND_QUALIFY =
+	'When a citizen asks about land for sale, available or sold plots, land projects, or where they can buy land, use the LIVE TAUSI tools rather than guessing: call land_national_summary (status open or sold) to see which councils have land and how much, land_council_projects with the council name once they name an area, and land_lot_use for lot-use categories. Report ONLY what these live tools return — never invent projects, plot numbers, locations or prices. Plot-level detail, exact prices, applications and payments need the citizen’s own TAUSI login, so for those, point them to the TAUSI portal or collect their contact for follow-up. If a tool says the service is unreachable, do not guess — offer to take their name and WhatsApp/email for the team.';
+
 // ---- Lead extraction schemas ------------------------------------------------
 
 // Tourism — the original schema verbatim (lead-ai.js).
@@ -227,17 +274,20 @@ Your FINAL message must be ONLY the entry — nothing else:
 	analystSuggestions: ['Which tours convert best into leads?', 'Where are my leads dropping off?', 'What’s my potential booking value this month?', 'Which travel month is most in demand?']
 };
 
-/** Build a generic server entry from the client-safe industry definition. */
-function genericServer(ui, { persona, qualifyFields, researchDomain }) {
+/** Build a generic server entry from the client-safe industry definition.
+ *  `extraTools` are appended to the industry's toolset; `extraQualify` is
+ *  appended to the qualification script (e.g. live-data tool guidance). */
+function genericServer(ui, { persona, qualifyFields, researchDomain, extraTools = [], extraQualify = '' }) {
 	const t = ui.terms;
 	const roleNoun = ui.businessType; // e.g. "hotel", "healthcare provider"
 	return {
 		langKeep: `Keep ${t.item} names, place names and exact prices as given.`,
 		qualify:
-			`QUALIFY enquiries like ${persona}. Over the conversation, naturally gather: ${qualifyFields}. Ask only for what's still missing, one or two questions at a time — never fire a checklist. Use search_knowledge to find the details you need before answering. Once you have interest + a name or WhatsApp number, call create_lead — and pass everything you learned in the interest field so the team gets a complete picture. Never state a price you didn't find in the knowledge base.`,
+			`QUALIFY enquiries like ${persona}. Over the conversation, naturally gather: ${qualifyFields}. Ask only for what's still missing, one or two questions at a time — never fire a checklist. Use search_knowledge to find the details you need before answering. Once you have interest + a name or WhatsApp number, call create_lead — and pass everything you learned in the interest field so the team gets a complete picture. Never state a price you didn't find in the knowledge base.` +
+			(extraQualify ? ` ${extraQualify}` : ''),
 		summarySystem: `Summarize this customer chat for the team in 3-5 sentences. Capture: what the ${t.customer} wants, any dates/numbers/budget given, ${t.items} or prices discussed, contact details shared, and the next step. Be factual and concise.`,
 		translateSystem: `You are a translator for a ${roleNoun} reading their chat inbox. Translate each input message into natural English. If a message is already English, return it unchanged. Preserve meaning, names, places, dates and numbers exactly. Return ONLY a JSON array of strings — one per input, in the same order — and nothing else.`,
-		tools: [searchKnowledgeGeneric(t.catalogue), createLeadGeneric(`Everything learned about the enquiry in one line: the ${t.item} or need, preferred dates or timing, number of people, budget, and any preferences — whatever was mentioned.`)],
+		tools: [searchKnowledgeGeneric(t.catalogue), createLeadGeneric(`Everything learned about the enquiry in one line: the ${t.item} or need, preferred dates or timing, number of people, budget, and any preferences — whatever was mentioned.`), ...extraTools],
 		leadSystem: `Extract the details a ${t.customer} actually stated, for a ${roleNoun}'s lead record. Use null for anything not clearly stated — never guess or infer beyond what they said. "intent" is how ready to proceed they sound. Return the structured object only.`,
 		leadSchema: leadSchemaGeneric(t.item),
 		analystSystem: `You are the data analyst for a ${roleNoun}, embedded in their dashboard. You answer questions about THEIR business using only the JSON snapshot provided.
@@ -299,7 +349,9 @@ const SERVER = {
 	government: genericServer(INDUSTRIES.government, {
 		persona: 'a patient public-service assistant helping citizens understand services, procedures and requirements',
 		qualifyFields: 'the service they need, what stage they are at, and any documents they already have',
-		researchDomain: 'fees, processing times, required documents'
+		researchDomain: 'fees, processing times, required documents',
+		extraTools: TAUSI_LAND_TOOLS,
+		extraQualify: TAUSI_LAND_QUALIFY
 	}),
 	retail: genericServer(INDUSTRIES.retail, {
 		persona: 'a helpful shopping advisor',
