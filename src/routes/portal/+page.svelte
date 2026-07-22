@@ -37,6 +37,9 @@
 
 	$: conversionRate = stats.conversations ? Math.round((stats.leads / stats.conversations) * 100) : 0;
 	$: highIntent = dash.pipeline.tiers.hot + dash.pipeline.tiers.warm;
+	// Lead-free industries (e.g. government) swap sales KPIs for service ones.
+	$: leadFree = data.leadsEnabled === false;
+	$: langCount = (client.languages || '').split(/[,/]/).map((s) => s.trim()).filter(Boolean).length;
 	$: cap = client.monthly_conversation_cap ?? 0;
 	$: usagePct = cap > 0 ? Math.min(100, Math.round((stats.conversationsMonth / cap) * 100)) : 0;
 	$: health = !client.is_active
@@ -107,11 +110,13 @@
 	<p class="greet-sub">Your AI assistant has been working while you were away.</p>
 	<div class="today">
 		<span><b>{dash.convToday}</b> conversations today</span>
-		<span class="dot-sep">·</span>
-		<span><b>{dash.leadsToday}</b> new {dash.leadsToday === 1 ? 'lead' : 'leads'}</span>
+		{#if !leadFree}
+			<span class="dot-sep">·</span>
+			<span><b>{dash.leadsToday}</b> new {dash.leadsToday === 1 ? 'lead' : 'leads'}</span>
+		{/if}
 		{#if dash.lastConversationAt}
 			<span class="dot-sep">·</span>
-			<span>last customer {ago(dash.lastConversationAt)}</span>
+			<span>last {terms.customer ?? 'customer'} {ago(dash.lastConversationAt)}</span>
 		{/if}
 	</div>
 </div>
@@ -148,13 +153,21 @@
 		<span class="badge {health.cls === 'ok' ? '' : health.cls === 'off' ? 'off' : 'neutral'}">{health.label}</span>
 	</div>
 	<p class="muted" style="margin:.35rem 0 1rem">
-		{client.is_active
-			? `Answering customer questions, recommending ${terms.items}, qualifying leads, and collecting enquiries 24/7 — even while you sleep.`
-			: 'Your assistant is paused and not answering visitors. Reactivate it in Settings.'}
+		{#if !client.is_active}
+			Your assistant is paused and not answering visitors. Reactivate it in Settings.
+		{:else if leadFree}
+			Answering {terms.customer ?? 'people'} questions about {terms.items}, guiding them step by step, and pointing to official channels 24/7 — even while you sleep.
+		{:else}
+			Answering customer questions, recommending {terms.items}, qualifying leads, and collecting enquiries 24/7 — even while you sleep.
+		{/if}
 	</p>
 	<div class="status-grid">
 		<div><span class="k">Last conversation</span><span class="v">{ago(dash.lastConversationAt) ?? 'none yet'}</span></div>
-		<div><span class="k">Last lead</span><span class="v">{ago(dash.lastLeadAt) ?? 'none yet'}</span></div>
+		{#if leadFree}
+			<div><span class="k">This month</span><span class="v">{stats.conversationsMonth ?? 0} {(stats.conversationsMonth ?? 0) === 1 ? 'chat' : 'chats'}</span></div>
+		{:else}
+			<div><span class="k">Last lead</span><span class="v">{ago(dash.lastLeadAt) ?? 'none yet'}</span></div>
+		{/if}
 		<div><span class="k">Knowledge updated</span><span class="v">{ago(dash.knowledgeUpdatedAt) ?? '—'}</span></div>
 		<div><span class="k">Assistant</span><span class="v">{stats.items} {stats.items === 1 ? 'item' : 'items'} ready</span></div>
 	</div>
@@ -168,17 +181,33 @@
 		<div class="foot">{stats.conversations.toLocaleString()} all-time</div>
 	</div>
 	<div class="card kpi">
-		<div class="k">Qualified leads</div>
-		<div class="v">{stats.leads}</div>
-		<div class="foot">{dash.leadsToday} captured today</div>
+		{#if leadFree}
+			<div class="k">Conversations this month</div>
+			<div class="v">{stats.conversationsMonth ?? 0}</div>
+			<div class="foot">{stats.conversations.toLocaleString()} all-time</div>
+		{:else}
+			<div class="k">Qualified leads</div>
+			<div class="v">{stats.leads}</div>
+			<div class="foot">{dash.leadsToday} captured today</div>
+		{/if}
 	</div>
 	<div class="card kpi">
-		<div class="k">Conversion rate</div>
-		<div class="v">{conversionRate}<span class="unit">%</span></div>
-		<div class="foot">chats that became leads</div>
+		{#if leadFree}
+			<div class="k">Knowledge items</div>
+			<div class="v">{stats.items}</div>
+			<div class="foot">answers your assistant can give</div>
+		{:else}
+			<div class="k">Conversion rate</div>
+			<div class="v">{conversionRate}<span class="unit">%</span></div>
+			<div class="foot">chats that became leads</div>
+		{/if}
 	</div>
 	<div class="card kpi">
-		{#if dash.pipeline.value > 0}
+		{#if leadFree}
+			<div class="k">Languages</div>
+			<div class="v">{langCount || '—'}</div>
+			<div class="foot">supported by your assistant</div>
+		{:else if dash.pipeline.value > 0}
 			<div class="k">Est. pipeline value</div>
 			<div class="v" style="font-size:1.5rem">~{money(dash.pipeline.value, dash.pipeline.currency)}</div>
 			<div class="foot">from {dash.pipeline.matched} {terms.item}-matched {dash.pipeline.matched === 1 ? 'lead' : 'leads'}</div>

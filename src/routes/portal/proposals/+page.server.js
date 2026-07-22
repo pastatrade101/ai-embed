@@ -31,7 +31,11 @@ async function pickerLeads(clientId) {
 	});
 }
 
-export async function load({ locals }) {
+export async function load({ locals, parent }) {
+	// Lead-free industries (e.g. government) don't do sales proposals — the nav is
+	// hidden; send a direct visit back to the overview.
+	const { leadsEnabled } = await parent();
+	if (leadsEnabled === false) throw redirect(303, '/portal');
 	const clientId = locals.user.client_id;
 	const { proposals, tableMissing } = await listProposals(clientId);
 	const { data: client } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();

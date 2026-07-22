@@ -330,7 +330,9 @@ Your FINAL message must be ONLY the entry — nothing else:
 			askTiming: 'Ask what timing works for them',
 			suggestItems: `Suggest ${t.items} that fit their needs`
 		},
-		analystSuggestions: [`Which ${t.items} generate the most leads?`, 'Where are my leads dropping off?', 'What are customers asking about most?', 'How many leads came in this month?']
+		analystSuggestions: noLeads
+			? [`Which ${t.items} do ${t.customer}s ask about most?`, 'What are the most common questions?', 'How many conversations came in this month?', 'What topics are missing from my knowledge?']
+			: [`Which ${t.items} generate the most leads?`, 'Where are my leads dropping off?', 'What are customers asking about most?', 'How many leads came in this month?']
 	};
 }
 
