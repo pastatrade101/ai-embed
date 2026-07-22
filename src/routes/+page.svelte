@@ -1098,7 +1098,10 @@
 
 	/* Meet AI (dark forest) */
 	.meet {
-		background: var(--forest);
+		/* section.jpg background with the forest brand colour overlaid at 80% opacity */
+		background:
+			linear-gradient(rgba(16, 54, 42, 0.8), rgba(16, 54, 42, 0.8)),
+			url('/section.jpg') center / cover no-repeat;
 		color: var(--cream);
 	}
 	.meet h2 {
