@@ -362,15 +362,10 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 	if (form.has('greeting_message')) patch.greeting_message = clampGreeting(form.get('greeting_message'));
 	if (form.has('_greeting_enabled')) patch.greeting_enabled = form.get('greeting_enabled') === 'on';
 
-	// Hosted-chat input toggles, kept in metadata (no migration). Hidden `_*`
-	// markers tell us the checkbox is on the form (an unchecked box submits nothing).
-	if (form.has('_attachments_enabled') || form.has('_voice_enabled')) {
-		const { data: cur } = await supabase.from('clients').select('metadata').eq('id', clientId).maybeSingle();
-		const metadata = { ...(cur?.metadata ?? {}) };
-		if (form.has('_attachments_enabled')) metadata.attachments_enabled = form.get('attachments_enabled') === 'on';
-		if (form.has('_voice_enabled')) metadata.voice_enabled = form.get('voice_enabled') === 'on';
-		patch.metadata = metadata;
-	}
+	// Hosted-chat input toggles (columns from migration 027). Hidden `_*` markers
+	// tell us the checkbox is on the form (an unchecked box submits nothing).
+	if (form.has('_attachments_enabled')) patch.attachments_enabled = form.get('attachments_enabled') === 'on';
+	if (form.has('_voice_enabled')) patch.voice_enabled = form.get('voice_enabled') === 'on';
 
 	if (allowAdmin) {
 		// The admin settings form always carries the is_active checkbox, so an
@@ -391,22 +386,25 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 
 	if (Object.keys(patch).length === 0) return { section: 'client', ok: 'No changes to save.' };
 
+	// Optional columns added by later migrations (017 greeting, 027 chat-input
+	// toggles). If a migration hasn't run yet, Postgres/PostgREST errors with a
+	// missing-column / "schema cache" message — fail open: drop those columns and
+	// save the rest so settings still work, and flag it so we don't falsely report
+	// the deferred fields as saved.
+	const OPTIONAL_COLS = ['greeting_message', 'greeting_enabled', 'attachments_enabled', 'voice_enabled'];
 	let { error } = await supabase.from('clients').update(patch).eq('id', clientId);
-	// Fail open if migration 017 (greeting columns) hasn't run yet: drop the
-	// greeting fields and save everything else, so settings still work. We flag
-	// it so we don't falsely report the greeting change as saved.
-	let greetingDeferred = false;
-	if (error && /greeting/i.test(error.message) && ('greeting_message' in patch || 'greeting_enabled' in patch)) {
-		greetingDeferred = true;
-		delete patch.greeting_message;
-		delete patch.greeting_enabled;
-		if (Object.keys(patch).length === 0) return { section: 'client', ok: GREETING_DEFERRED_MSG };
+	let deferred = false;
+	if (error && /(column|schema cache)/i.test(error.message) && OPTIONAL_COLS.some((c) => c in patch)) {
+		deferred = true;
+		for (const c of OPTIONAL_COLS) delete patch[c];
+		if (Object.keys(patch).length === 0) return { section: 'client', ok: SETTINGS_DEFERRED_MSG };
 		({ error } = await supabase.from('clients').update(patch).eq('id', clientId));
 	}
 	if (error) return fail(400, { section: 'client', error: error.message });
-	return { section: 'client', ok: greetingDeferred ? GREETING_DEFERRED_MSG : 'Settings saved.' };
+	return { section: 'client', ok: deferred ? SETTINGS_DEFERRED_MSG : 'Settings saved.' };
 }
 
-// Shown when everything but the greeting saved (greeting columns not migrated
-// yet) — so the operator isn't misled into thinking the bubble change applied.
-const GREETING_DEFERRED_MSG = 'Settings saved — the greeting bubble isn’t active on your account yet; it’ll apply after a pending system update.';
+// Shown when some optional fields (greeting bubble / chat-input toggles) couldn't
+// save because their migration hasn't run yet — so the operator isn't misled into
+// thinking those changes applied.
+const SETTINGS_DEFERRED_MSG = 'Settings saved — some options (greeting bubble / chat input toggles) aren’t active on your account yet; they’ll apply after a pending system update.';

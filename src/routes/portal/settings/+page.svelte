@@ -118,9 +118,9 @@
 		<div>
 			<label>Chat input options</label>
 			<input type="hidden" name="_attachments_enabled" value="1" />
-			<label class="toggle-row"><input type="checkbox" name="attachments_enabled" checked={client.metadata?.attachments_enabled !== false} /> Allow file attachments (photos / PDFs) in the chat</label>
+			<label class="toggle-row"><input type="checkbox" name="attachments_enabled" checked={client.attachments_enabled !== false} /> Allow file attachments (photos / PDFs) in the chat</label>
 			<input type="hidden" name="_voice_enabled" value="1" />
-			<label class="toggle-row"><input type="checkbox" name="voice_enabled" checked={client.metadata?.voice_enabled !== false} /> Allow voice input (microphone) in the chat</label>
+			<label class="toggle-row"><input type="checkbox" name="voice_enabled" checked={client.voice_enabled !== false} /> Allow voice input (microphone) in the chat</label>
 			<div class="hint">Turn these off to hide the attach and mic buttons in the hosted chat.</div>
 		</div>
 		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder={data.industry?.onboarding?.suggestions?.[0] ?? 'Describe your business and how the assistant should answer…'}>{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
