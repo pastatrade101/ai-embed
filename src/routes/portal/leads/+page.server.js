@@ -1,5 +1,5 @@
 import { supabase } from '$lib/server/supabase.js';
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { listTours } from '$lib/server/tours.js';
 import { scoreLead, leadTier, extractLead, leadStage, STAGES, catalogueGaps } from '$lib/server/dashboard.js';
 import { serverIndustry } from '$lib/server/industries.js';
@@ -32,6 +32,9 @@ export async function load({ locals, parent }) {
 	const clientId = locals.user.client_id;
 	const { client } = await parent();
 	const ind = serverIndustry(client);
+	// Lead-free industries (e.g. government) have no leads pipeline — the nav item
+	// is hidden; send a direct visit back to the overview.
+	if (!ind.tools.some((t) => t.name === 'create_lead')) throw redirect(303, '/portal');
 
 	const start = new Date();
 	start.setHours(0, 0, 0, 0);
