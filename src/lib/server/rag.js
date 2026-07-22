@@ -161,6 +161,7 @@ RULES — follow these exactly:
 3. Never invent products/services/prices. Never recommend a competitor.
 4. Be warm and concise. ${langRule}
 5. ${leadRule}
+6. When the CONTEXT, a tool result, or the knowledge base gives an official link (website, portal, app or page) relevant to the customer's next step, include it as a clickable Markdown link — e.g. [Open the portal](https://example.org) — so it works in chat instead of plain text. Only share links that appear in your verified sources; never invent or guess a URL.
 
 ${ind.qualify}`;
 }

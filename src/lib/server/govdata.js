@@ -20,6 +20,9 @@ import { log } from './whatsapp/logger.js';
 
 // Overridable so a future in-region proxy can be pointed at without a code change.
 const BASE = (env.TAUSI_LANDSALES_BASE || 'https://tausi.tamisemi.go.tz/kivuko/tausi-landsales-service/api/v1').replace(/\/+$/, '');
+// Citizen-facing portal (where they log in to view detail, apply and pay) — the
+// tools hand this to the assistant so it can share a clickable link, not prose.
+const PORTAL = (env.TAUSI_PORTAL_URL || 'https://tausi.tamisemi.go.tz').replace(/\/+$/, '');
 const TIMEOUT_MS = 12000;
 const PAGE_SIZE = 100;
 
@@ -167,7 +170,8 @@ export async function landNationalSummary(status = 'open') {
 			`Live TAUSI ${st === 'sold' ? 'SOLD' : 'AVAILABLE (open)'} land — ${rows.length} councils, ${total} plots total:\n` +
 			lines.join('\n') +
 			more +
-			`\nAsk about a specific council for its projects (use land_council_projects with the council name or its code).`
+			`\nAsk about a specific council for its projects (use land_council_projects with the council name or its code).` +
+			`\nShare this clickable link so the citizen can view detail, apply and pay: [TAUSI portal](${PORTAL})`
 		);
 	} catch (err) {
 		log.warn('govdata_national_summary_failed', { status: st, error: String(err?.message || err) });
@@ -215,7 +219,7 @@ export async function landCouncilProjects(council, status = 'open') {
 			`${st === 'sold' ? 'Sold' : 'Available'} land projects in ${label} (live from TAUSI):\n` +
 			lines.join('\n') +
 			more +
-			`\nPlot-level detail, exact prices, applications and payments require the citizen’s own TAUSI login — direct them to the TAUSI portal or offer to have the team follow up.`
+			`\nPlot-level detail, exact prices, applications and payments require the citizen’s own login on the TAUSI portal — share this clickable link: [TAUSI portal](${PORTAL}) — or offer to have the team follow up.`
 		);
 	} catch (err) {
 		log.warn('govdata_council_projects_failed', { council: raw, status: st, error: String(err?.message || err) });
