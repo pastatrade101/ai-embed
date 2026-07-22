@@ -115,6 +115,14 @@
 			<input id="greeting_message" name="greeting_message" maxlength={GREETING_MAX} bind:value={greetingMsg} placeholder={`Hi 👋 Looking for the perfect ${terms.item}?`} />
 			<div class="hint">Pops up beside the chat button after a short pause. Leave blank for smart greetings that adapt to the page and time of day. <span class="counter" class:over={greetingLen > GREETING_MAX - 15}>{greetingLen}/{GREETING_MAX}</span></div>
 		</div>
+		<div>
+			<label>Chat input options</label>
+			<input type="hidden" name="_attachments_enabled" value="1" />
+			<label class="toggle-row"><input type="checkbox" name="attachments_enabled" checked={client.metadata?.attachments_enabled !== false} /> Allow file attachments (photos / PDFs) in the chat</label>
+			<input type="hidden" name="_voice_enabled" value="1" />
+			<label class="toggle-row"><input type="checkbox" name="voice_enabled" checked={client.metadata?.voice_enabled !== false} /> Allow voice input (microphone) in the chat</label>
+			<div class="hint">Turn these off to hide the attach and mic buttons in the hosted chat.</div>
+		</div>
 		<div><label for="business_context">System instructions</label><textarea id="business_context" name="business_context" placeholder={data.industry?.onboarding?.suggestions?.[0] ?? 'Describe your business and how the assistant should answer…'}>{client.business_context ?? ''}</textarea><div class="hint">Guides how the assistant answers — injected into its system prompt.</div></div>
 		<div style="max-width:340px"><label for="languages">Languages</label><input id="languages" name="languages" value={client.languages ?? ''} placeholder="English, Swahili" /></div>
 	</div>

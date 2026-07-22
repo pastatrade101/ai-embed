@@ -101,7 +101,11 @@ export async function load({ params, url }) {
 			welcome: client.welcome_message ?? null,
 			suggestions: suggestionChips(client.suggested_questions, tours, serverIndustry(client)),
 			hideBranding: await planUnlocks(client.plan, FEATURE.NO_BADGE),
-			allowAttachments: await planUnlocks(client.plan, FEATURE.ATTACHMENTS)
+			// Attachments need the plan feature AND the per-client toggle; voice is a
+			// per-client toggle only (browser support is checked client-side). Both
+			// default ON when unset in metadata.
+			allowAttachments: (await planUnlocks(client.plan, FEATURE.ATTACHMENTS)) && client.metadata?.attachments_enabled !== false,
+			allowVoice: client.metadata?.voice_enabled !== false
 		},
 		// Client-safe industry entry so the hosted page speaks the tenant's language
 		// (tourism keeps its original copy verbatim; others derive from terms).

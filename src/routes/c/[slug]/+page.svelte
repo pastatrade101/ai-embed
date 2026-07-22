@@ -315,6 +315,7 @@
 	let listening = false;
 	let voiceOK = false;
 	function setupVoice() {
+		if (client.allowVoice === false) return; // per-client toggle off
 		const SR = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
 		if (!SR) return;
 		voiceOK = true;

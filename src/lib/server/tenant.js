@@ -362,6 +362,16 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 	if (form.has('greeting_message')) patch.greeting_message = clampGreeting(form.get('greeting_message'));
 	if (form.has('_greeting_enabled')) patch.greeting_enabled = form.get('greeting_enabled') === 'on';
 
+	// Hosted-chat input toggles, kept in metadata (no migration). Hidden `_*`
+	// markers tell us the checkbox is on the form (an unchecked box submits nothing).
+	if (form.has('_attachments_enabled') || form.has('_voice_enabled')) {
+		const { data: cur } = await supabase.from('clients').select('metadata').eq('id', clientId).maybeSingle();
+		const metadata = { ...(cur?.metadata ?? {}) };
+		if (form.has('_attachments_enabled')) metadata.attachments_enabled = form.get('attachments_enabled') === 'on';
+		if (form.has('_voice_enabled')) metadata.voice_enabled = form.get('voice_enabled') === 'on';
+		patch.metadata = metadata;
+	}
+
 	if (allowAdmin) {
 		// The admin settings form always carries the is_active checkbox, so an
 		// unchecked box (which submits nothing) correctly means "paused".
