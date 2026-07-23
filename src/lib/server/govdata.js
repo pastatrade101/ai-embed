@@ -293,10 +293,16 @@ export async function projectPlots(projectId) {
 		const countStr = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${n} ${s}`).join(', ');
 
 		const available = plots.filter((p) => statusOf(p) === 'Available');
-		const pool = available.length ? available : plots;
+		const header = `Plots in ${projName}${council ? ` (${council})` : ''} — ${plots.length} total: ${countStr}. Live from TAUSI.`;
+		// No buyable plots → don't present sold plots' prices as if available, and no "reserve" CTA.
+		if (!available.length) {
+			return `${header}\nNo plots are available to buy in this project right now. Try another project (land_council_projects) or the TAUSI portal: [TAUSI portal](${PORTAL}).`;
+		}
+		const pool = available; // ranges / fees / sample are over AVAILABLE plots ONLY
 		const areaUnit = clean(pool.find((p) => p.unitOfMeasure)?.unitOfMeasure || 'Sqm', 12);
+		const plotPrice = (p) => numPos(p.price) ?? numPos(p.totalLandPlotCost); // numPos treats 0 as absent → real fallback
 
-		const priceNums = pool.map((p) => numPos(p.price ?? p.totalLandPlotCost)).filter((n) => n != null);
+		const priceNums = pool.map(plotPrice).filter((n) => n != null);
 		const areaNums = pool.map((p) => numPos(p.legalArea)).filter((n) => n != null);
 		const range = (arr, fmt) => (arr.length ? (Math.min(...arr) === Math.max(...arr) ? fmt(Math.min(...arr)) : `${fmt(Math.min(...arr))}–${fmt(Math.max(...arr))}`) : null);
 		const priceRange = range(priceNums, (n) => 'TZS ' + n.toLocaleString('en-US'));
@@ -307,24 +313,25 @@ export async function projectPlots(projectId) {
 			if (p.block != null || p.lotNumber != null) bits.push(`Block ${clean(p.block ?? '?', 10)}, Lot ${clean(p.lotNumber ?? '?', 10)}`);
 			const a = numPos(p.legalArea);
 			if (a) bits.push(`${a.toLocaleString('en-US')} ${areaUnit}`);
-			const pr = money(p.price ?? p.totalLandPlotCost);
+			const pr = money(plotPrice(p));
 			if (pr) bits.push(pr);
 			const use = clean(p.lotUse || '', 24);
 			if (use) bits.push(use);
 			return `- ${bits.join(' · ') || 'plot'} [${statusOf(p)}]`;
 		});
-		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more ${available.length ? 'available ' : ''}plots.` : '';
+		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more available plots.` : '';
 
 		const ranges = [priceRange && `Price: ${priceRange}`, areaRange && `Size: ${areaRange} ${areaUnit}`].filter(Boolean).join(' · ');
-		const appFee = money(pool.find((p) => numPos(p.applicationFee))?.applicationFee);
-		const firstInst = money(pool.find((p) => numPos(p.firstInstallmentFee))?.firstInstallmentFee);
-		const fees = [appFee && `application fee ${appFee}`, firstInst && `first installment from ${firstInst}`].filter(Boolean).join(', ');
+		const feeMin = (key) => { const ns = pool.map((p) => numPos(p[key])).filter((n) => n != null); return ns.length ? Math.min(...ns) : null; };
+		const appFee = money(feeMin('applicationFee'));
+		const firstInst = money(feeMin('firstInstallmentFee'));
+		const fees = [appFee && `application fee from ${appFee}`, firstInst && `first installment from ${firstInst}`].filter(Boolean).join(', ');
 
 		return (
-			`Plots in ${projName}${council ? ` (${council})` : ''} — ${plots.length} total: ${countStr}. Live from TAUSI.` +
+			header +
 			(ranges ? `\n${ranges}` : '') +
 			(fees ? `\n(${fees})` : '') +
-			`\n${available.length ? 'Available plots' : 'Plots'} (sample):\n` +
+			`\nAvailable plots (sample):\n` +
 			sample.join('\n') +
 			more +
 			`\nThese are live official figures. To reserve or pay, the citizen signs in on the TAUSI portal: [TAUSI portal](${PORTAL}).`
@@ -373,7 +380,8 @@ export async function landLotUse() {
 		if (!rows.length) return 'No lot-use categories are published by TAUSI right now.';
 		const names = rows.map((r) => clean(typeof r === 'string' ? r : r.name || r.lotUseName || r.description || r.code || '', 60)).filter(Boolean);
 		if (!names.length) return 'No lot-use categories are published by TAUSI right now.';
-		return `Lot-use categories in the TAUSI land catalogue: ${names.join(', ')}.`;
+		const shown = names.slice(0, 60);
+		return `Lot-use categories in the TAUSI land catalogue: ${shown.join(', ')}${names.length > shown.length ? `, …and ${names.length - shown.length} more` : ''}.`;
 	} catch (err) {
 		log.warn('govdata_lot_use_failed', { error: String(err?.message || err) });
 		return UNREACHABLE;
@@ -412,7 +420,7 @@ export async function publishedLaws(pageNo = 0, pageSize = PAGE_SIZE) {
 	try {
 		const rows = listOf(await get('tausi-council-management-service', '/api/v1/portal/published-law', { pageNo: num(pageNo), pageSize: size }));
 		if (!rows.length) return 'No published by-laws are available from TAUSI right now.';
-		const shown = rows.slice(0, 25);
+		const shown = rows.slice(0, 40);
 		const lines = shown.map((r, i) => {
 			const desc = pick(r, ['description', 'lawDescription', 'name', 'title'], 140) || compactObj(r);
 			const rev = pick(r, ['revenueSource', 'revenueSourceName'], 60);
@@ -421,8 +429,9 @@ export async function publishedLaws(pageNo = 0, pageSize = PAGE_SIZE) {
 			const meta = [rev && `revenue: ${rev}`, gfs && `GFS ${gfs}`, id !== '' && `id ${id}`].filter(Boolean).join(', ');
 			return `${i + 1}. ${desc}${meta ? ` (${meta})` : ''}`;
 		});
-		const more = rows.length >= size ? `\n…more available — ask to see the next page.` : '';
-		return `Published council by-laws / revenue legislation (live from TAUSI):\n` + lines.join('\n') + more + `\nFor the full text of one by-law, use bylaw_detail with its id.`;
+		const more = rows.length > shown.length ? `\n…and ${rows.length - shown.length} more on this page.` : '';
+		const pages = rows.length >= size ? `\n(This is a full page — more by-laws may exist; call again with a higher page_no.)` : '';
+		return `Published council by-laws / revenue legislation (live from TAUSI):\n` + lines.join('\n') + more + pages + `\nFor the full text of one by-law, use bylaw_detail with its id.`;
 	} catch (err) {
 		log.warn('govdata_published_laws_failed', { error: String(err?.message || err) });
 		return UNREACHABLE;
@@ -455,8 +464,9 @@ export async function bylawDetail(lawId) {
 	try {
 		const json = await get('tausi-council-management-service', '/api/v1/portal/published-by-law', { lawId: id });
 		const d = json?.data;
-		const o = Array.isArray(d) ? d[0] : d;
-		if (!o) return `No by-law found for id ${clean(id, 40)}.`;
+		// Handle bare object, top-level array, or the standard {item|itemList} envelope.
+		const o = Array.isArray(d) ? d[0] : (d?.item ?? (Array.isArray(d?.itemList) ? d.itemList[0] : d));
+		if (!o || typeof o !== 'object') return `No by-law found for id ${clean(id, 40)}.`;
 		const desc = pick(o, ['description', 'lawDescription', 'name', 'title'], 400);
 		const rev = pick(o, ['revenueSource', 'revenueSourceName'], 80);
 		const gfs = pick(o, ['gfsCode', 'gfs'], 40);
@@ -502,7 +512,8 @@ export async function taxpayerCategories() {
 		if (!rows.length) return 'No taxpayer categories are published by TAUSI right now.';
 		const names = rows.map((r) => clean(typeof r === 'string' ? r : r.name || r.categoryName || r.description || r.code || '', 60)).filter(Boolean);
 		if (!names.length) return 'No taxpayer categories are published by TAUSI right now.';
-		return `Taxpayer categories in the TAUSI system: ${names.join(', ')}.`;
+		const shown = names.slice(0, 60);
+		return `Taxpayer categories in the TAUSI system: ${shown.join(', ')}${names.length > shown.length ? `, …and ${names.length - shown.length} more` : ''}.`;
 	} catch (err) {
 		log.warn('govdata_taxpayer_categories_failed', { error: String(err?.message || err) });
 		return UNREACHABLE;
