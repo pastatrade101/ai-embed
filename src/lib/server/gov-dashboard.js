@@ -305,3 +305,75 @@ export function buildGovDashboard(conversations, opts = {}) {
 		signals: signals(cur, prior, topics)
 	};
 }
+
+// ---- operations view (bounded, no instrumentation) -------------------------
+const worstState = (states) => (states.includes('critical') ? 'critical' : states.includes('warn') ? 'warn' : 'ok');
+const dayKey = (ms) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * Operations companion to the leadership dashboard — for the team running the
+ * service. ONLY the three things we can compute honestly today (composite health,
+ * an action queue, conversation analytics); everything that would need
+ * per-conversation instrumentation (retrieval score, live platform health, grounded
+ * confidence) is deliberately omitted rather than faked. Same conversation window,
+ * same k-anonymity floor.
+ * @param opts { client, stats, now?, periodDays? }
+ */
+export function buildGovOperations(conversations, opts = {}) {
+	const now = Number.isFinite(opts.now) ? opts.now : Date.now();
+	const periodDays = opts.periodDays || 30;
+	const client = opts.client || {};
+	const stats = opts.stats || {};
+	const day = 86400000;
+
+	const list = (Array.isArray(conversations) ? conversations : []).filter((c) => userMsgs(c).length >= 1);
+	const cur = list.filter((c) => inWindow(c, now - periodDays * day, now));
+	const total = cur.length;
+	const lowData = total < K_ANON;
+	const meta = { periodDays, generatedAt: new Date(now).toISOString(), kAnon: K_ANON, lowData };
+
+	// --- B1 composite health (from real, on-hand signals only) ---
+	const cap = Number(client.monthly_conversation_cap) || 0;
+	const convMonth = Number(stats.conversationsMonth) || 0;
+	const usagePct = cap > 0 ? Math.min(100, Math.round((convMonth / cap) * 100)) : 0;
+	const capState = cap === 0 ? 'ok' : usagePct >= 100 ? 'critical' : usagePct >= 80 ? 'warn' : 'ok';
+	const checks = [
+		{ name: 'Assistant', state: client.is_active ? 'ok' : 'critical', detail: client.is_active ? 'Live' : 'Paused' },
+		{ name: 'Knowledge base', state: (stats.items ?? 0) > 0 ? 'ok' : 'warn', detail: `${stats.items ?? 0} item${(stats.items ?? 0) === 1 ? '' : 's'}` },
+		{ name: 'Conversation capacity', state: capState, detail: cap > 0 ? `${usagePct}% of monthly cap` : 'no cap set' }
+	];
+	const health = { state: worstState(checks.map((c) => c.state)), checks };
+
+	// --- B2 action centre (findings → tasks; only real, actionable ones) ---
+	const stuck = lowData ? [] : stuckClusters(cur);
+	const actions = [];
+	if (!client.is_active) actions.push({ title: 'Reactivate the service so it answers citizens', priority: 'critical', href: '/portal/settings' });
+	if ((stats.items ?? 0) === 0) actions.push({ title: 'Add knowledge so the service can answer enquiries', priority: 'warn', href: '/portal/knowledge' });
+	for (const s of stuck) actions.push({ title: `Improve knowledge for “${s.label}”`, detail: 'citizens the service could not resolve', priority: 'warn', count: s.count, href: '/portal/knowledge' });
+	if (capState !== 'ok') actions.push({ title: 'Approaching this month’s conversation capacity', priority: capState === 'critical' ? 'critical' : 'warn', href: '/portal/billing' });
+	if (!client.whatsapp_number) actions.push({ title: 'Add a WhatsApp number to answer citizens there too', priority: 'info', href: '/portal/settings' });
+
+	// --- B6 conversation analytics (aggregate, operator-owned volume) ---
+	let analytics = null;
+	if (!lowData) {
+		const buckets = new Map();
+		for (let i = 13; i >= 0; i--) buckets.set(dayKey(now - i * day), 0);
+		let msgSum = 0;
+		for (const c of cur) {
+			const k = dayKey(new Date(c.created_at).getTime());
+			if (buckets.has(k)) buckets.set(k, buckets.get(k) + 1);
+			msgSum += Array.isArray(c.messages) ? c.messages.length : 0;
+		}
+		const resolved = cur.filter((c) => stuckKind(c) === null).length;
+		const resolutionRate = pct(resolved, total);
+		analytics = {
+			total,
+			daily: [...buckets.entries()].map(([date, count]) => ({ date, count })),
+			resolutionRate,
+			unresolvedRate: resolutionRate == null ? null : 100 - resolutionRate,
+			avgMessages: Math.round((msgSum / total) * 10) / 10
+		};
+	}
+
+	return { meta, health, actions: actions.slice(0, 8), analytics };
+}

@@ -5,7 +5,7 @@ import { scoreLead, leadTier, topInterests, pipeline, activityFeed, aiTasks } fr
 import { usageSummary } from '$lib/server/credits.js';
 import { growthAdvisor } from '$lib/server/growth-advisor.js';
 import { gatingOn } from '$lib/server/gating.js';
-import { buildGovDashboard } from '$lib/server/gov-dashboard.js';
+import { buildGovDashboard, buildGovOperations } from '$lib/server/gov-dashboard.js';
 
 const GOV_WINDOW_DAYS = 30; // dashboard period; we load 2× back for period-on-period
 const GOV_MAX_ROWS = 4000; // bound the analytics query
@@ -31,6 +31,7 @@ export async function load({ locals, parent }) {
 	// are DERIVED at read time from the conversations we already store (no schema
 	// change); k-anonymity + PII stripping are enforced inside buildGovDashboard.
 	let govDash = null;
+	let govOps = null;
 	if (leadsEnabled === false) {
 		const dayMs = 86400000;
 		const curSince = new Date(Date.now() - GOV_WINDOW_DAYS * dayMs).toISOString();
@@ -43,7 +44,10 @@ export async function load({ locals, parent }) {
 			supabase.from('conversations').select(cols).eq('client_id', clientId).gte('created_at', curSince).order('created_at', { ascending: false }).limit(GOV_MAX_ROWS),
 			supabase.from('conversations').select(cols).eq('client_id', clientId).gte('created_at', priorSince).lt('created_at', curSince).order('created_at', { ascending: false }).limit(GOV_MAX_ROWS)
 		]);
-		govDash = buildGovDashboard([...(curRes.data ?? []), ...(priorRes.data ?? [])], { periodDays: GOV_WINDOW_DAYS });
+		const govConvs = [...(curRes.data ?? []), ...(priorRes.data ?? [])];
+		govDash = buildGovDashboard(govConvs, { periodDays: GOV_WINDOW_DAYS });
+		// Operations view reuses the SAME window — no extra query, no chat-path change.
+		govOps = buildGovOperations(govConvs, { periodDays: GOV_WINDOW_DAYS, client, stats: ws.stats });
 	}
 
 	const start = new Date();
@@ -111,5 +115,5 @@ export async function load({ locals, parent }) {
 				: null
 	};
 
-	return { ...ws, leads: scoredLeads, dash, govDash };
+	return { ...ws, leads: scoredLeads, dash, govDash, govOps };
 }

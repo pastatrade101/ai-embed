@@ -4,12 +4,11 @@
 	// figure comes from data.govDash, which enforces k-anonymity and PII stripping in
 	// the service layer. Language: citizen / served / resolved / demand / coverage.
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import OnboardingChecklist from './OnboardingChecklist.svelte';
+	import GovOperations from './GovOperations.svelte';
 	export let data;
+	let view = 'leadership'; // Leadership | Operations — a tab toggle, NOT a role (same operator)
 
 	$: client = data.client;
-	$: stats = data.stats;
 	$: g = data.govDash ?? { meta: { lowData: true, totalInPeriod: 0, periodDays: 30, generatedAt: null }, summary: {}, topics: [], stuck: [], region: { top: [], noActivity: [], noActivityCount: 0 }, signals: [] };
 	$: sum = g.summary ?? {};
 	$: lowData = g.meta?.lowData !== false;
@@ -33,19 +32,6 @@
 		return `updated ${h}h ago`;
 	}
 
-	$: health = !client.is_active
-		? { label: 'Paused', cls: 'off', dot: 'off' }
-		: stats.items === 0
-			? { label: 'Needs setup', cls: 'warn', dot: 'warn' }
-			: { label: 'Healthy', cls: 'ok', dot: 'on' };
-	$: langCount = (client.languages || '').split(/[,/]/).map((s) => s.trim()).filter(Boolean).length;
-
-	// Website embed snippet (operations).
-	$: embed = `<script src="${$page.url.origin}/widget.js" data-client="${client.slug}" defer><\/script>`;
-	let copied = false;
-	async function copyEmbed() {
-		try { await navigator.clipboard.writeText(embed); copied = true; setTimeout(() => (copied = false), 1600); } catch (e) {}
-	}
 </script>
 
 <!-- Header -->
@@ -57,7 +43,14 @@
 	</p>
 </div>
 
-{#if lowData}
+<div class="view-toggle" role="tablist" aria-label="Dashboard view">
+	<button type="button" role="tab" class:active={view === 'leadership'} aria-selected={view === 'leadership'} on:click={() => (view = 'leadership')}>Leadership</button>
+	<button type="button" role="tab" class:active={view === 'operations'} aria-selected={view === 'operations'} on:click={() => (view = 'operations')}>Operations</button>
+</div>
+
+{#if view === 'operations'}
+	<GovOperations {data} />
+{:else if lowData}
 	<!-- Honest low-data state for the whole analytical view. -->
 	<div class="card">
 		<div class="empty">
@@ -186,37 +179,17 @@
 	{/if}
 {/if}
 
-<!-- Operations — secondary, for the service operator, not leadership -->
-<h2 class="section ops-head">Operations</h2>
-<div class="card ai-status">
-	<div class="ai-status-head">
-		<span class="ai-live"><span class="live-dot {health.dot}"></span>{client.is_active ? 'The service is live' : 'The service is paused'}</span>
-		<span class="badge {health.cls === 'ok' ? '' : health.cls === 'off' ? 'off' : 'neutral'}">{health.label}</span>
-	</div>
-	<div class="status-grid">
-		<div><span class="k">Conversations this month</span><span class="v">{nf(stats.conversationsMonth ?? 0)}</span></div>
-		<div><span class="k">Knowledge items</span><span class="v">{nf(stats.items)}</span></div>
-		<div><span class="k">Languages</span><span class="v">{langCount || '—'}</span></div>
-		<div><span class="k">All-time conversations</span><span class="v">{nf(stats.conversations)}</span></div>
-	</div>
-</div>
-
-<OnboardingChecklist {client} stats={data.stats} />
-
-<div class="card embed-card">
-	<h2 class="section" style="margin:0 0 .2rem">Add the assistant to an official website</h2>
-	<p class="muted panel-sub">Paste this snippet before &lt;/body&gt; on a ministry or council page.</p>
-	<div class="embed-row">
-		<code class="embed-code">{embed}</code>
-		<button class="btn-copy" type="button" on:click={copyEmbed}>{copied ? 'Copied' : 'Copy'}</button>
-	</div>
-</div>
-
 <style>
-	.gov-head { margin: 0 0 1.4rem; }
+	.gov-head { margin: 0 0 1.1rem; }
 	.gov-head h1 { font-size: 1.5rem; letter-spacing: -0.02em; color: var(--strong); margin: 0; }
 	.gov-head .sub { font-size: 0.92rem; color: var(--muted); margin: 0.3rem 0 0; }
 	.gov-head .period { color: var(--faint); }
+
+	/* Leadership | Operations toggle (tabs, not a role) */
+	.view-toggle { display: inline-flex; gap: 0.2rem; padding: 0.2rem; margin: 0 0 1.4rem; background: rgba(var(--well-rgb), 0.5); border: 1px solid var(--edge); border-radius: 10px; }
+	.view-toggle button { font-size: 0.85rem; font-weight: 600; color: var(--muted); background: transparent; border: none; border-radius: 8px; padding: 0.4rem 0.9rem; cursor: pointer; }
+	.view-toggle button:hover { color: var(--body); }
+	.view-toggle button.active { color: var(--strong); background: rgba(var(--panel-rgb), 0.9); box-shadow: inset 0 0 0 1px var(--edge); }
 
 	.gov-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.9rem; margin-bottom: 1.1rem; }
 	.kpi .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
@@ -237,17 +210,6 @@
 	.insight-term { width: 190px; flex-shrink: 0; font-size: 0.86rem; font-weight: 600; color: var(--body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 	.insight-bar { flex: 1; height: 7px; border-radius: 99px; background: var(--panel-2); overflow: hidden; }
 	.insight-bar > span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--mint), var(--accent)); }
-
-	/* Operations AI-status card (also scoped in +page.svelte). */
-	.ai-status-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.9rem; }
-	.ai-live { display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem; font-weight: 700; color: var(--strong); }
-	.live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--mint); }
-	.live-dot.warn { background: var(--warn); }
-	.live-dot.off { background: var(--danger); }
-	.status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.9rem; }
-	.status-grid > div { display: flex; flex-direction: column; gap: 0.15rem; }
-	.status-grid .k { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
-	.status-grid .v { font-size: 0.98rem; font-weight: 600; color: var(--strong); }
 
 	/* Stuck panel — the reason the dashboard exists */
 	.stuck-card { border-color: rgba(var(--fg-rgb), 0.16); }
@@ -286,14 +248,6 @@
 	.sig-dot.neutral { background: var(--muted); }
 	.sig-text { flex: 1; }
 	.sig-count { color: var(--muted); font-size: 0.82rem; }
-
-	.ops-head { margin-top: 2.2rem; color: var(--muted); }
-
-	.embed-card { margin-top: 1rem; }
-	.embed-row { display: flex; gap: 0.6rem; align-items: stretch; }
-	.embed-code { flex: 1; font-family: 'Geist Mono', monospace; font-size: 0.78rem; color: var(--soft); background: rgba(var(--well-rgb), 0.6); border: 1px solid var(--edge); border-radius: 10px; padding: 0.6rem 0.7rem; overflow-x: auto; white-space: nowrap; }
-	.btn-copy { flex: none; font-size: 0.82rem; font-weight: 600; color: var(--strong); background: rgba(var(--fg-rgb), 0.06); border: 1px solid var(--edge); border-radius: 10px; padding: 0 0.9rem; cursor: pointer; }
-	.btn-copy:hover { background: rgba(var(--fg-rgb), 0.1); }
 
 	.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1.1rem; }
 	.stuck-card { margin-top: 1.1rem; }
