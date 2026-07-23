@@ -17,7 +17,12 @@
 // and say distances could not be retrieved.
 import { env } from '$env/dynamic/private';
 import { log } from './whatsapp/logger.js';
+import { supabase } from './supabase.js';
 import { searchProjectFeatures, projectDescriptionFor } from './govdata.js';
+import { plotCentroid, parseOverpass, overpassQuery } from './geo-utils.js';
+
+// Re-exported so existing callers/tests import geometry helpers from here.
+export { plotCentroid, haversineKm, ringCentroid } from './geo-utils.js';
 
 const PORTAL = (env.TAUSI_PORTAL_URL || 'https://tausi.tamisemi.go.tz').replace(/\/+$/, '');
 // Overpass instances tried in order (the reference instance is often overloaded,
@@ -44,106 +49,11 @@ const tzs = (v) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ---- Geometry --------------------------------------------------------------
-
-/** Area-weighted centroid of one ring [[lon,lat],…]; falls back to vertex mean
- *  for a degenerate (zero-area) ring. Returns { lon, lat, area } or null. */
-export function ringCentroid(ring) {
-	if (!Array.isArray(ring) || ring.length < 3) return null;
-	let a = 0, cx = 0, cy = 0;
-	for (let i = 0; i < ring.length - 1; i++) {
-		const p1 = ring[i], p2 = ring[i + 1];
-		if (!Array.isArray(p1) || !Array.isArray(p2)) continue;
-		const [x1, y1] = p1, [x2, y2] = p2;
-		if (![x1, y1, x2, y2].every(Number.isFinite)) continue;
-		const cross = x1 * y2 - x2 * y1;
-		a += cross;
-		cx += (x1 + x2) * cross;
-		cy += (y1 + y2) * cross;
-	}
-	a *= 0.5;
-	if (Math.abs(a) < 1e-12) {
-		let sx = 0, sy = 0, n = 0;
-		for (const pt of ring) {
-			if (Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1])) { sx += pt[0]; sy += pt[1]; n++; }
-		}
-		return n ? { lon: sx / n, lat: sy / n, area: 0 } : null;
-	}
-	return { lon: cx / (6 * a), lat: cy / (6 * a), area: Math.abs(a) };
-}
-
-/** Centroid { lat, lon } of a plot's (Multi)Polygon geometry — the outer ring of
- *  the largest sub-polygon by area. Returns null if geometry is unusable. */
-export function plotCentroid(geometry) {
-	if (!geometry) return null;
-	const polys =
-		geometry.type === 'MultiPolygon' ? geometry.coordinates : geometry.type === 'Polygon' ? [geometry.coordinates] : null;
-	if (!Array.isArray(polys) || !polys.length) return null;
-	let best = null;
-	for (const poly of polys) {
-		const c = ringCentroid(poly?.[0]);
-		if (c && (!best || c.area > best.area)) best = c;
-	}
-	return best ? { lat: best.lat, lon: best.lon } : null;
-}
-
-/** Straight-line (great-circle) distance in km. */
-export function haversineKm(lat1, lon1, lat2, lon2) {
-	const R = 6371;
-	const toRad = (d) => (d * Math.PI) / 180;
-	const dLat = toRad(lat2 - lat1), dLon = toRad(lon2 - lon1);
-	const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-	return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
-}
-
 // ---- OpenStreetMap (Overpass) — cached, backed-off, fail-soft --------------
+// Geometry + parse helpers live in geo-utils.js (shared with the sync script).
 
 const _osm = new Map();
 const OSM_TTL_MS = 24 * 60 * 60 * 1000; // geographic features change slowly
-
-/** Nearest straight-line distance (km) from (lat,lon) to an OSM element, using
- *  its FULL geometry (way/relation vertices from `out geom`) when present — so a
- *  long road is measured to its nearest point, not its centre. */
-function nearestKm(e, lat, lon) {
-	if (Array.isArray(e.geometry) && e.geometry.length) {
-		let best = Infinity;
-		for (const g of e.geometry) {
-			if (Number.isFinite(g?.lat) && Number.isFinite(g?.lon)) {
-				const d = haversineKm(lat, lon, g.lat, g.lon);
-				if (d < best) best = d;
-			}
-		}
-		return best === Infinity ? null : best;
-	}
-	if (Number.isFinite(e.lat) && Number.isFinite(e.lon)) return haversineKm(lat, lon, e.lat, e.lon);
-	if (Number.isFinite(e.center?.lat) && Number.isFinite(e.center?.lon)) return haversineKm(lat, lon, e.center.lat, e.center.lon);
-	return null;
-}
-
-/** Categorise raw OSM elements → nearest per category, measured from the given
- *  centroid. Kept separate from the fetch/cache so distances are ALWAYS computed
- *  against the caller's exact centroid, never a neighbouring plot's. */
-function parseOverpass(elements, lat, lon) {
-	const els = Array.isArray(elements) ? elements : [];
-	const cats = { road: null, place: null, school: null, health: null, market: null, water: null, rail: null };
-	const consider = (cat, e, name) => {
-		const km = nearestKm(e, lat, lon);
-		if (km == null) return;
-		if (!cats[cat] || km < cats[cat].km) cats[cat] = { name: clean(name || '(unnamed)', 60), km };
-	};
-	for (const e of els) {
-		const t = e.tags || {};
-		const nm = t.name || t['name:sw'] || t['name:en'];
-		if (t.highway) consider('road', e, nm ? `${nm} (${t.highway})` : `${t.highway} road`);
-		else if (/^(city|town|village)$/.test(t.place || '')) consider('place', e, nm || t.place);
-		else if (t.amenity === 'school') consider('school', e, nm || 'school');
-		else if (t.amenity === 'hospital' || t.amenity === 'clinic' || t.amenity === 'pharmacy') consider('health', e, nm || t.amenity);
-		else if (t.amenity === 'marketplace') consider('market', e, nm || 'market');
-		else if (t.amenity === 'drinking_water' || /water_well|water_works|borehole/.test(t.man_made || '')) consider('water', e, nm || 'water point');
-		else if (t.railway === 'station') consider('rail', e, nm || 'railway station');
-	}
-	return cats;
-}
 
 /** One Overpass endpoint, with two attempts + backoff on transient overload.
  *  Returns the elements array on success, or null (caller tries the next mirror).
@@ -207,15 +117,7 @@ async function fetchOverpassElements(lat, lon) {
 	const key = `${lat.toFixed(2)}:${lon.toFixed(2)}`;
 	const c = _osm.get(key);
 	if (c && c.expires > Date.now()) return c.value;
-	const q =
-		`[out:json][timeout:25];(` +
-		`nwr(around:25000,${lat},${lon})[place~"^(city|town|village)$"];` +
-		`nwr(around:12000,${lat},${lon})[amenity~"^(school|hospital|clinic|marketplace|pharmacy)$"];` +
-		`nwr(around:12000,${lat},${lon})[amenity=drinking_water];` +
-		`nwr(around:12000,${lat},${lon})[man_made~"^(water_well|water_works|borehole)$"];` +
-		`way(around:12000,${lat},${lon})[highway~"^(trunk|primary)$"];` +
-		`nwr(around:25000,${lat},${lon})[railway=station];` +
-		`);out geom;`;
+	const q = overpassQuery(lat, lon);
 	for (const endpoint of OVERPASS_ENDPOINTS) {
 		const els = await tryOverpass(endpoint, q);
 		if (els != null) {
@@ -233,6 +135,43 @@ async function fetchOverpassElements(lat, lon) {
 export async function overpassNearby(lat, lon) {
 	const els = await fetchOverpassElements(lat, lon);
 	return els == null ? null : parseOverpass(els, lat, lon);
+}
+
+/** Pre-computed distances for a plot from the plot_geo table (populated by
+ *  scripts/sync-plot-geo.mjs). null on miss / no table — fails open so the tool
+ *  works before the migration/sync run. */
+async function readPlotGeo(projectId, lotNumber, block) {
+	try {
+		const { data, error } = await supabase
+			.from('plot_geo')
+			.select('nearest, computed_at, osm_ok')
+			.eq('project_id', String(projectId))
+			.eq('lot_number', String(lotNumber ?? ''))
+			.eq('block', String(block ?? ''))
+			.maybeSingle();
+		if (error || !data || !data.osm_ok || !data.nearest) return null;
+		return { cats: data.nearest, computedAt: data.computed_at };
+	} catch {
+		return null;
+	}
+}
+
+/** Push the seven distance rows + sparse caveat, from a { road, place, … } cats
+ *  object (live or pre-computed), under a source label. */
+function pushOsmRows(out, cats, label) {
+	const rows = [
+		['Nearest primary/trunk road', cats.road],
+		['Nearest town/village', cats.place],
+		['Nearest school', cats.school],
+		['Nearest health facility', cats.health],
+		['Nearest market', cats.market],
+		['Nearest water point', cats.water],
+		['Railway station within 25 km', cats.rail]
+	];
+	const emptyCount = rows.filter(([, c]) => !c).length;
+	out.push(`${label} Straight-line distances (NOT road distance):`);
+	for (const [lbl, c] of rows) out.push(`- ${lbl}: ${c && Number.isFinite(c.km) ? `${clean(c.name || '(unnamed)', 60)} ~${c.km.toFixed(1)} km` : 'none mapped in OpenStreetMap within range'}`);
+	if (emptyCount) out.push(`Some categories have no mapped feature — OpenStreetMap coverage is often sparse (especially in rural areas), so missing map data is NOT evidence that those amenities are absent.`);
 }
 
 // ---- The tool --------------------------------------------------------------
@@ -308,28 +247,22 @@ export async function plotLocationContext(projectId, opts = {}) {
 		out.push(`[Official project description] Not available for this lookup${opts.administrativeAreaCode ? '' : ' (no council area code was provided — pass administrative_area_code to include it)'}.`);
 	}
 
-	// [OpenStreetMap]
-	const centroid = plotCentroid(feat.geometry);
-	if (!centroid) {
-		out.push(`[OpenStreetMap] The plot boundary geometry was not available, so nearby-feature distances could not be computed.`);
+	// [OpenStreetMap] — prefer PRE-COMPUTED distances (sync job) so Overpass is off
+	// the citizen's request path; fall back to a live lookup only if not synced.
+	const pre = await readPlotGeo(id, p.lotNumber, p.block);
+	if (pre && pre.cats) {
+		pushOsmRows(out, pre.cats, `[OpenStreetMap, computed ${String(pre.computedAt || '').slice(0, 10) || date}]`);
 	} else {
-		const osm = await overpassNearby(centroid.lat, centroid.lon);
-		if (!osm) {
-			out.push(`[OpenStreetMap] Distance data could not be retrieved right now (the map service was unavailable). The TAUSI facts and official description above still stand.`);
+		const centroid = plotCentroid(feat.geometry);
+		if (!centroid) {
+			out.push(`[OpenStreetMap] The plot boundary geometry was not available, so nearby-feature distances could not be computed.`);
 		} else {
-			const rows = [
-				['Nearest primary/trunk road', osm.road],
-				['Nearest town/village', osm.place],
-				['Nearest school', osm.school],
-				['Nearest health facility', osm.health],
-				['Nearest market', osm.market],
-				['Nearest water point', osm.water],
-				['Railway station within 25 km', osm.rail]
-			];
-			const emptyCount = rows.filter(([, c]) => !c).length;
-			out.push(`[OpenStreetMap, retrieved ${date}] Straight-line distances (NOT road distance):`);
-			for (const [label, c] of rows) out.push(`- ${label}: ${c ? `${c.name} ~${c.km.toFixed(1)} km` : 'none mapped in OpenStreetMap within range'}`);
-			if (emptyCount) out.push(`Some categories have no mapped feature — OpenStreetMap coverage is often sparse (especially in rural areas), so missing map data is NOT evidence that those amenities are absent.`);
+			const osm = await overpassNearby(centroid.lat, centroid.lon);
+			if (!osm) {
+				out.push(`[OpenStreetMap] Distance data could not be retrieved right now (the map service was unavailable). The TAUSI facts and official description above still stand.`);
+			} else {
+				pushOsmRows(out, osm, `[OpenStreetMap, retrieved ${date}]`);
+			}
 		}
 	}
 

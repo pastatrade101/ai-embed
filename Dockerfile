@@ -25,6 +25,10 @@ WORKDIR /app
 COPY --from=build /app/build ./build
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+# Ops scripts (e.g. the plot_geo distance pre-compute) + the pure geo helpers they
+# import — run with `docker compose exec ai-embed-server node scripts/<name>.mjs`.
+COPY --from=build /app/scripts ./scripts
+COPY --from=build /app/src/lib/server/geo-utils.js ./src/lib/server/geo-utils.js
 
 EXPOSE 3000
 
