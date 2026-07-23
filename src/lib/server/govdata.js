@@ -536,14 +536,17 @@ export async function projectPlots(projectId, opts = {}) {
 		const onPreview = plots.filter((p) => statusOf(p) === 'On Preview');
 		const previewNote = projectPreviewNote(onPreview); // '' unless a plot has a future opening
 		const header = `Plots in ${projName}${council ? ` (${council})` : ''} — ${plots.length} total: ${countStr}. Live from TAUSI.`;
-		// No buyable plots → don't present sold plots' prices as if available, and no "reserve" CTA.
-		// If plots are On Preview, tell the citizen WHEN buying opens instead of a dead end.
-		if (!available.length) {
-			if (previewNote)
-				return `${header}\n${previewNote} You can’t buy yet — check back at the opening time or follow the project on the TAUSI portal: [TAUSI portal](${PORTAL}).`;
-			return `${header}\nNo plots are available to buy in this project right now. Try another project (land_council_projects) or the TAUSI portal: [TAUSI portal](${PORTAL}).`;
+		// Plots a citizen can act on: buyable NOW (Available) or viewable now + buyable at
+		// the countdown (On Preview). The portal shows FULL per-plot detail (block, lot,
+		// size, price, fees) for BOTH — so we list both, each tagged with its status; only
+		// Reserved/Hold/Sold are held back from the buy listing. Listing ≠ selling: On
+		// Preview plots appear with an [On Preview] tag and the opening time, never as
+		// buyable now. (Earlier this listed Available only, so an all-on-preview project
+		// returned just a count — which read as "no details available" when they exist.)
+		const pool = [...available, ...onPreview];
+		if (!pool.length) {
+			return `${header}\nNo plots are open for sale or on preview in this project right now (any others are reserved, on hold or sold). Try another project (land_council_projects) or the TAUSI portal: [TAUSI portal](${PORTAL}).`;
 		}
-		const pool = available; // ranges / fees / sample are over AVAILABLE plots ONLY
 		const areaUnit = clean(pool.find((p) => p.unitOfMeasure)?.unitOfMeasure || 'Sqm', 12);
 		const plotPrice = (p) => numPos(p.price) ?? numPos(p.totalLandPlotCost); // numPos treats 0 as absent → real fallback
 
@@ -577,7 +580,7 @@ export async function projectPlots(projectId, opts = {}) {
 			if (fi) bits.push(`1st inst. ${fi}`);
 			return `- ${bits.join(' · ') || 'plot'} [${statusOf(p)}]`;
 		});
-		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more available plots — narrow with min_price/max_price/min_area/max_area, or change sort.` : '';
+		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more plots — narrow with min_price/max_price/min_area/max_area, or change sort.` : '';
 
 		const ranges = [priceRange && `Price: ${priceRange}`, areaRange && `Size: ${areaRange} ${areaUnit}`].filter(Boolean).join(' · ');
 		const feeMin = (key) => { const ns = pool.map((p) => numPos(p[key])).filter((n) => n != null); return ns.length ? Math.min(...ns) : null; };
@@ -585,15 +588,22 @@ export async function projectPlots(projectId, opts = {}) {
 		const firstInst = money(feeMin('firstInstallmentFee'));
 		const fees = [appFee && `application fee from ${appFee}`, firstInst && `first installment from ${firstInst}`].filter(Boolean).join(', ');
 
+		// CTA reflects what is buyable NOW vs. only viewable-until-opening.
+		const cta = available.length
+			? onPreview.length
+				? `\nAvailable plots can be bought now; the On Preview plots are shown in full but only open for buying at the time above. To apply or pay, the citizen signs in on the TAUSI portal: [TAUSI portal](${PORTAL}).`
+				: `\nThese are live official figures. To reserve or pay, the citizen signs in on the TAUSI portal: [TAUSI portal](${PORTAL}).`
+			: `\nEvery plot above can be viewed in full now, but none can be bought until the opening time shown. The citizen signs in on the TAUSI portal to buy once it opens: [TAUSI portal](${PORTAL}).`;
+
 		return (
 			header +
 			(ranges ? `\n${ranges}` : '') +
 			(fees ? `\n(${fees})` : '') +
 			(previewNote ? `\n${previewNote}` : '') +
-			`\nAvailable plots (${SORTS[sort]}):\n` +
+			`\nPlots (${SORTS[sort]}):\n` +
 			sample.join('\n') +
 			more +
-			`\nThese are live official figures. To reserve or pay, the citizen signs in on the TAUSI portal: [TAUSI portal](${PORTAL}).`
+			cta
 		);
 	} catch (err) {
 		log.warn('govdata_project_plots_failed', { projectId: id, error: String(err?.message || err) });
