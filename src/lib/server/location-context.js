@@ -145,8 +145,10 @@ function parseOverpass(elements, lat, lon) {
 	return cats;
 }
 
-/** One Overpass endpoint, with two attempts + backoff on 429/504. Returns the
- *  elements array on success, or null (so the caller can try the next mirror). */
+/** One Overpass endpoint, with two attempts + backoff on transient overload.
+ *  Returns the elements array on success, or null (caller tries the next mirror).
+ *  Distinct failure modes are logged separately so overload / timeout / bad-query
+ *  / network are distinguishable in the logs — not collapsed into one "failed". */
 async function tryOverpass(endpoint, q) {
 	for (let attempt = 0; attempt < 2; attempt++) {
 		const controller = new AbortController();
@@ -160,19 +162,36 @@ async function tryOverpass(endpoint, q) {
 			});
 			const text = await res.text();
 			clearTimeout(timer);
-			if (res.status === 429 || res.status === 504) {
+			// Transient overload — back off once, then give up on this mirror.
+			if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+				const reason = res.status === 429 ? 'rate_limited' : `gateway_${res.status}`;
 				if (attempt === 0) {
-					await sleep(1200); // rate-limited / overloaded — back off once, then give up on this mirror
+					await sleep(res.status === 429 ? 1500 : 1200);
 					continue;
 				}
+				log.warn('overpass_endpoint_failed', { endpoint, reason, status: res.status });
 				return null;
 			}
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			return Array.isArray(JSON.parse(text)?.elements) ? JSON.parse(text).elements : [];
+			if (res.status === 400) {
+				log.warn('overpass_endpoint_failed', { endpoint, reason: 'bad_query', status: 400, body: String(text).slice(0, 200) });
+				return null;
+			}
+			if (!res.ok) {
+				log.warn('overpass_endpoint_failed', { endpoint, reason: `http_${res.status}`, status: res.status });
+				return null;
+			}
+			try {
+				const j = JSON.parse(text);
+				return Array.isArray(j?.elements) ? j.elements : [];
+			} catch {
+				log.warn('overpass_endpoint_failed', { endpoint, reason: 'bad_json' });
+				return null;
+			}
 		} catch (err) {
 			clearTimeout(timer);
+			const reason = err?.name === 'AbortError' ? 'timeout' : 'network';
 			if (attempt === 1) {
-				log.warn('overpass_endpoint_failed', { endpoint, error: String(err?.message || err) });
+				log.warn('overpass_endpoint_failed', { endpoint, reason, error: String(err?.message || err) });
 				return null;
 			}
 			await sleep(800);

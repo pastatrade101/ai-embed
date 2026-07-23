@@ -139,8 +139,8 @@ function buildPersona(client, ind) {
 
 	const fallbackLang = client.languages ? client.languages.split(/[,/]/)[0].trim() : 'English';
 	const langRule =
-		`Detect the language of the customer's latest message and reply ENTIRELY in that language — match it naturally (e.g. German→German, French→French, Italian→Italian, Spanish→Spanish, Dutch→Dutch, Portuguese→Portuguese, Swahili→Swahili, Arabic→Arabic, Chinese→Chinese). ${ind.langKeep} If a message is too short to tell, reply in ${fallbackLang}.` +
-		(client.languages ? ` This business primarily serves: ${client.languages}.` : '');
+		`ALWAYS reply in the SAME language as the customer's MOST RECENT message — detect that message's language and write your entire reply in it, EVEN IF your knowledge base, the catalogue, tool results, earlier messages, or these instructions are in another language. If the customer writes in English, reply in English; if in Swahili, reply in Swahili. If they switch language mid-conversation, switch with them on that turn. For mixed-language input, follow the dominant language of the latest message. ${ind.langKeep} Only if the latest message is genuinely too short to tell, reply in ${fallbackLang}.` +
+		(client.languages ? ` (This business commonly serves: ${client.languages}.)` : '');
 
 	const escalationRule = client.escalation
 		? `When you can't help or the customer wants a human: ${client.escalation}`
