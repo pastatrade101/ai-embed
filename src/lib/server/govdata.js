@@ -185,6 +185,56 @@ const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
 // Plot status codes seen in the land search GeoJSON.
 const PLOT_STATUS = { 3: 'Available', 4: 'Reserved', 5: 'Sold', 6: 'Hold', 10: 'On Preview' };
+
+// ---- Preview countdown (On Preview plots) ---------------------------------
+// `lastPreviewAt` is OVERLOADED: a scheduled buying-open time ONLY when
+// plotStatus == 10 (On Preview) AND in the future; for any other status it is a
+// last-modified audit stamp (and would render an already-expired countdown). It
+// carries NO offset — it is naive East Africa Time (UTC+3, no DST): treat the
+// wall-clock parts as EAT for both the instant and the display.
+// Compute the remaining time at RESPONSE time — never cache a duration.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function previewOpening(p) {
+	if (Number(p?.plotStatus) !== 10) return null; // only On Preview plots have a real opening time
+	const m = String(p?.lastPreviewAt ?? '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+	if (!m) return null;
+	const y = +m[1], mo = +m[2], d = +m[3], hh = +m[4], mm = +m[5], ss = +(m[6] || 0);
+	// Build the instant from the EAT wall-clock via UTC, then REJECT any date that
+	// V8 would silently roll over (e.g. 2027-04-31 → 05-01): a malformed upstream
+	// stamp must fail soft, never display a nonexistent day that disagrees with the
+	// countdown. EAT wall-clock → UTC instant is just (that wall-clock as UTC) − 3h.
+	const utc = new Date(Date.UTC(y, mo - 1, d, hh, mm, ss));
+	if (utc.getUTCFullYear() !== y || utc.getUTCMonth() + 1 !== mo || utc.getUTCDate() !== d || utc.getUTCHours() !== hh || utc.getUTCMinutes() !== mm || utc.getUTCSeconds() !== ss) return null;
+	const at = utc.getTime() - 3 * 3600000;
+	const ms = at - Date.now();
+	if (ms <= 0) return null; // in the past → not an active preview (overloaded field)
+	return { at, ms, absolute: `${d} ${MONTHS[mo - 1]} ${y} at ${m[4]}:${m[5]} EAT` };
+}
+// Coarse relative phrasing, always shown ALONGSIDE the absolute date. Round to the
+// unit first, then let a full unit roll UP (60 min → "an hour", 24 h → "a day") so
+// we never emit "in about 60 minutes" / "in about 24 hours".
+const relFuture = (ms) => {
+	const mins = Math.round(ms / 60000);
+	if (mins < 60) return mins <= 1 ? 'in about a minute' : `in about ${mins} minutes`;
+	const hrs = Math.round(ms / 3600000);
+	if (hrs < 24) return hrs === 1 ? 'in about an hour' : `in about ${hrs} hours`;
+	const days = Math.round(ms / 86400000);
+	return days === 1 ? 'in about a day' : `in about ${days} days`;
+};
+/** Project-level "buying opens …" note built from the SOONEST future opening. The
+ *  count is the number of plots that open AT THAT time (not every on-preview plot —
+ *  some may have no future opening, or open later); plots opening later are
+ *  acknowledged separately so no plot is misattributed to a time that isn't its own.
+ *  '' if no on-preview plot has a valid future opening. */
+function projectPreviewNote(onPreview) {
+	const openings = onPreview.map(previewOpening).filter(Boolean);
+	if (!openings.length) return '';
+	const soonest = openings.reduce((a, b) => (b.at < a.at ? b : a));
+	const n = openings.filter((o) => o.absolute === soonest.absolute).length;
+	const later = openings.length - n;
+	return `${n} plot${n === 1 ? '' : 's'} on preview — buying opens ${soonest.absolute} (${relFuture(soonest.ms)})${later ? `; ${later} more open later` : ''}.`;
+}
+
 // Parse a possibly comma-formatted number; null unless a positive finite value.
 const numPos = (v) => {
 	const n = Number(String(v ?? '').replace(/,/g, ''));
@@ -483,9 +533,14 @@ export async function projectPlots(projectId, opts = {}) {
 		const countStr = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([s, n]) => `${n} ${s}`).join(', ');
 
 		const available = plots.filter((p) => statusOf(p) === 'Available');
+		const onPreview = plots.filter((p) => statusOf(p) === 'On Preview');
+		const previewNote = projectPreviewNote(onPreview); // '' unless a plot has a future opening
 		const header = `Plots in ${projName}${council ? ` (${council})` : ''} — ${plots.length} total: ${countStr}. Live from TAUSI.`;
 		// No buyable plots → don't present sold plots' prices as if available, and no "reserve" CTA.
+		// If plots are On Preview, tell the citizen WHEN buying opens instead of a dead end.
 		if (!available.length) {
+			if (previewNote)
+				return `${header}\n${previewNote} You can’t buy yet — check back at the opening time or follow the project on the TAUSI portal: [TAUSI portal](${PORTAL}).`;
 			return `${header}\nNo plots are available to buy in this project right now. Try another project (land_council_projects) or the TAUSI portal: [TAUSI portal](${PORTAL}).`;
 		}
 		const pool = available; // ranges / fees / sample are over AVAILABLE plots ONLY
@@ -534,6 +589,7 @@ export async function projectPlots(projectId, opts = {}) {
 			header +
 			(ranges ? `\n${ranges}` : '') +
 			(fees ? `\n(${fees})` : '') +
+			(previewNote ? `\n${previewNote}` : '') +
 			`\nAvailable plots (${SORTS[sort]}):\n` +
 			sample.join('\n') +
 			more +
