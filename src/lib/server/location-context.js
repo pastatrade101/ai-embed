@@ -20,7 +20,13 @@ import { log } from './whatsapp/logger.js';
 import { searchProjectFeatures, projectDescriptionFor } from './govdata.js';
 
 const PORTAL = (env.TAUSI_PORTAL_URL || 'https://tausi.tamisemi.go.tz').replace(/\/+$/, '');
-const OVERPASS = env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter';
+// Overpass instances tried in order (the reference instance is often overloaded,
+// so a mirror is the automatic fallback). Override with OVERPASS_URL — a single
+// URL or a comma-separated list.
+const OVERPASS_ENDPOINTS = (env.OVERPASS_URL || 'https://overpass-api.de/api/interpreter,https://overpass.kumi.systems/api/interpreter')
+	.split(',')
+	.map((s) => s.trim())
+	.filter(Boolean);
 const PLOT_STATUS = { 3: 'Available', 4: 'Reserved', 5: 'Sold', 6: 'Hold', 10: 'On Preview' };
 
 const clean = (s, max = 140) => {
@@ -139,8 +145,45 @@ function parseOverpass(elements, lat, lon) {
 	return cats;
 }
 
+/** One Overpass endpoint, with two attempts + backoff on 429/504. Returns the
+ *  elements array on success, or null (so the caller can try the next mirror). */
+async function tryOverpass(endpoint, q) {
+	for (let attempt = 0; attempt < 2; attempt++) {
+		const controller = new AbortController();
+		const timer = setTimeout(() => controller.abort(), 30000);
+		try {
+			const res = await fetch(endpoint, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+				body: 'data=' + encodeURIComponent(q),
+				signal: controller.signal
+			});
+			const text = await res.text();
+			clearTimeout(timer);
+			if (res.status === 429 || res.status === 504) {
+				if (attempt === 0) {
+					await sleep(1200); // rate-limited / overloaded — back off once, then give up on this mirror
+					continue;
+				}
+				return null;
+			}
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			return Array.isArray(JSON.parse(text)?.elements) ? JSON.parse(text).elements : [];
+		} catch (err) {
+			clearTimeout(timer);
+			if (attempt === 1) {
+				log.warn('overpass_endpoint_failed', { endpoint, error: String(err?.message || err) });
+				return null;
+			}
+			await sleep(800);
+		}
+	}
+	return null;
+}
+
 /** Raw OSM elements near a centroid, cached by rounded centroid (~1 km cell) so
- *  the free shared service isn't hammered. null if Overpass is unavailable. */
+ *  the free shared service isn't hammered. Tries each Overpass mirror in turn;
+ *  null only if every mirror is unavailable. */
 async function fetchOverpassElements(lat, lon) {
 	const key = `${lat.toFixed(2)}:${lon.toFixed(2)}`;
 	const c = _osm.get(key);
@@ -154,35 +197,14 @@ async function fetchOverpassElements(lat, lon) {
 		`way(around:12000,${lat},${lon})[highway~"^(trunk|primary)$"];` +
 		`nwr(around:25000,${lat},${lon})[railway=station];` +
 		`);out geom;`;
-	for (let attempt = 0; attempt < 3; attempt++) {
-		const controller = new AbortController();
-		const timer = setTimeout(() => controller.abort(), 30000);
-		try {
-			const res = await fetch(OVERPASS, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-				body: 'data=' + encodeURIComponent(q),
-				signal: controller.signal
-			});
-			const text = await res.text();
-			clearTimeout(timer);
-			if (res.status === 429 || res.status === 504) {
-				await sleep(1200 * (attempt + 1)); // rate-limited / overloaded — back off
-				continue;
-			}
-			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const els = Array.isArray(JSON.parse(text)?.elements) ? JSON.parse(text).elements : [];
+	for (const endpoint of OVERPASS_ENDPOINTS) {
+		const els = await tryOverpass(endpoint, q);
+		if (els != null) {
 			_osm.set(key, { value: els, expires: Date.now() + OSM_TTL_MS });
 			return els;
-		} catch (err) {
-			clearTimeout(timer);
-			if (attempt === 2) {
-				log.warn('overpass_failed', { key, error: String(err?.message || err) });
-				return null;
-			}
-			await sleep(800 * (attempt + 1));
 		}
 	}
+	log.warn('overpass_all_failed', { key, endpoints: OVERPASS_ENDPOINTS.length });
 	return null;
 }
 
