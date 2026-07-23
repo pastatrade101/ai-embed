@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import ShareCard from '$lib/components/ShareCard.svelte';
 	import OnboardingChecklist from '$lib/components/OnboardingChecklist.svelte';
+	import GovDashboard from '$lib/components/GovDashboard.svelte';
 	export let data;
 	$: client = data.client;
 	$: stats = data.stats;
@@ -104,6 +105,10 @@
 	}
 </script>
 
+{#if leadFree}
+	<!-- Government tenants: leadership dashboard (aggregate, citizen-service framing). -->
+	<GovDashboard {data} />
+{:else}
 <!-- Greeting + today's summary -->
 <div class="greet">
 	<h1>{greetingWord()}, {firstName} <span class="wave">👋</span></h1>
@@ -355,6 +360,7 @@
 		<button class="ghost sm" on:click={copyEmbed}>{copied ? 'Copied!' : 'Copy code'}</button>
 	{/if}
 </div>
+{/if}
 
 <style>
 	.greet {

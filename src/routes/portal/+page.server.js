@@ -5,6 +5,10 @@ import { scoreLead, leadTier, topInterests, pipeline, activityFeed, aiTasks } fr
 import { usageSummary } from '$lib/server/credits.js';
 import { growthAdvisor } from '$lib/server/growth-advisor.js';
 import { gatingOn } from '$lib/server/gating.js';
+import { buildGovDashboard } from '$lib/server/gov-dashboard.js';
+
+const GOV_WINDOW_DAYS = 30; // dashboard period; we load 2× back for period-on-period
+const GOV_MAX_ROWS = 4000; // bound the analytics query
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -19,8 +23,28 @@ const metaGet = (md, ...keys) => {
 
 export async function load({ locals, parent }) {
 	const clientId = locals.user.client_id;
-	const { client } = await parent();
+	const { client, leadsEnabled } = await parent();
 	const ws = await loadWorkspace(clientId);
+
+	// Government tenants get a leadership dashboard instead of the sales overview.
+	// `leadsEnabled === false` is the established government/lead-free signal. Metrics
+	// are DERIVED at read time from the conversations we already store (no schema
+	// change); k-anonymity + PII stripping are enforced inside buildGovDashboard.
+	let govDash = null;
+	if (leadsEnabled === false) {
+		const dayMs = 86400000;
+		const curSince = new Date(Date.now() - GOV_WINDOW_DAYS * dayMs).toISOString();
+		const priorSince = new Date(Date.now() - 2 * GOV_WINDOW_DAYS * dayMs).toISOString();
+		const cols = 'id, messages, summary, created_at';
+		// One bounded query PER period. A single newest-first cap over 60 days would drop
+		// the oldest rows first and starve the prior window — silently killing every
+		// period-on-period delta for a high-volume tenant.
+		const [curRes, priorRes] = await Promise.all([
+			supabase.from('conversations').select(cols).eq('client_id', clientId).gte('created_at', curSince).order('created_at', { ascending: false }).limit(GOV_MAX_ROWS),
+			supabase.from('conversations').select(cols).eq('client_id', clientId).gte('created_at', priorSince).lt('created_at', curSince).order('created_at', { ascending: false }).limit(GOV_MAX_ROWS)
+		]);
+		govDash = buildGovDashboard([...(curRes.data ?? []), ...(priorRes.data ?? [])], { periodDays: GOV_WINDOW_DAYS });
+	}
 
 	const start = new Date();
 	start.setHours(0, 0, 0, 0);
@@ -87,5 +111,5 @@ export async function load({ locals, parent }) {
 				: null
 	};
 
-	return { ...ws, leads: scoredLeads, dash };
+	return { ...ws, leads: scoredLeads, dash, govDash };
 }
