@@ -33,8 +33,53 @@ const UNREACHABLE =
 	`The live TAUSI service could not be reached right now, so I can’t pull the current data. ` +
 	`Do NOT guess — tell the citizen to try again shortly or use the TAUSI portal directly: [TAUSI portal](${PORTAL}).`;
 
-/** Request `${GW}/<service><path>?params`. Throws on timeout/network/non-2xx; callers wrap. */
+// ---- Upstream protection: ONE global rate ceiling + a circuit breaker -------
+//
+// The most important asset to protect is the upstream government API, not this
+// bot: inbound traffic must NEVER translate 1:1 into TAUSI load. This single
+// shared limiter caps our outbound rate no matter how many users are chatting;
+// a bounded queue sheds load instead of piling up unboundedly; and a circuit
+// breaker stops calling entirely after repeated upstream failures so we never
+// retry-storm tausi.tamisemi.go.tz. (Per-process — the ceiling is per instance.)
+const MAX_RPS = Math.max(0.5, Number(env.TAUSI_MAX_RPS || 4));
+const MIN_INTERVAL_MS = 1000 / MAX_RPS;
+const MAX_QUEUE = Math.max(10, Number(env.TAUSI_MAX_QUEUE || 60));
+let _rateChain = Promise.resolve();
+let _nextSlotAt = 0;
+let _queueDepth = 0;
+/** Wait for this call's turn under the global ceiling. Only spaces the START of
+ *  requests, so a slow fetch never blocks the queue. */
+function acquireSlot() {
+	_queueDepth++;
+	_rateChain = _rateChain.then(async () => {
+		const now = Date.now();
+		const at = Math.max(now, _nextSlotAt);
+		_nextSlotAt = at + MIN_INTERVAL_MS;
+		if (at > now) await new Promise((r) => setTimeout(r, at - now));
+	});
+	return _rateChain.finally(() => { _queueDepth--; });
+}
+const CB_THRESHOLD = Math.max(1, Number(env.TAUSI_CB_THRESHOLD || 5));
+const CB_COOLDOWN_MS = Math.max(1000, Number(env.TAUSI_CB_COOLDOWN_MS || 30000));
+let _cbFailures = 0, _cbOpenUntil = 0;
+/** True while the breaker is open — callers should serve cached / fail soft. */
+export function tausiCircuitOpen() { return Date.now() < _cbOpenUntil; }
+function cbSuccess() { _cbFailures = 0; }
+function cbFailure() {
+	if (++_cbFailures >= CB_THRESHOLD) {
+		_cbOpenUntil = Date.now() + CB_COOLDOWN_MS;
+		_cbFailures = 0;
+		log.warn('tausi_circuit_open', { cooldownMs: CB_COOLDOWN_MS });
+	}
+}
+
+/** Request `${GW}/<service><path>?params`. Rate-limited + circuit-broken. Throws
+ *  on open circuit / saturation / timeout / network / non-2xx; callers fail soft.
+ *  Only upstream distress (5xx, timeout, network) trips the breaker — a 4xx (our
+ *  own bad request) does not. */
 async function request(service, path, { params, method = 'GET', body, timeoutMs = TIMEOUT_MS } = {}) {
+	if (tausiCircuitOpen()) throw new Error('TAUSI circuit open — serving fail-soft');
+	if (_queueDepth >= MAX_QUEUE) throw new Error('TAUSI limiter saturated — serving fail-soft');
 	const qs = params
 		? '?' +
 			new URLSearchParams(
@@ -44,6 +89,7 @@ async function request(service, path, { params, method = 'GET', body, timeoutMs 
 			).toString()
 		: '';
 	const url = `${GW}/${service}${path}${qs}`;
+	await acquireSlot(); // global outbound ceiling — independent of inbound volume
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), timeoutMs);
 	try {
@@ -55,7 +101,11 @@ async function request(service, path, { params, method = 'GET', body, timeoutMs 
 		});
 		const text = await res.text(); // read body before clearing the timer (see whatsapp/client.js)
 		clearTimeout(timer);
-		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		if (!res.ok) {
+			if (res.status >= 500) cbFailure(); // upstream distress → toward opening the breaker
+			throw new Error(`HTTP ${res.status}`);
+		}
+		cbSuccess();
 		try {
 			return text ? JSON.parse(text) : {};
 		} catch {
@@ -63,6 +113,7 @@ async function request(service, path, { params, method = 'GET', body, timeoutMs 
 		}
 	} catch (err) {
 		clearTimeout(timer);
+		if (err?.name === 'AbortError' || /network|fetch failed|econn|enotfound|eai_again|timed out/i.test(String(err?.message || ''))) cbFailure();
 		throw err?.name === 'AbortError' ? new Error('TAUSI request timed out') : err;
 	}
 }
@@ -112,6 +163,25 @@ const clean = (s, max = 140) => {
 	if (t.length > max) t = t.slice(0, max).trimEnd() + '…';
 	return t;
 };
+
+// Council-authored fields (projectDescription, termsAndCondition) are HTML written
+// by council users and flow into the model's context — an injection vector. Strip
+// all markup to plain text (tags gone, a few entities decoded) BEFORE it is echoed;
+// callers additionally wrap it in delimiters and tell the model it is data.
+const stripHtml = (s) =>
+	String(s ?? '')
+		.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, ' ')
+		.replace(/<\s*br\s*\/?\s*>/gi, ' ')
+		.replace(/<\s*\/\s*(p|div|li|tr|h[1-6])\s*>/gi, ' ')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/&amp;/gi, '&')
+		.replace(/&lt;/gi, '<')
+		.replace(/&gt;/gi, '>')
+		.replace(/&quot;/gi, '"')
+		.replace(/&#0*39;|&apos;/gi, "'")
+		.replace(/\s+/g, ' ')
+		.trim();
 
 /** First present, non-empty candidate field (cleaned). '' if none. */
 const pick = (o, keys, max = 120) => {
@@ -324,7 +394,8 @@ export async function projectDescriptionFor(areaCode, projectId) {
 		// official text to this plot (the footer calls it authoritative).
 		const m = rows.find((r) => String(r.projectId ?? r.landProjectId ?? r.id ?? '') === pid);
 		if (m) {
-			const val = { description: String(m.projectDescription || m.description || ''), terms: String(m.termsAndCondition || ''), name: String(m.projectName || '') };
+			// HTML-strip the council-authored fields before they leave this layer.
+			const val = { description: stripHtml(m.projectDescription || m.description || ''), terms: stripHtml(m.termsAndCondition || ''), name: String(m.projectName || '') };
 			cacheSet(key, val, SEARCH_TTL_MS);
 			return val;
 		}

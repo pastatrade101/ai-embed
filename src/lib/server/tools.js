@@ -2,6 +2,7 @@
 // one, always scoped to the current tenant (ctx.client). This is the foundation
 // the later agentic phases build on — new capabilities are new tools here, not
 // new prompt logic.
+import { env } from '$env/dynamic/private';
 import { embedQuery } from './embeddings.js';
 import { supabase } from './supabase.js';
 import { sendLeadEmail } from './email.js';
@@ -24,7 +25,23 @@ export const TOOL_DEFS = serverIndustry(null).tools;
  * @param {{ client: any, transcript: any[] }} ctx
  * @returns {Promise<string>}
  */
+// Per-feature kill switches (env, default OFF) so a feature can be shed under load
+// or upstream trouble without redeploying. The TAUSI live tools query government
+// APIs; location context also does OSM work.
+const TAUSI_LIVE_TOOLS = new Set([
+	'land_national_summary', 'land_council_projects', 'land_area_codes', 'land_lot_use', 'project_plots',
+	'plot_location_context', 'house_rent_summary', 'published_laws', 'councils_with_bylaws', 'bylaw_detail',
+	'council_bylaws', 'taxpayer_categories', 'auction_listings'
+]);
+
 export async function runTool(name, input, ctx) {
+	if (env.TAUSI_LIVE_DISABLED === 'on' && TAUSI_LIVE_TOOLS.has(name)) {
+		return 'Live government data is paused for maintenance right now — please try again shortly, or use the TAUSI portal directly: [TAUSI portal](https://tausi.tamisemi.go.tz).';
+	}
+	if (env.LOCATION_CONTEXT_DISABLED === 'on' && name === 'plot_location_context') {
+		return 'Location detail is temporarily unavailable. The plot facts, prices and official description are still available — ask about those.';
+	}
+
 	if (name === 'search_tours') {
 		return searchTours(ctx.client.id, input ?? {});
 	}
