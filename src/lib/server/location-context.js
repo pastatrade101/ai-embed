@@ -95,14 +95,34 @@ export function haversineKm(lat1, lon1, lat2, lon2) {
 const _osm = new Map();
 const OSM_TTL_MS = 24 * 60 * 60 * 1000; // geographic features change slowly
 
-function parseOverpass(json, lat, lon) {
-	const els = Array.isArray(json?.elements) ? json.elements : [];
-	const at = (e) => (e.lat != null ? { lat: e.lat, lon: e.lon } : e.center ? { lat: e.center.lat, lon: e.center.lon } : null);
+/** Nearest straight-line distance (km) from (lat,lon) to an OSM element, using
+ *  its FULL geometry (way/relation vertices from `out geom`) when present — so a
+ *  long road is measured to its nearest point, not its centre. */
+function nearestKm(e, lat, lon) {
+	if (Array.isArray(e.geometry) && e.geometry.length) {
+		let best = Infinity;
+		for (const g of e.geometry) {
+			if (Number.isFinite(g?.lat) && Number.isFinite(g?.lon)) {
+				const d = haversineKm(lat, lon, g.lat, g.lon);
+				if (d < best) best = d;
+			}
+		}
+		return best === Infinity ? null : best;
+	}
+	if (Number.isFinite(e.lat) && Number.isFinite(e.lon)) return haversineKm(lat, lon, e.lat, e.lon);
+	if (Number.isFinite(e.center?.lat) && Number.isFinite(e.center?.lon)) return haversineKm(lat, lon, e.center.lat, e.center.lon);
+	return null;
+}
+
+/** Categorise raw OSM elements → nearest per category, measured from the given
+ *  centroid. Kept separate from the fetch/cache so distances are ALWAYS computed
+ *  against the caller's exact centroid, never a neighbouring plot's. */
+function parseOverpass(elements, lat, lon) {
+	const els = Array.isArray(elements) ? elements : [];
 	const cats = { road: null, place: null, school: null, health: null, market: null, water: null, rail: null };
 	const consider = (cat, e, name) => {
-		const p = at(e);
-		if (!p || !Number.isFinite(p.lat) || !Number.isFinite(p.lon)) return;
-		const km = haversineKm(lat, lon, p.lat, p.lon);
+		const km = nearestKm(e, lat, lon);
+		if (km == null) return;
 		if (!cats[cat] || km < cats[cat].km) cats[cat] = { name: clean(name || '(unnamed)', 60), km };
 	};
 	for (const e of els) {
@@ -119,9 +139,9 @@ function parseOverpass(json, lat, lon) {
 	return cats;
 }
 
-/** Nearest OSM features around a centroid, or null if Overpass is unavailable.
- *  Cached by rounded centroid (~1 km) so the free shared service isn't hammered. */
-export async function overpassNearby(lat, lon) {
+/** Raw OSM elements near a centroid, cached by rounded centroid (~1 km cell) so
+ *  the free shared service isn't hammered. null if Overpass is unavailable. */
+async function fetchOverpassElements(lat, lon) {
 	const key = `${lat.toFixed(2)}:${lon.toFixed(2)}`;
 	const c = _osm.get(key);
 	if (c && c.expires > Date.now()) return c.value;
@@ -133,7 +153,7 @@ export async function overpassNearby(lat, lon) {
 		`nwr(around:12000,${lat},${lon})[man_made~"^(water_well|water_works|borehole)$"];` +
 		`way(around:12000,${lat},${lon})[highway~"^(trunk|primary)$"];` +
 		`nwr(around:25000,${lat},${lon})[railway=station];` +
-		`);out center tags;`;
+		`);out geom;`;
 	for (let attempt = 0; attempt < 3; attempt++) {
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), 30000);
@@ -151,9 +171,9 @@ export async function overpassNearby(lat, lon) {
 				continue;
 			}
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
-			const parsed = parseOverpass(JSON.parse(text), lat, lon);
-			_osm.set(key, { value: parsed, expires: Date.now() + OSM_TTL_MS });
-			return parsed;
+			const els = Array.isArray(JSON.parse(text)?.elements) ? JSON.parse(text).elements : [];
+			_osm.set(key, { value: els, expires: Date.now() + OSM_TTL_MS });
+			return els;
 		} catch (err) {
 			clearTimeout(timer);
 			if (attempt === 2) {
@@ -164,6 +184,14 @@ export async function overpassNearby(lat, lon) {
 		}
 	}
 	return null;
+}
+
+/** Nearest OSM features around a centroid, or null if Overpass is unavailable.
+ *  Distances are computed against the EXACT centroid on every call (the cache
+ *  holds only the cell's raw features, so nearby plots don't share distances). */
+export async function overpassNearby(lat, lon) {
+	const els = await fetchOverpassElements(lat, lon);
+	return els == null ? null : parseOverpass(els, lat, lon);
 }
 
 // ---- The tool --------------------------------------------------------------
@@ -207,9 +235,10 @@ export async function plotLocationContext(projectId, opts = {}) {
 	const council = clean(p.administrativeAreaName || '', 60);
 	const region = clean(p.region || '', 40);
 	const district = clean(p.district || '', 40);
+	const priceN = numPos(p.price) ?? numPos(p.totalLandPlotCost); // 0-price falls back to total cost
 	const factBits = [
 		size && `size ${size.toLocaleString('en-US')} ${unit}`,
-		tzs(p.price ?? p.totalLandPlotCost) && `price ${tzs(p.price ?? p.totalLandPlotCost)}`,
+		priceN != null && `price TZS ${priceN.toLocaleString('en-US')}`,
 		tzs(p.applicationFee) && `application fee ${tzs(p.applicationFee)}`,
 		tzs(p.firstInstallmentFee) && `first installment ${tzs(p.firstInstallmentFee)}`,
 		`status ${status}`,
@@ -256,10 +285,10 @@ export async function plotLocationContext(projectId, opts = {}) {
 				['Nearest water point', osm.water],
 				['Railway station within 25 km', osm.rail]
 			];
-			const found = rows.filter(([, c]) => c).length;
+			const emptyCount = rows.filter(([, c]) => !c).length;
 			out.push(`[OpenStreetMap, retrieved ${date}] Straight-line distances (NOT road distance):`);
-			for (const [label, c] of rows) out.push(`- ${label}: ${c ? `${c.name} ~${c.km.toFixed(1)} km` : 'none found in range'}`);
-			if (found < 3) out.push(`OpenStreetMap has limited coverage for this (often rural) area — missing map data is NOT evidence that amenities are absent.`);
+			for (const [label, c] of rows) out.push(`- ${label}: ${c ? `${c.name} ~${c.km.toFixed(1)} km` : 'none mapped in OpenStreetMap within range'}`);
+			if (emptyCount) out.push(`Some categories have no mapped feature — OpenStreetMap coverage is often sparse (especially in rural areas), so missing map data is NOT evidence that those amenities are absent.`);
 		}
 	}
 

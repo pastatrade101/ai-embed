@@ -320,7 +320,9 @@ export async function projectDescriptionFor(areaCode, projectId) {
 		} catch {
 			continue;
 		}
-		const m = rows.find((r) => String(r.projectId ?? r.landProjectId ?? r.id ?? '') === pid) || (rows.length === 1 ? rows[0] : null);
+		// Exact project-id match only — never attribute a different project's
+		// official text to this plot (the footer calls it authoritative).
+		const m = rows.find((r) => String(r.projectId ?? r.landProjectId ?? r.id ?? '') === pid);
 		if (m) {
 			const val = { description: String(m.projectDescription || m.description || ''), terms: String(m.termsAndCondition || ''), name: String(m.projectName || '') };
 			cacheSet(key, val, SEARCH_TTL_MS);
