@@ -9,7 +9,7 @@ import { searchTours, getTourPrice } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
 import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
-import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse } from './govdata.js';
+import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse, projectPlots, houseRentSummary, publishedLaws, councilsWithBylaws, bylawDetail, councilBylaws, taxpayerCategories, auctionListings } from './govdata.js';
 
 /** Tool schemas exposed to Claude now live in the Industry Registry — each
  *  industry declares its own toolset (rag.js reads `serverIndustry(client).tools`).
@@ -48,6 +48,38 @@ export async function runTool(name, input, ctx) {
 
 	if (name === 'land_lot_use') {
 		return landLotUse();
+	}
+
+	if (name === 'project_plots') {
+		return projectPlots(input?.project_id);
+	}
+
+	if (name === 'house_rent_summary') {
+		return houseRentSummary();
+	}
+
+	if (name === 'published_laws') {
+		return publishedLaws(input?.page_no, input?.page_size);
+	}
+
+	if (name === 'councils_with_bylaws') {
+		return councilsWithBylaws();
+	}
+
+	if (name === 'bylaw_detail') {
+		return bylawDetail(input?.law_id);
+	}
+
+	if (name === 'council_bylaws') {
+		return councilBylaws(input?.area_id);
+	}
+
+	if (name === 'taxpayer_categories') {
+		return taxpayerCategories();
+	}
+
+	if (name === 'auction_listings') {
+		return auctionListings(input?.page_no, input?.page_size);
 	}
 
 	if (name === 'search_knowledge') {

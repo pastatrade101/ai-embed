@@ -67,11 +67,11 @@ const createLeadGeneric = (interestDesc) => ({
 
 // ---- Live government-data tools (TAUSI land sales) --------------------------
 
-// Public, no-token TAUSI land-sales lookups. Backed by govdata.js, which fetches
-// the live citizen catalogue at request time so the assistant answers with
-// CURRENT projects/plots instead of guessing. Attached only to the `government`
-// industry (see SERVER.government below).
-const TAUSI_LAND_TOOLS = [
+// Public, no-token TAUSI lookups (land, house rent, by-laws, taxpayer, auctions).
+// Backed by govdata.js, which fetches the live citizen catalogue at request time
+// so the assistant answers with CURRENT data instead of guessing. Attached only
+// to the `government` industry (see SERVER.government below).
+const TAUSI_PUBLIC_TOOLS = [
 	{
 		name: 'land_national_summary',
 		description:
@@ -104,13 +104,62 @@ const TAUSI_LAND_TOOLS = [
 		name: 'land_lot_use',
 		description: 'List the lot-use categories (residential, commercial, etc.) used in TAUSI land projects.',
 		input_schema: { type: 'object', properties: {} }
+	},
+	{
+		name: 'project_plots',
+		description: 'CURRENT plot-by-plot detail for ONE land project from the live TAUSI portal: size, price, application fee, first installment, lot use and status per plot (with a price/size summary). These are official live figures you MAY share. Needs a project id (from land_council_projects).',
+		input_schema: { type: 'object', properties: { project_id: { type: 'string', description: 'The project id shown by land_council_projects' } }, required: ['project_id'] }
+	},
+	{
+		name: 'house_rent_summary',
+		description: 'CURRENT government rental-housing (House Rent) projects per council from the live TAUSI portal — counts and region. Use when a citizen asks about renting a government house/property.',
+		input_schema: { type: 'object', properties: {} }
+	},
+	{
+		name: 'published_laws',
+		description: 'CURRENT published council by-laws / revenue legislation from TAUSI (description, revenue source, GFS code). Use for questions about local laws, fees legislation, or revenue rules. Use bylaw_detail for the full text of one.',
+		input_schema: {
+			type: 'object',
+			properties: { page_no: { type: 'integer', description: 'page number, default 0' }, page_size: { type: 'integer', description: 'default 100' } }
+		}
+	},
+	{
+		name: 'councils_with_bylaws',
+		description: 'List councils that have published by-laws, each with its areaId. Use to find which council to query, then call council_bylaws with that areaId.',
+		input_schema: { type: 'object', properties: {} }
+	},
+	{
+		name: 'bylaw_detail',
+		description: 'Full detail of one published by-law by its id (get ids from published_laws or council_bylaws).',
+		input_schema: { type: 'object', properties: { law_id: { type: 'string' } }, required: ['law_id'] }
+	},
+	{
+		name: 'council_bylaws',
+		description: 'List the by-laws published by a specific council. Needs the council areaId (from councils_with_bylaws).',
+		input_schema: { type: 'object', properties: { area_id: { type: 'string' } }, required: ['area_id'] }
+	},
+	{
+		name: 'taxpayer_categories',
+		description: 'Reference list of taxpayer categories used in the TAUSI system.',
+		input_schema: { type: 'object', properties: {} }
+	},
+	{
+		name: 'auction_listings',
+		description: 'CURRENT public e-auction items on TAUSI. An empty result means none are active right now.',
+		input_schema: {
+			type: 'object',
+			properties: { page_no: { type: 'integer', description: 'page number, default 0' }, page_size: { type: 'integer', description: 'default 50' } }
+		}
 	}
 ];
 
 // Appended to the government qualify script so the model knows WHEN to reach for
-// the live tools and to never fabricate land data.
-const TAUSI_LAND_QUALIFY =
-	'When a citizen asks about land for sale, available or sold plots, land projects, or where they can buy land, use the LIVE TAUSI tools rather than guessing: call land_national_summary (status open or sold) to see which councils have land and how much, land_council_projects with the council name once they name an area, and land_lot_use for lot-use categories. Report ONLY what these live tools return — never invent projects, plot numbers, locations or prices. Plot-level detail, exact prices, applications and payments need the citizen’s own TAUSI login, so for those, point them to the TAUSI portal or the responsible council. When you send a citizen to the portal or app, share it as a clickable Markdown link (e.g. [TAUSI portal](https://tausi.tamisemi.go.tz)) — the land tools already include this link in their results. If a tool says the service is unreachable, do not guess — tell the citizen to try again shortly or use the TAUSI portal directly. Do not ask for or collect their personal contact details.';
+// the live TAUSI tools and to never fabricate data.
+const TAUSI_PUBLIC_QUALIFY =
+	'You have LIVE TAUSI tools for public government data — use them instead of guessing, and report ONLY what they return. Never invent projects, plots, laws, numbers, locations, sizes or prices; but you MAY state any figure a tool actually returned. ' +
+	'Land: land_national_summary (open/sold) for which councils have land and how much; land_council_projects with a council name once the citizen names an area (it lists each project with its id); project_plots with a project id for per-plot size, price, fees and status; land_area_codes to resolve a council; land_lot_use for lot-use categories. ' +
+	'House rent: house_rent_summary. By-laws / local legislation: published_laws, then councils_with_bylaws + council_bylaws for a specific council, and bylaw_detail for the full text. Taxpayer categories: taxpayer_categories. E-auctions: auction_listings. ' +
+	'Per-plot sizes and prices from project_plots are official live figures you may share. Applications, tax bills and payments still need the citizen’s own TAUSI login, so point them to the portal for those. When you send a citizen to the portal or app, share it as a clickable Markdown link (e.g. [TAUSI portal](https://tausi.tamisemi.go.tz)) — the tools already include this link. If a tool says the service is unreachable, do not guess — tell the citizen to try again shortly or use the TAUSI portal directly. Do not ask for or collect their personal contact details.';
 
 // ---- Lead extraction schemas ------------------------------------------------
 
@@ -357,8 +406,8 @@ const SERVER = {
 		persona: 'a patient public-service assistant helping citizens understand services, procedures and requirements',
 		qualifyFields: 'the service they need, what stage they are at, and any documents they already have',
 		researchDomain: 'fees, processing times, required documents',
-		extraTools: TAUSI_LAND_TOOLS,
-		extraQualify: TAUSI_LAND_QUALIFY,
+		extraTools: TAUSI_PUBLIC_TOOLS,
+		extraQualify: TAUSI_PUBLIC_QUALIFY,
 		noLeads: true // citizen services don't harvest sales leads
 	}),
 	retail: genericServer(INDUSTRIES.retail, {
