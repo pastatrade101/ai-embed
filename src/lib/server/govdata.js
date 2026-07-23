@@ -264,10 +264,77 @@ export async function landCouncilProjects(council, status = 'open') {
 	}
 }
 
+// ---- Tiny in-process TTL cache (plot/geo data only — NEVER PII) ------------
+const _cache = new Map();
+function cacheGet(key) {
+	const e = _cache.get(key);
+	if (!e) return undefined;
+	if (e.expires <= Date.now()) {
+		_cache.delete(key);
+		return undefined;
+	}
+	return e.value;
+}
+function cacheSet(key, value, ttlMs) {
+	_cache.set(key, { value, expires: Date.now() + ttlMs });
+}
+const SEARCH_TTL_MS = 12 * 60 * 1000; // don't hammer the government API
+
+/**
+ * Raw plot features (GeoJSON) for a project, cached ~12 min. The public /search
+ * endpoint accepts ONLY an all-zeros body (0 = "no limit"); nulls/omissions
+ * return statusCode 21001 with no data — so all four numeric fields are always 0
+ * and any price/size narrowing happens client-side. Throws on transport failure.
+ */
+export async function searchProjectFeatures(projectId) {
+	const id = String(projectId ?? '').trim();
+	if (!id) return [];
+	const key = `search:${id}`;
+	const hit = cacheGet(key);
+	if (hit) return hit;
+	const json = await request(LAND, '/api/v1/land-open-project/search', {
+		params: { pageNo: 0, pageSize: 5000 },
+		method: 'POST',
+		body: { projectId: id, minPrice: 0, maxPrice: 0, minLegalArea: 0, maxLegalArea: 0 },
+		timeoutMs: 20000
+	});
+	const fc = json?.data?.features;
+	const feats = Array.isArray(fc) ? fc : Array.isArray(fc?.features) ? fc.features : [];
+	cacheSet(key, feats, SEARCH_TTL_MS);
+	return feats;
+}
+
+/** Official council text for a project: { description, terms, name } or null.
+ *  Cached ~12 min. Matches by projectId across the council's open then sold lists. */
+export async function projectDescriptionFor(areaCode, projectId) {
+	const code = String(areaCode ?? '').trim();
+	const pid = String(projectId ?? '').trim();
+	if (!code) return null;
+	const key = `desc:${code}:${pid}`;
+	const hit = cacheGet(key);
+	if (hit !== undefined) return hit;
+	for (const st of ['open', 'sold']) {
+		let rows;
+		try {
+			rows = listOf(await get(LAND, st === 'sold' ? '/api/v1/land-open-project/sold-council-project' : '/api/v1/land-open-project/council-project', { administrativeAreaCode: code, pageNo: 0, pageSize: 200 }));
+		} catch {
+			continue;
+		}
+		const m = rows.find((r) => String(r.projectId ?? r.landProjectId ?? r.id ?? '') === pid) || (rows.length === 1 ? rows[0] : null);
+		if (m) {
+			const val = { description: String(m.projectDescription || m.description || ''), terms: String(m.termsAndCondition || ''), name: String(m.projectName || '') };
+			cacheSet(key, val, SEARCH_TTL_MS);
+			return val;
+		}
+	}
+	cacheSet(key, null, SEARCH_TTL_MS);
+	return null;
+}
+
 /**
  * PUBLIC plot-level detail for one land project: size + price + fees + status per
- * plot. Uses the land /search endpoint (POST) with price/area filters = 0 ("no
- * limit"). Returns a bounded summary + a sample of plots — never the raw 5000.
+ * plot (cached via searchProjectFeatures; all-zeros body, client-side price/size
+ * filters). Returns a bounded, sorted summary + a sample — never the raw 5000.
  */
 export async function projectPlots(projectId, opts = {}) {
 	const id = String(projectId ?? '').trim();
@@ -275,24 +342,23 @@ export async function projectPlots(projectId, opts = {}) {
 	const SORTS = { price_asc: 'cheapest first', price_desc: 'most expensive first', size_asc: 'smallest first', size_desc: 'largest first' };
 	const sort = SORTS[opts.sort] ? opts.sort : 'price_asc';
 	try {
-		// The /search body filters server-side (0 = no limit). Pass the citizen's
-		// price/size filters through so a specific plot can be found, not just summarised.
-		const json = await request(LAND, '/api/v1/land-open-project/search', {
-			params: { pageNo: 0, pageSize: 5000 },
-			method: 'POST',
-			body: {
-				projectId: id,
-				minPrice: num(opts.minPrice) || 0,
-				maxPrice: num(opts.maxPrice) || 0,
-				minLegalArea: num(opts.minArea) || 0,
-				maxLegalArea: num(opts.maxArea) || 0
-			},
-			timeoutMs: 20000
-		});
-		const fc = json?.data?.features;
-		const feats = Array.isArray(fc) ? fc : Array.isArray(fc?.features) ? fc.features : [];
-		const plots = feats.map((ft) => ft?.properties || {}).filter((p) => p && (p.landPlotId != null || p.lotNumber != null || p.block != null));
+		const feats = await searchProjectFeatures(id);
+		let plots = feats.map((ft) => ft?.properties || {}).filter((p) => p && (p.landPlotId != null || p.lotNumber != null || p.block != null));
 		if (!plots.length) return `No plot-level detail is available for project “${clean(id, 40)}” right now (it may be sold out, closed, or need a login).`;
+		// The public API only accepts an all-zeros body, so narrow client-side.
+		const minP = numPos(opts.minPrice), maxP = numPos(opts.maxPrice), minA = numPos(opts.minArea), maxA = numPos(opts.maxArea);
+		if (minP != null || maxP != null || minA != null || maxA != null) {
+			const priceOf = (p) => numPos(p.price) ?? numPos(p.totalLandPlotCost);
+			plots = plots.filter((p) => {
+				const pr = priceOf(p), ar = numPos(p.legalArea);
+				if (minP != null && (pr == null || pr < minP)) return false;
+				if (maxP != null && (pr == null || pr > maxP)) return false;
+				if (minA != null && (ar == null || ar < minA)) return false;
+				if (maxA != null && (ar == null || ar > maxA)) return false;
+				return true;
+			});
+			if (!plots.length) return `No plots in project “${clean(id, 40)}” match those price/size filters — widen the range or drop a filter.`;
+		}
 
 		const projName = clean(plots.find((p) => p.landProjectName)?.landProjectName || id, 80);
 		const council = clean(plots.find((p) => p.administrativeAreaName)?.administrativeAreaName || '', 60);

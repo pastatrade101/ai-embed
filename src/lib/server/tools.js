@@ -10,6 +10,7 @@ import { FEATURE, planAllows } from './gating.js';
 import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
 import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse, projectPlots, houseRentSummary, publishedLaws, councilsWithBylaws, bylawDetail, councilBylaws, taxpayerCategories, auctionListings } from './govdata.js';
+import { plotLocationContext } from './location-context.js';
 
 /** Tool schemas exposed to Claude now live in the Industry Registry — each
  *  industry declares its own toolset (rag.js reads `serverIndustry(client).tools`).
@@ -57,6 +58,14 @@ export async function runTool(name, input, ctx) {
 			maxPrice: input?.max_price,
 			minArea: input?.min_area,
 			maxArea: input?.max_area
+		});
+	}
+
+	if (name === 'plot_location_context') {
+		return plotLocationContext(input?.project_id, {
+			lotNumber: input?.lot_number,
+			block: input?.block,
+			administrativeAreaCode: input?.administrative_area_code
 		});
 	}
 

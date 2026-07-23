@@ -123,6 +123,21 @@ const TAUSI_PUBLIC_TOOLS = [
 		}
 	},
 	{
+		name: 'plot_location_context',
+		description:
+			'FACTUAL location context for one land plot: TAUSI facts (size, price, fees, status, council/region), the council’s own verbatim project description, and computed straight-line distances (from OpenStreetMap) to the nearest road, town/village, school, health facility, market, water point and railway. Use when a citizen asks "where is this plot / what is nearby / tell me about the area". Every fact is source-labelled. STRICTLY factual — it never rates, ranks, scores, values, forecasts, or recommends. Needs a project id; pass lot_number (and block) for a specific plot and administrative_area_code to include the official description.',
+		input_schema: {
+			type: 'object',
+			properties: {
+				project_id: { type: 'string', description: 'The project id shown by land_council_projects' },
+				lot_number: { type: 'string', description: 'The specific plot’s lot number (from project_plots); omit to use the first available plot' },
+				block: { type: 'string', description: 'Block, to disambiguate a lot number if needed' },
+				administrative_area_code: { type: 'string', description: 'Council area code (from land_area_codes) — include to add the official project description' }
+			},
+			required: ['project_id']
+		}
+	},
+	{
 		name: 'house_rent_summary',
 		description: 'CURRENT government rental-housing (House Rent) projects per council from the live TAUSI portal — counts and region. Use when a citizen asks about renting a government house/property.',
 		input_schema: { type: 'object', properties: {} }
@@ -171,6 +186,7 @@ const TAUSI_PUBLIC_QUALIFY =
 	'You have LIVE TAUSI tools for public government data — use them instead of guessing, and report ONLY what they return. Never invent projects, plots, laws, numbers, locations, sizes or prices; but you MAY state any figure a tool actually returned. ' +
 	'Land: land_national_summary (open/sold) for which councils have land and how much; land_council_projects with a council name once the citizen names an area (it lists each project with its id); project_plots with a project id for per-plot block, lot number, size, price, fees and status — and when the citizen asks about a SPECIFIC plot (the largest, cheapest, or in a price/size band) pass sort (price_asc/price_desc/size_asc/size_desc) and/or min_price/max_price/min_area/max_area so the exact plot surfaces with its block, lot number and price; land_area_codes to resolve a council; land_lot_use for lot-use categories. ' +
 	'House rent: house_rent_summary. By-laws / local legislation: published_laws, then councils_with_bylaws + council_bylaws for a specific council, and bylaw_detail for the full text. Taxpayer categories: taxpayer_categories. E-auctions: auction_listings. ' +
+	'Location/area questions ("where is this plot", "what is nearby"): use plot_location_context (project id + lot number + area code) and present ONLY its source-labelled facts. It is strictly factual — you must NOT rate, rank, score, value, forecast appreciation/growth, or recommend which plot to buy, and never use words like "prime location", "great opportunity", "up-and-coming" or "undervalued". Keep the official description’s Swahili wording and offer a translation clearly marked as such. If OpenStreetMap coverage is sparse, say so — missing map data is not proof amenities are absent. ' +
 	'Per-plot sizes and prices from project_plots are official live figures you may share. Applications, tax bills and payments still need the citizen’s own TAUSI login, so point them to the portal for those. When you send a citizen to the portal or app, share it as a clickable Markdown link (e.g. [TAUSI portal](https://tausi.tamisemi.go.tz)) — the tools already include this link. If a tool says the service is unreachable, do not guess — tell the citizen to try again shortly or use the TAUSI portal directly. Do not ask for or collect their personal contact details.';
 
 // ---- Lead extraction schemas ------------------------------------------------
