@@ -269,14 +269,24 @@ export async function landCouncilProjects(council, status = 'open') {
  * plot. Uses the land /search endpoint (POST) with price/area filters = 0 ("no
  * limit"). Returns a bounded summary + a sample of plots — never the raw 5000.
  */
-export async function projectPlots(projectId) {
+export async function projectPlots(projectId, opts = {}) {
 	const id = String(projectId ?? '').trim();
 	if (!id) return 'Ask which project (its id) first — get ids from land_council_projects — then call this with that project id.';
+	const SORTS = { price_asc: 'cheapest first', price_desc: 'most expensive first', size_asc: 'smallest first', size_desc: 'largest first' };
+	const sort = SORTS[opts.sort] ? opts.sort : 'price_asc';
 	try {
+		// The /search body filters server-side (0 = no limit). Pass the citizen's
+		// price/size filters through so a specific plot can be found, not just summarised.
 		const json = await request(LAND, '/api/v1/land-open-project/search', {
 			params: { pageNo: 0, pageSize: 5000 },
 			method: 'POST',
-			body: { projectId: id, minPrice: 0, maxPrice: 0, minLegalArea: 0, maxLegalArea: 0 },
+			body: {
+				projectId: id,
+				minPrice: num(opts.minPrice) || 0,
+				maxPrice: num(opts.maxPrice) || 0,
+				minLegalArea: num(opts.minArea) || 0,
+				maxLegalArea: num(opts.maxArea) || 0
+			},
 			timeoutMs: 20000
 		});
 		const fc = json?.data?.features;
@@ -302,13 +312,24 @@ export async function projectPlots(projectId) {
 		const areaUnit = clean(pool.find((p) => p.unitOfMeasure)?.unitOfMeasure || 'Sqm', 12);
 		const plotPrice = (p) => numPos(p.price) ?? numPos(p.totalLandPlotCost); // numPos treats 0 as absent → real fallback
 
+		// Sort so the citizen's ask (cheapest / largest …) surfaces first WITH its
+		// block, lot number and price — nulls always last.
+		const keyOf = (p) => (sort.startsWith('size') ? numPos(p.legalArea) : plotPrice(p));
+		pool.sort((a, b) => {
+			const ka = keyOf(a), kb = keyOf(b);
+			if (ka == null && kb == null) return 0;
+			if (ka == null) return 1;
+			if (kb == null) return -1;
+			return sort.endsWith('desc') ? kb - ka : ka - kb;
+		});
+
 		const priceNums = pool.map(plotPrice).filter((n) => n != null);
 		const areaNums = pool.map((p) => numPos(p.legalArea)).filter((n) => n != null);
 		const range = (arr, fmt) => (arr.length ? (Math.min(...arr) === Math.max(...arr) ? fmt(Math.min(...arr)) : `${fmt(Math.min(...arr))}–${fmt(Math.max(...arr))}`) : null);
 		const priceRange = range(priceNums, (n) => 'TZS ' + n.toLocaleString('en-US'));
 		const areaRange = range(areaNums, (n) => n.toLocaleString('en-US'));
 
-		const sample = pool.slice(0, 8).map((p) => {
+		const sample = pool.slice(0, 10).map((p) => {
 			const bits = [];
 			if (p.block != null || p.lotNumber != null) bits.push(`Block ${clean(p.block ?? '?', 10)}, Lot ${clean(p.lotNumber ?? '?', 10)}`);
 			const a = numPos(p.legalArea);
@@ -317,9 +338,11 @@ export async function projectPlots(projectId) {
 			if (pr) bits.push(pr);
 			const use = clean(p.lotUse || '', 24);
 			if (use) bits.push(use);
+			const fi = money(numPos(p.firstInstallmentFee));
+			if (fi) bits.push(`1st inst. ${fi}`);
 			return `- ${bits.join(' · ') || 'plot'} [${statusOf(p)}]`;
 		});
-		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more available plots.` : '';
+		const more = pool.length > sample.length ? `\n…and ${pool.length - sample.length} more available plots — narrow with min_price/max_price/min_area/max_area, or change sort.` : '';
 
 		const ranges = [priceRange && `Price: ${priceRange}`, areaRange && `Size: ${areaRange} ${areaUnit}`].filter(Boolean).join(' · ');
 		const feeMin = (key) => { const ns = pool.map((p) => numPos(p[key])).filter((n) => n != null); return ns.length ? Math.min(...ns) : null; };
@@ -331,7 +354,7 @@ export async function projectPlots(projectId) {
 			header +
 			(ranges ? `\n${ranges}` : '') +
 			(fees ? `\n(${fees})` : '') +
-			`\nAvailable plots (sample):\n` +
+			`\nAvailable plots (${SORTS[sort]}):\n` +
 			sample.join('\n') +
 			more +
 			`\nThese are live official figures. To reserve or pay, the citizen signs in on the TAUSI portal: [TAUSI portal](${PORTAL}).`

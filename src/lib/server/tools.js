@@ -51,7 +51,13 @@ export async function runTool(name, input, ctx) {
 	}
 
 	if (name === 'project_plots') {
-		return projectPlots(input?.project_id);
+		return projectPlots(input?.project_id, {
+			sort: input?.sort,
+			minPrice: input?.min_price,
+			maxPrice: input?.max_price,
+			minArea: input?.min_area,
+			maxArea: input?.max_area
+		});
 	}
 
 	if (name === 'house_rent_summary') {

@@ -107,8 +107,20 @@ const TAUSI_PUBLIC_TOOLS = [
 	},
 	{
 		name: 'project_plots',
-		description: 'CURRENT plot-by-plot detail for ONE land project from the live TAUSI portal: size, price, application fee, first installment, lot use and status per plot (with a price/size summary). These are official live figures you MAY share. Needs a project id (from land_council_projects).',
-		input_schema: { type: 'object', properties: { project_id: { type: 'string', description: 'The project id shown by land_council_projects' } }, required: ['project_id'] }
+		description:
+			'CURRENT plot-by-plot detail for ONE land project from the live TAUSI portal: per-plot block, lot number, size (legalArea), price, first installment, lot use and status, plus a price/size summary. These are official live figures you MAY share. To find a SPECIFIC plot (largest, cheapest, or in a budget/size band) pass sort and/or the price/size filters — this is how you get an exact plot’s block, lot number and price. Needs a project id (from land_council_projects).',
+		input_schema: {
+			type: 'object',
+			properties: {
+				project_id: { type: 'string', description: 'The project id shown by land_council_projects' },
+				sort: { type: 'string', enum: ['price_asc', 'price_desc', 'size_asc', 'size_desc'], description: 'Order plots: cheapest/most-expensive/smallest/largest first (default price_asc)' },
+				min_price: { type: 'integer', description: 'Only plots priced at least this (TZS)' },
+				max_price: { type: 'integer', description: 'Only plots priced at most this (TZS)' },
+				min_area: { type: 'integer', description: 'Only plots at least this size (in the plot’s unit, usually Sqm)' },
+				max_area: { type: 'integer', description: 'Only plots at most this size' }
+			},
+			required: ['project_id']
+		}
 	},
 	{
 		name: 'house_rent_summary',
@@ -157,7 +169,7 @@ const TAUSI_PUBLIC_TOOLS = [
 // the live TAUSI tools and to never fabricate data.
 const TAUSI_PUBLIC_QUALIFY =
 	'You have LIVE TAUSI tools for public government data — use them instead of guessing, and report ONLY what they return. Never invent projects, plots, laws, numbers, locations, sizes or prices; but you MAY state any figure a tool actually returned. ' +
-	'Land: land_national_summary (open/sold) for which councils have land and how much; land_council_projects with a council name once the citizen names an area (it lists each project with its id); project_plots with a project id for per-plot size, price, fees and status; land_area_codes to resolve a council; land_lot_use for lot-use categories. ' +
+	'Land: land_national_summary (open/sold) for which councils have land and how much; land_council_projects with a council name once the citizen names an area (it lists each project with its id); project_plots with a project id for per-plot block, lot number, size, price, fees and status — and when the citizen asks about a SPECIFIC plot (the largest, cheapest, or in a price/size band) pass sort (price_asc/price_desc/size_asc/size_desc) and/or min_price/max_price/min_area/max_area so the exact plot surfaces with its block, lot number and price; land_area_codes to resolve a council; land_lot_use for lot-use categories. ' +
 	'House rent: house_rent_summary. By-laws / local legislation: published_laws, then councils_with_bylaws + council_bylaws for a specific council, and bylaw_detail for the full text. Taxpayer categories: taxpayer_categories. E-auctions: auction_listings. ' +
 	'Per-plot sizes and prices from project_plots are official live figures you may share. Applications, tax bills and payments still need the citizen’s own TAUSI login, so point them to the portal for those. When you send a citizen to the portal or app, share it as a clickable Markdown link (e.g. [TAUSI portal](https://tausi.tamisemi.go.tz)) — the tools already include this link. If a tool says the service is unreachable, do not guess — tell the citizen to try again shortly or use the TAUSI portal directly. Do not ask for or collect their personal contact details.';
 
