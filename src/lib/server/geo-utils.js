@@ -2,8 +2,28 @@
 // so BOTH the server (location-context.js) and the standalone sync script
 // (scripts/sync-plot-geo.mjs, run under plain node) can import them.
 
+/** Strip HTML markup + decode a few entities → plain text. Council-authored
+ *  fields (descriptions, terms) are HTML and flow into the model context — an
+ *  injection vector; always strip before echoing. Also neutralises any leftover
+ *  bare angle brackets so nothing tag-shaped survives. */
+export const stripHtml = (s) =>
+	String(s ?? '')
+		.replace(/<\s*(script|style)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, ' ')
+		.replace(/<\s*br\s*\/?\s*>/gi, ' ')
+		.replace(/<\s*\/\s*(p|div|li|tr|h[1-6])\s*>/gi, ' ')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/&amp;/gi, '&')
+		.replace(/&lt;/gi, '<')
+		.replace(/&gt;/gi, '>')
+		.replace(/&quot;/gi, '"')
+		.replace(/&#0*39;|&apos;/gi, "'")
+		.replace(/[<>]/g, ' ') // any remaining unpaired bracket → not tag-shaped
+		.replace(/\s+/g, ' ')
+		.trim();
+
 const clean = (s, max = 60) => {
-	const t = String(s ?? '').replace(/\s+/g, ' ').trim();
+	const t = stripHtml(s);
 	return t.length > max ? t.slice(0, max).trimEnd() + '…' : t;
 };
 
