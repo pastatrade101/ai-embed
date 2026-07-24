@@ -12,7 +12,7 @@ import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
 import { clientAllowsTool } from './tool-packs.js';
 import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse, projectPlots, houseRentSummary, publishedLaws, councilsWithBylaws, bylawDetail, councilBylaws, taxpayerCategories, auctionListings } from './govdata.js';
-import { tenderSearch } from './nestdata.js';
+import { tenderSearch, tenderDetail } from './nestdata.js';
 import { plotLocationContext } from './location-context.js';
 
 /** Tool schemas exposed to Claude now live in the Industry Registry — each
@@ -37,7 +37,7 @@ const TAUSI_LIVE_TOOLS = new Set([
 ]);
 // NeST (PPRA e-procurement) live tools — their own kill switch so one institution
 // can be shed under load or upstream trouble without touching the others.
-const NEST_LIVE_TOOLS = new Set(['tender_search']);
+const NEST_LIVE_TOOLS = new Set(['tender_search', 'tender_detail']);
 
 export async function runTool(name, input, ctx) {
 	if (env.TAUSI_LIVE_DISABLED === 'on' && TAUSI_LIVE_TOOLS.has(name)) {
@@ -132,6 +132,10 @@ export async function runTool(name, input, ctx) {
 	// an AI-readable string and never throws — unreachable → graceful message.
 	if (name === 'tender_search') {
 		return tenderSearch({ query: input?.query, category: input?.category, limit: input?.limit });
+	}
+
+	if (name === 'tender_detail') {
+		return tenderDetail({ tender: input?.tender });
 	}
 
 	if (name === 'search_knowledge') {
