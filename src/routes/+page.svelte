@@ -22,6 +22,51 @@
 		document.body.appendChild(s);
 	});
 
+	// Scroll-reveal for below-the-fold sections. Progressive enhancement: the hidden
+	// state is applied by JS only, so without JS or with reduced motion the page is
+	// fully visible (no flash of empty content). Scroll-based (not IntersectionObserver)
+	// with a viewport fallback and a failsafe timeout, so content can NEVER stay stuck
+	// hidden — even in an environment that reports a zero-height viewport.
+	onMount(() => {
+		try {
+			if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		} catch (e) {
+			return;
+		}
+		const vh = () => window.innerHeight || document.documentElement.clientHeight || 800;
+		const pending = [];
+		const h0 = vh();
+		for (const el of document.querySelectorAll('.landing > section:not(.hero)')) {
+			if (el.getBoundingClientRect().top < h0 * 0.9) el.classList.add('reveal', 'in'); // on screen now → visible, no animation
+			else { el.classList.add('reveal'); pending.push(el); } // below fold → fade up on scroll
+		}
+		let raf = 0;
+		let done = false;
+		function teardown() {
+			if (done) return;
+			done = true;
+			window.removeEventListener('scroll', onScroll);
+			window.removeEventListener('resize', onScroll);
+			clearTimeout(failsafe);
+			if (raf) cancelAnimationFrame(raf);
+		}
+		function sweep() {
+			raf = 0;
+			const h = vh();
+			for (let i = pending.length - 1; i >= 0; i--) {
+				if (pending[i].getBoundingClientRect().top < h * 0.9) { pending[i].classList.add('in'); pending.splice(i, 1); }
+			}
+			if (!pending.length) teardown();
+		}
+		function onScroll() { if (!raf && !done) raf = requestAnimationFrame(sweep); }
+		window.addEventListener('scroll', onScroll, { passive: true });
+		window.addEventListener('resize', onScroll);
+		// Failsafe: if nothing ever scrolls (or the viewport can't be measured), reveal
+		// the rest so no section is left invisible.
+		const failsafe = setTimeout(() => { for (const el of pending) el.classList.add('in'); pending.length = 0; teardown(); }, 6000);
+		return teardown;
+	});
+
 	const unanswered = [
 		'How much does this cost?',
 		'Do you have it available this week?',
@@ -562,6 +607,15 @@
 </div>
 
 <style>
+	/* Scroll-reveal. Classes are added at runtime (see onMount), so they must be
+	   :global() to survive Svelte's scoping — kept under .landing so they don't leak.
+	   Default is fully visible: the page is never hidden without JS or under reduced motion. */
+	.landing :global(.reveal) { opacity: 0; transform: translateY(18px); transition: opacity 0.55s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+	.landing :global(.reveal.in) { opacity: 1; transform: none; }
+	@media (prefers-reduced-motion: reduce) {
+		.landing :global(.reveal) { opacity: 1; transform: none; transition: none; }
+	}
+
 	.landing {
 		--forest: #10362a;
 		--forest-2: #0c2c22;

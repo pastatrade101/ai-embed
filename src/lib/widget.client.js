@@ -271,6 +271,7 @@
 
 	// --- rendering ----------------------------------------------------------
 	function render() {
+		stopReveal(); // any in-flight typing reveal targets a bubble we're about to replace
 		container.style.setProperty('--mk-brand', brand);
 		container.innerHTML =
 			(open
@@ -494,6 +495,51 @@
 		thinkTimer = null;
 	}
 
+	// Progressive "typing" reveal of a freshly-arrived assistant answer. Markdown-SAFE:
+	// we type the PLAIN text with a caret, then swap in the fully rendered markdown
+	// (links, tables) once complete — so no half-parsed markup ever flashes. Localised
+	// to the last bubble; never re-renders the list. Reduced-motion → no-op (render()
+	// already placed the full answer).
+	var revealRAF = 0;
+	function stopReveal() {
+		if (revealRAF) { (window.cancelAnimationFrame || clearTimeout)(revealRAF); revealRAF = 0; }
+	}
+	function startReveal() {
+		stopReveal();
+		if (reducedMotion() || !window.requestAnimationFrame) return;
+		var log = container.querySelector('.mk-log');
+		if (!log) return;
+		var msgs = log.querySelectorAll('.mk-msg.mk-assistant');
+		var bubble = msgs[msgs.length - 1];
+		if (!bubble) return;
+		var finalHtml = bubble.innerHTML;
+		var plain = (bubble.textContent || '').replace(/\s+$/, '');
+		if (plain.length < 2) return;
+		var textSpan = document.createElement('span');
+		var caret = document.createElement('span');
+		caret.className = 'mk-caret';
+		caret.setAttribute('aria-hidden', 'true');
+		bubble.innerHTML = '';
+		bubble.appendChild(textSpan);
+		bubble.appendChild(caret);
+		var dur = Math.min(2200, Math.max(400, plain.length * 9)); // long answers reveal faster
+		var t0 = 0;
+		function frame(ts) {
+			if (!t0) t0 = ts;
+			var p = Math.min(1, (ts - t0) / dur);
+			textSpan.textContent = plain.slice(0, Math.floor(p * plain.length));
+			log.scrollTop = log.scrollHeight;
+			if (p < 1) {
+				revealRAF = window.requestAnimationFrame(frame);
+			} else {
+				revealRAF = 0;
+				bubble.innerHTML = finalHtml; // swap to real markdown (links + tables)
+				log.scrollTop = log.scrollHeight;
+			}
+		}
+		revealRAF = window.requestAnimationFrame(frame);
+	}
+
 	function sendText(q) {
 		q = (q || '').trim();
 		if (busy || !q) return;
@@ -527,7 +573,9 @@
 				} else {
 					messages.push({ role: 'assistant', content: 'Sorry — I had trouble answering that. Please try again.' });
 				}
-				render();			})
+				render();
+				if (data && data.answer) startReveal(); // type the real answer in
+			})
 			.catch(function () {
 				busy = false;
 				stopThinking();
@@ -743,7 +791,9 @@
 			'.mk-assistant{align-self:flex-start;background:#fff;color:#1c2b26;border:1px solid #e2e8e4;border-bottom-left-radius:4px}' +
 			'.mk-log>.mk-msg:last-child{animation:mkin .26s ease}' +
 			'@keyframes mkin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}' +
-			'@media (prefers-reduced-motion:reduce){.mk-log>.mk-msg:last-child{animation:none}}' +
+			'.mk-caret{display:inline-block;width:2px;height:1em;margin-left:1px;background:currentColor;opacity:.5;vertical-align:text-bottom;animation:mkcaret 1s steps(1) infinite}' +
+			'@keyframes mkcaret{0%,50%{opacity:.5}50.01%,100%{opacity:0}}' +
+			'@media (prefers-reduced-motion:reduce){.mk-log>.mk-msg:last-child{animation:none}.mk-caret{display:none}}' +
 			// "Working" feedback — a cycling status line + a shimmering answer
 			// skeleton (Claude style), instead of a bare bouncing dot.
 			'.mk-think{align-self:flex-start;display:flex;align-items:center;gap:7px;font-size:.8em;color:#6f7a74;padding:2px 2px 1px}' +
