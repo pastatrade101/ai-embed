@@ -3,6 +3,7 @@
 	// doesn't inherit the dark admin app.css. All CTAs lead to /login or /onboarding.
 	import { onMount } from 'svelte';
 	import { env } from '$env/dynamic/public';
+	import Icon from '$lib/Icon.svelte';
 
 	const LOGIN = '/login';
 	const ONBOARD = '/onboarding';
@@ -39,21 +40,21 @@
 	];
 
 	const capabilities = [
-		{ icon: '⚡', title: 'Instant answers, 24/7', desc: 'Answers every question the moment it’s asked — from your own verified information — around the clock, so no enquiry goes cold.' },
-		{ icon: '🧠', title: 'A whole AI team', desc: 'One brief and you get an AI assistant, an AI analyst and an AI researcher — each doing a job you’d otherwise hire for.' },
-		{ icon: '🔗', title: 'Live data & lookups', desc: 'Connect your live systems and official data sources; the assistant answers from current data, not a stale FAQ.' },
-		{ icon: '📄', title: 'Conversation to document', desc: 'Turn a ready-to-proceed chat into a branded quotation or proposal, priced from your catalogue and accepted in one tap.' },
-		{ icon: '💬', title: 'Meets people where they are', desc: 'WhatsApp, Instagram, Facebook, Google Business, a QR code or your site — one engine, every channel your people use.' },
-		{ icon: '🌍', title: 'Speaks their language', desc: 'Replies in each person’s own language — including Swahili & English — and reads photos & PDFs they send.' },
-		{ icon: '🤝', title: 'Human handoff with context', desc: 'Anyone who needs a person goes straight to your team, carrying the full conversation — no repeating, no lost context.' },
-		{ icon: '🔒', title: 'Answers only from your info', desc: 'Your verified knowledge and connected systems — never random internet content. Accurate every time.' },
-		{ icon: '🚀', title: 'Live in under 10 minutes', desc: 'No code and no website needed. Paste your content, connect a channel, and go live the same day.' }
+		{ icon: 'sparkles', title: 'Instant answers, 24/7', desc: 'Answers every question the moment it’s asked — from your own verified information — around the clock, so no enquiry goes cold.' },
+		{ icon: 'bot', title: 'A whole AI team', desc: 'One brief and you get an AI assistant, an AI analyst and an AI researcher — each doing a job you’d otherwise hire for.' },
+		{ icon: 'refresh', title: 'Live data & lookups', desc: 'Connect your live systems and official data sources; the assistant answers from current data, not a stale FAQ.' },
+		{ icon: 'file-text', title: 'Conversation to document', desc: 'Turn a ready-to-proceed chat into a branded quotation or proposal, priced from your catalogue and accepted in one tap.' },
+		{ icon: 'message-circle', title: 'Meets people where they are', desc: 'WhatsApp, Instagram, Facebook, Google Business, a QR code or your site — one engine, every channel your people use.' },
+		{ icon: 'languages', title: 'Speaks their language', desc: 'Replies in each person’s own language — including Swahili & English — and reads photos & PDFs they send.' },
+		{ icon: 'phone', title: 'Human handoff with context', desc: 'Anyone who needs a person goes straight to your team, carrying the full conversation — no repeating, no lost context.' },
+		{ icon: 'book-open', title: 'Answers only from your info', desc: 'Your verified knowledge and connected systems — never random internet content. Accurate every time.' },
+		{ icon: 'play', title: 'Live in under 10 minutes', desc: 'No code and no website needed. Paste your content, connect a channel, and go live the same day.' }
 	];
 
 	const roles = [
-		{ icon: '🤖', title: 'Your AI assistant', desc: 'Answers everyone in seconds from your own information, looks things up in your live systems, recommends the right option and hands anyone who needs a person to your team — day and night.' },
-		{ icon: '📊', title: 'Your AI analyst', desc: 'Ask it anything about your operation and it answers from your real numbers — demand, conversion, where enquiries stall — and flags the gaps quietly costing you.' },
-		{ icon: '🔎', title: 'Your AI researcher', desc: 'Point it at a question people keep asking; it researches, drafts a knowledge entry for you to approve, and keeps your published information in sync.' }
+		{ icon: 'bot', title: 'Your AI assistant', desc: 'Answers everyone in seconds from your own information, looks things up in your live systems, recommends the right option and hands anyone who needs a person to your team — day and night.' },
+		{ icon: 'bar-chart', title: 'Your AI analyst', desc: 'Ask it anything about your operation and it answers from your real numbers — demand, conversion, where enquiries stall — and flags the gaps quietly costing you.' },
+		{ icon: 'search', title: 'Your AI researcher', desc: 'Point it at a question people keep asking; it researches, drafts a knowledge entry for you to approve, and keeps your published information in sync.' }
 	];
 
 	const contactList = ['Replies in Swahili, English and more', 'Handles many conversations at once', 'Escalates complex cases to your team with full context'];
@@ -148,7 +149,7 @@
 	<meta name="description" content={SEO_DESC} />
 	<link rel="canonical" href={canonicalUrl} />
 	<meta name="robots" content="index, follow, max-image-preview:large" />
-	<meta name="theme-color" content="#0b2518" />
+	<meta name="theme-color" content="#10362a" />
 	<meta name="author" content={SITE} />
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content={SITE} />
@@ -171,7 +172,7 @@
 	<!-- NAV -->
 	<header class="nav">
 		<div class="container nav-in">
-			<a class="brand" href="#top"><span class="brand-m">M</span><span class="brand-name">Makutano&nbsp;AI</span></a>
+			<a class="brand" href="#top"><img class="brand-logo" src="/ICON-AI.png" alt="" width="32" height="32" /><span class="brand-name">Makutano&nbsp;AI</span></a>
 			<nav class="navlinks">
 				{#each navLinks as l}<a href={l.href}>{l.label}</a>{/each}
 			</nav>
@@ -224,10 +225,10 @@
 							<div class="msg ai typing"><i></i><i></i><i></i></div>
 						</div>
 					</div>
-					<div class="chat-input"><span>Type a message…</span><span class="send">➤</span></div>
+					<div class="chat-input"><span>Type a message…</span><span class="send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M22 2 11 13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" /><path d="M22 2 15 22 11 13 2 9 22 2Z" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" /></svg></span></div>
 				</div>
-				<div class="fcard fcard-a">⚡<div><b>Instant</b><span>Replies</span></div></div>
-				<div class="fcard fcard-b">🌍<div><b>Swahili &amp; English</b><span>Every visitor</span></div></div>
+				<div class="fcard fcard-a"><span class="fc-ico"><Icon name="sparkles" size={20} /></span><div><b>Instant</b><span>Replies</span></div></div>
+				<div class="fcard fcard-b"><span class="fc-ico"><Icon name="globe" size={20} /></span><div><b>Swahili &amp; English</b><span>Every visitor</span></div></div>
 			</div>
 		</div>
 	</section>
@@ -252,7 +253,7 @@
 			<div class="cap-grid">
 				{#each capabilities as c}
 					<div class="cap-card">
-						<div class="cap-ico">{c.icon}</div>
+						<div class="cap-ico"><Icon name={c.icon} size={24} /></div>
 						<h3>{c.title}</h3>
 						<p>{c.desc}</p>
 					</div>
@@ -271,7 +272,7 @@
 			<div class="role-grid">
 				{#each roles as r}
 					<div class="role-card">
-						<div class="role-ico">{r.icon}</div>
+						<div class="role-ico"><Icon name={r.icon} size={26} /></div>
 						<h3>{r.title}</h3>
 						<p>{r.desc}</p>
 					</div>
@@ -288,7 +289,7 @@
 				<h2 class="h2 sm">The first point of contact for everyone who reaches out.</h2>
 				<p class="lead-muted">Whether someone messages at 2am or during your busiest hour, Makutano AI greets them, understands the need, and delivers the right answer immediately — in your voice, in their language.</p>
 				<ul class="clist">
-					{#each contactList as c}<li><span class="tick">✓</span>{c}</li>{/each}
+					{#each contactList as c}<li><span class="tick"><Icon name="check" size={12} stroke={3} /></span>{c}</li>{/each}
 				</ul>
 			</div>
 			<div class="callout-visual city-wrap">
@@ -390,7 +391,7 @@
 						<div class="plan-name">{p.name}</div>
 						<div class="plan-price">{p.price}{#if p.paid}<span>/mo</span>{/if}</div>
 						<ul>
-							{#each p.features as f}<li><span class="tick">✓</span>{f}</li>{/each}
+							{#each p.features as f}<li><span class="tick"><Icon name="check" size={12} stroke={3} /></span>{f}</li>{/each}
 						</ul>
 						<a class="btn full {p.highlight ? 'btn-green' : 'btn-outline'}" href={ONBOARD}>Get started</a>
 					</div>
@@ -437,7 +438,7 @@
 	<footer class="foot">
 		<div class="container foot-in">
 			<div class="foot-brand">
-				<a class="brand" href="#top"><span class="brand-m">M</span><span class="brand-name">Makutano&nbsp;AI</span></a>
+				<a class="brand" href="#top"><img class="brand-logo" src="/ICON-AI.png" alt="" width="32" height="32" /><span class="brand-name">Makutano&nbsp;AI</span></a>
 				<p>The AI assistant for businesses and public institutions — answer every customer and citizen instantly from your own information, 24/7.</p>
 			</div>
 			<nav class="foot-links">
@@ -456,17 +457,20 @@
 
 <style>
 	.lp {
-		--ink: #0b2518;
-		--forest: #14532d;
-		--forest2: #16653a;
-		--gold: #c9991a;
-		--green: #22c55e;
-		--green-l: #86efac;
-		--mint: #dcfce7;
-		--bg2: #f8fafc;
-		--text: #0f172a;
-		--muted: #64748b;
-		--border: #e6ebf1;
+		/* Brand palette — warm forest + gold + cream (matches app theme). */
+		--forest: #10362a;
+		--forest2: #2c6b52; /* mid forest for dark-section gradients */
+		--ink: #0c2c22; /* darkest forest — gradient ends, faq active */
+		--gold: #e0b24c;
+		--gold-soft: #ecca7d;
+		--green: #2f7a5a; /* subtle forest-green accent (doc "generated" dot) */
+		--green-l: #ecca7d; /* warm accent for badge text + hover borders */
+		--mint: #f4ecd6; /* warm gold-tint chip background */
+		--cream: #faf5ea;
+		--bg2: #faf7f0; /* warm cream section background */
+		--text: #123528;
+		--muted: #6b7c72;
+		--border: #e7ded0;
 		background: #fff;
 		color: var(--text);
 		font-family: 'Lexend Deca', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -488,7 +492,7 @@
 	.btn-gold { background: var(--gold); color: var(--ink); box-shadow: 0 8px 22px -10px rgba(201, 153, 26, 0.7); }
 	.btn-gold:hover { filter: brightness(1.05); }
 	.btn-outline { background: #fff; color: var(--forest); border-color: var(--border); }
-	.btn-outline:hover { border-color: var(--green-l); background: #f0fdf4; }
+	.btn-outline:hover { border-color: var(--gold-soft); background: var(--cream); }
 	.btn-outline-l { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.9); border-color: rgba(255, 255, 255, 0.25); }
 	.btn-outline-l:hover { background: rgba(255, 255, 255, 0.12); }
 
@@ -496,7 +500,7 @@
 	.nav { position: sticky; top: 0; z-index: 50; background: rgba(255, 255, 255, 0.9); backdrop-filter: saturate(150%) blur(12px); border-bottom: 1px solid var(--border); }
 	.nav-in { height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 	.brand { display: inline-flex; align-items: center; gap: 0.55rem; text-decoration: none; }
-	.brand-m { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--forest), var(--ink)); font-size: 0.95rem; }
+	.brand-logo { width: 32px; height: 32px; border-radius: 8px; display: block; object-fit: contain; }
 	.brand-name { font-weight: 800; color: var(--ink); font-size: 1.05rem; }
 	.navlinks { display: flex; gap: 1.75rem; }
 	.navlinks a { color: var(--muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.15s; }
@@ -506,13 +510,13 @@
 	.signin:hover { color: var(--text); }
 
 	/* Hero */
-	.hero { position: relative; overflow: hidden; background: linear-gradient(160deg, #0b2518 0%, #16653a 62%, #0d3020 100%); }
+	.hero { position: relative; overflow: hidden; background: linear-gradient(160deg, #10362a 0%, #17493a 58%, #0a231b 100%); }
 	.hero-grid { position: absolute; inset: 0; opacity: 0.09; background-image: linear-gradient(rgba(255, 255, 255, 0.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.6) 1px, transparent 1px); background-size: 64px 64px; }
-	.hero-glow { position: absolute; top: 40%; left: 18%; width: 420px; height: 420px; border-radius: 50%; background: #22c55e; opacity: 0.2; filter: blur(90px); pointer-events: none; }
+	.hero-glow { position: absolute; top: 40%; left: 18%; width: 420px; height: 420px; border-radius: 50%; background: #e0b24c; opacity: 0.14; filter: blur(90px); pointer-events: none; }
 	.hero-in { position: relative; display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 4rem; align-items: center; padding: 5.5rem 24px 6rem; }
 	.badge { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.9rem; border-radius: 999px; font-size: 0.82rem; font-weight: 500; color: var(--green-l); background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.16); margin-bottom: 1.6rem; }
-	.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); animation: pulse 2s infinite; }
-	@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.5); } 70% { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); } 100% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0); } }
+	.badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 0 rgba(224, 178, 76, 0.6); animation: pulse 2s infinite; }
+	@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(224, 178, 76, 0.5); } 70% { box-shadow: 0 0 0 7px rgba(224, 178, 76, 0); } 100% { box-shadow: 0 0 0 0 rgba(224, 178, 76, 0); } }
 	.hero h1 { color: #fff; font-weight: 800; font-size: clamp(2.4rem, 5vw, 3.7rem); line-height: 1.08; letter-spacing: -0.02em; margin: 0 0 1.25rem; }
 	.accent { color: var(--gold); }
 	.hero-sub { color: rgba(255, 255, 255, 0.68); font-size: 1.08rem; font-weight: 300; max-width: 500px; margin: 0 0 2rem; }
@@ -524,7 +528,7 @@
 	/* Hero chat mockup */
 	.hero-art { position: relative; }
 	.chat { position: relative; border-radius: 18px; overflow: hidden; background: #0f1f15; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 30px 60px -25px rgba(0, 0, 0, 0.6); }
-	.chat-shine { position: absolute; inset: -30px; background: radial-gradient(ellipse at 50% 0%, rgba(34, 197, 94, 0.25), transparent 70%); pointer-events: none; }
+	.chat-shine { position: absolute; inset: -30px; background: radial-gradient(ellipse at 50% 0%, rgba(224, 178, 76, 0.22), transparent 70%); pointer-events: none; }
 	.chat-head { position: relative; display: flex; align-items: center; gap: 0.7rem; padding: 0.85rem 1.1rem; background: #0b2518; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 	.dots { display: flex; gap: 0.35rem; }
 	.dots i { width: 10px; height: 10px; border-radius: 50%; }
@@ -532,7 +536,7 @@
 	.chat-brand { display: inline-flex; align-items: center; gap: 0.45rem; color: rgba(255, 255, 255, 0.8); font-size: 0.82rem; font-weight: 500; }
 	.chat-m { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--gold); color: var(--ink); font-weight: 800; font-size: 0.7rem; }
 	.chat-live { margin-left: auto; display: inline-flex; align-items: center; gap: 0.35rem; color: #4ade80; font-size: 0.72rem; }
-	.chat-live i { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; animation: pulse 2s infinite; }
+	.chat-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); animation: pulse 2s infinite; }
 	.chat-body { position: relative; padding: 1.1rem; display: flex; flex-direction: column; gap: 0.7rem; min-height: 260px; }
 	.row { display: flex; gap: 0.5rem; }
 	.row.user { justify-content: flex-end; }
@@ -541,7 +545,7 @@
 	.msg.user { background: var(--gold); color: var(--ink); border-radius: 16px 16px 4px 16px; }
 	.msg.ai { background: #1a3a26; color: #e2f4e8; border-radius: 16px 16px 16px 4px; }
 	.msg.typing { display: inline-flex; gap: 4px; align-items: center; }
-	.msg.typing i { width: 6px; height: 6px; border-radius: 50%; background: #4ade80; animation: bounce 1.2s infinite; }
+	.msg.typing i { width: 6px; height: 6px; border-radius: 50%; background: var(--gold); animation: bounce 1.2s infinite; }
 	.msg.typing i:nth-child(2) { animation-delay: 0.15s; } .msg.typing i:nth-child(3) { animation-delay: 0.3s; }
 	@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); opacity: 0.5; } 30% { transform: translateY(-4px); opacity: 1; } }
 	.chat-input { display: flex; align-items: center; gap: 0.6rem; padding: 0.85rem 1.1rem; background: #0b2518; border-top: 1px solid rgba(255, 255, 255, 0.08); }
@@ -551,6 +555,7 @@
 	.fcard div { display: flex; flex-direction: column; }
 	.fcard b { font-size: 0.82rem; color: var(--text); font-weight: 700; }
 	.fcard span { font-size: 0.7rem; color: var(--muted); }
+	.fc-ico { display: grid; place-items: center; color: var(--forest); }
 	.fcard-a { top: 22px; left: -34px; }
 	.fcard-b { bottom: 70px; right: -26px; }
 
@@ -571,15 +576,15 @@
 	/* Capabilities */
 	.cap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4rem; }
 	.cap-card { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 1.7rem; transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s; }
-	.cap-card:hover { border-color: var(--green-l); box-shadow: 0 16px 36px -22px rgba(20, 83, 45, 0.35); transform: translateY(-2px); }
-	.cap-ico { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; font-size: 1.5rem; background: var(--mint); margin-bottom: 1.1rem; }
+	.cap-card:hover { border-color: var(--gold-soft); box-shadow: 0 16px 36px -22px rgba(16, 54, 42, 0.28); transform: translateY(-2px); }
+	.cap-ico { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; color: var(--forest); background: var(--mint); margin-bottom: 1.1rem; }
 	.cap-card h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 0.5rem; color: var(--text); }
 	.cap-card p { color: var(--muted); font-size: 0.92rem; margin: 0; }
 
 	/* Roles */
 	.role-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.6rem; }
 	.role-card { background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 2rem 1.8rem; }
-	.role-ico { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; font-size: 1.6rem; background: linear-gradient(135deg, var(--forest), var(--ink)); margin-bottom: 1.2rem; }
+	.role-ico { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; color: var(--gold); background: linear-gradient(135deg, var(--forest), var(--ink)); margin-bottom: 1.2rem; }
 	.role-card h3 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.6rem; }
 	.role-card p { color: var(--muted); font-size: 0.95rem; margin: 0; }
 
@@ -591,11 +596,11 @@
 	.tick { width: 20px; height: 20px; border-radius: 50%; background: var(--mint); color: var(--forest); font-size: 0.72rem; font-weight: 800; display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; }
 	.city-wrap { background: linear-gradient(135deg, var(--ink), var(--forest2)); border-radius: 20px; padding: 2rem; display: flex; flex-direction: column; gap: 0.9rem; min-height: 320px; justify-content: center; }
 	.city-row { display: flex; align-items: center; gap: 0.8rem; background: rgba(255, 255, 255, 0.09); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 13px; padding: 0.8rem 1rem; }
-	.city-av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 0.8rem; background: rgba(201, 153, 26, 0.65); flex-shrink: 0; }
+	.city-av { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-weight: 700; font-size: 0.8rem; background: rgba(224, 178, 76, 0.55); flex-shrink: 0; }
 	.city-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 	.city-name { color: rgba(255, 255, 255, 0.5); font-size: 0.72rem; }
 	.city-msg { color: #fff; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-	.city-live i { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; display: block; animation: pulse 2s infinite; }
+	.city-live i { width: 7px; height: 7px; border-radius: 50%; background: var(--gold); display: block; animation: pulse 2s infinite; }
 	.city-more { text-align: center; color: rgba(255, 255, 255, 0.45); font-size: 0.8rem; margin-top: 0.3rem; }
 
 	/* Doc mock */
@@ -626,12 +631,12 @@
 	/* Integrations chips */
 	.chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.9rem; margin-top: 2.5rem; }
 	.chip { padding: 0.8rem 1.3rem; border-radius: 12px; border: 1px solid var(--border); background: #fff; font-weight: 600; font-size: 0.9rem; color: var(--text); transition: border-color 0.15s, background 0.15s; }
-	.chip:hover { border-color: var(--green-l); background: #f0fdf4; }
+	.chip:hover { border-color: var(--gold-soft); background: var(--cream); }
 
 	/* Pricing */
 	.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.4rem; align-items: start; }
 	.plan { position: relative; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 2rem 1.7rem; display: flex; flex-direction: column; }
-	.plan.hot { border-color: var(--forest); box-shadow: 0 24px 50px -28px rgba(20, 83, 45, 0.45); }
+	.plan.hot { border-color: var(--forest); box-shadow: 0 24px 50px -28px rgba(16, 54, 42, 0.4); }
 	.plan-pop { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink); font-size: 0.72rem; font-weight: 700; padding: 0.28rem 0.9rem; border-radius: 999px; }
 	.plan-tag { color: var(--muted); font-size: 0.78rem; }
 	.plan-name { font-weight: 700; font-size: 1.15rem; margin: 0.3rem 0 0.6rem; }
@@ -650,7 +655,7 @@
 	.faq-a { padding: 0 0 1.3rem; color: var(--muted); font-size: 0.92rem; margin-top: -0.3rem; max-width: 90%; }
 
 	/* CTA */
-	.cta { position: relative; overflow: hidden; padding: 7rem 0; text-align: center; background: linear-gradient(160deg, #0b2518, #16653a); }
+	.cta { position: relative; overflow: hidden; padding: 7rem 0; text-align: center; background: linear-gradient(160deg, #10362a, #17493a); }
 	.cta-dots { position: absolute; inset: 0; opacity: 0.12; background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 1px, transparent 1px); background-size: 32px 32px; }
 	.cta-in { position: relative; }
 	.cta h2 { color: #fff; font-weight: 800; font-size: clamp(2.2rem, 5vw, 3.5rem); line-height: 1.1; margin: 0 0 1.2rem; letter-spacing: -0.02em; }
