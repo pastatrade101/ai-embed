@@ -1,11 +1,39 @@
 <script>
 	import { enhance } from '$app/forms';
 	import { GREETING_MAX } from '$lib/greeting.js';
+	import { CARD_TYPES, CARD_ICONS, MAX_CARDS, normalizeFeatured } from '$lib/featured-cards.js';
 	export let data;
 	export let form;
 	$: client = data.client;
 	$: terms = data.industry?.terms ?? { item: 'tour', items: 'tours', conversion: 'booking' };
 	const tcap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+	// ---- Featured cards editor -------------------------------------------------
+	// Live gov card types are offered only to the government tenant; every tenant can
+	// add static text cards. The chosen set rides the main settings form as JSON.
+	$: govTenant = data.industry?.key === 'government';
+	$: typeOptions = Object.entries(CARD_TYPES).filter(([, def]) => govTenant || !def.gov);
+	const gov0 = data.industry?.key === 'government';
+	let cards = normalizeFeatured(data.client?.featured_cards, { allowGov: gov0 });
+	let cardsSrc = JSON.stringify(cards);
+	// Re-seed from the server after a save (normalised/persisted value), like greeting.
+	$: {
+		const fresh = JSON.stringify(normalizeFeatured(data.client?.featured_cards, { allowGov: govTenant }));
+		if (fresh !== cardsSrc) { cardsSrc = fresh; cards = normalizeFeatured(data.client?.featured_cards, { allowGov: govTenant }); }
+	}
+	$: cardsJson = JSON.stringify(cards);
+	function addCard() {
+		if (cards.length >= MAX_CARDS) return;
+		const type = govTenant ? 'plots_available' : 'text';
+		cards = [...cards, { type, title: '', subtitle: '', icon: 'info', ...(type === 'preview_countdown' ? { projectId: '' } : {}) }];
+	}
+	const removeCard = (i) => (cards = cards.filter((_, j) => j !== i));
+	function setField(i, key, val) { cards[i][key] = val; cards = cards; }
+	function setType(i, type) {
+		cards[i].type = type;
+		if (type === 'preview_countdown' && cards[i].projectId == null) cards[i].projectId = '';
+		cards = cards;
+	}
 
 	const TONES = ['Friendly', 'Professional', 'Warm', 'Playful', 'Concise'];
 	$: suggestedText = (Array.isArray(client.suggested_questions) ? client.suggested_questions : []).join('\n');
@@ -169,10 +197,68 @@
 		<div><label for="suggested_questions">Suggested questions (one per line, up to 6)</label><textarea id="suggested_questions" name="suggested_questions" style="min-height:90px" placeholder={`What ${terms.items} do you offer?\nWhat are your prices?\nHow do I get started?`}>{suggestedText}</textarea><div class="hint">Shown as clickable chips in the chat to get visitors started.</div></div>
 	</div>
 
+	<!-- Featured cards ------------------------------------------------------>
+	<h2 class="section">Featured cards</h2>
+	<div class="card grid">
+		<div class="hint" style="margin:0">
+			Small cards shown on your assistant page's welcome screen, below the suggested questions.
+			{#if govTenant}Live cards (plots available, on-preview countdown, councils with land) pull real TAUSI numbers automatically — you only write the label.{/if}
+		</div>
+		{#each cards as card, i (i)}
+			<div class="fcedit">
+				<div class="fcedit-row">
+					<select value={card.type} on:change={(e) => setType(i, e.target.value)} aria-label="Card type">
+						{#each typeOptions as [key, def]}<option value={key}>{def.label}</option>{/each}
+					</select>
+					<select value={card.icon} on:change={(e) => setField(i, 'icon', e.target.value)} aria-label="Card icon">
+						{#each CARD_ICONS as ic}<option value={ic}>{ic}</option>{/each}
+					</select>
+					<button type="button" class="btn ghost sm fcedit-x" on:click={() => removeCard(i)}>Remove</button>
+				</div>
+				<div class="fcedit-row">
+					<input placeholder={card.type === 'text' ? 'Title (required)' : 'Title (optional — overrides the default label)'} maxlength="48" value={card.title ?? ''} on:input={(e) => setField(i, 'title', e.target.value)} />
+					<input placeholder="Subtitle (optional)" maxlength="90" value={card.subtitle ?? ''} on:input={(e) => setField(i, 'subtitle', e.target.value)} />
+				</div>
+				{#if card.type === 'preview_countdown'}
+					<input placeholder="Project id of the land project to feature" maxlength="40" value={card.projectId ?? ''} on:input={(e) => setField(i, 'projectId', e.target.value)} />
+				{/if}
+				<div class="hint" style="margin:0">{CARD_TYPES[card.type]?.hint ?? ''}</div>
+			</div>
+		{/each}
+		{#if cards.length < MAX_CARDS}
+			<button type="button" class="btn ghost sm" on:click={addCard} style="align-self:flex-start">+ Add card</button>
+		{:else}
+			<div class="hint" style="margin:0">Up to {MAX_CARDS} cards.</div>
+		{/if}
+		<input type="hidden" name="featured_cards" value={cardsJson} />
+	</div>
+
 	<div style="margin-top:1.2rem"><button type="submit">Save all settings</button></div>
 </form>
 
 <style>
+	.fcedit {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding: 0.85rem;
+		border: 1px solid var(--line-2);
+		border-radius: 12px;
+		background: var(--well, rgba(0, 0, 0, 0.02));
+	}
+	.fcedit-row {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+	.fcedit-row > input,
+	.fcedit-row > select {
+		flex: 1;
+		min-width: 140px;
+	}
+	.fcedit-x {
+		flex: none;
+	}
 	.toggle-row {
 		display: flex;
 		align-items: center;

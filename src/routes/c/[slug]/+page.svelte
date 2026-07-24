@@ -49,6 +49,41 @@
 	// Feature up to 3 tours proactively beneath the hero.
 	$: featured = tours.slice(0, 3);
 
+	// ---- Featured cards (admin-configured; live numbers filled after mount) -----
+	$: featuredCards = Array.isArray(data.featuredCards) ? data.featuredCards : [];
+	let fcLive = null; // resolved live values from /api/featured (same order as config)
+	let fcNow = Date.now(); // ticks so the countdown updates
+	// Merge config + live values; drop live cards whose value couldn't be fetched.
+	$: fcShown = featuredCards
+		.map((c, i) => ({ ...c, _live: fcLive ? fcLive[i]?.live ?? null : undefined }))
+		.filter((c) => {
+			if (c.type === 'text') return !!(c.title || c.subtitle);
+			if (c._live === undefined) return true; // still loading → skeleton
+			if (c.type === 'preview_countdown') return !!c._live?.openingAtISO;
+			return c._live?.value != null;
+		});
+	const FC_TITLE = { plots_available: 'Plots available', councils_with_land: 'Councils with land', preview_countdown: 'Buying opens' };
+	const fcTitle = (t) => FC_TITLE[t] || '';
+	const FC_ICONS = {
+		map: '<path d="M9 5 3 7v12l6-2 6 2 6-2V5l-6 2-6-2Z"/><path d="M9 5v12M15 7v12"/>',
+		clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+		building: '<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h1M14 8h1M9 12h1M14 12h1M9 16h1M14 16h1"/>',
+		layers: '<path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/>',
+		flag: '<path d="M5 21V4M5 4h13l-2 4 2 4H5"/>',
+		info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
+	};
+	const fcIcon = (k) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FC_ICONS[k] || FC_ICONS.info}</svg>`;
+	// `nowMs` is passed in (not read from the closure) so the template's {@const}
+	// re-evaluates every tick — reading fcNow inside the body would make it an
+	// untracked dependency and freeze the countdown.
+	function countdown(iso, nowMs) {
+		const ms = new Date(iso).getTime() - nowMs;
+		if (!(ms > 0)) return null; // already opened / passed
+		const s = Math.floor(ms / 1000);
+		const p = (n) => String(n).padStart(2, '0');
+		return `${Math.floor(s / 86400)}d ${p(Math.floor((s % 86400) / 3600))}:${p(Math.floor((s % 3600) / 60))}:${p(s % 60)}`;
+	}
+
 	// ---- SEO / social share (each operator's page is indexable on its own) ----
 	const clip = (s, n = 158) => (s && s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s || '');
 	const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -176,7 +211,23 @@
 		// Reveal featured tours after a beat so skeletons read as intentional.
 		const t = setTimeout(() => (toursLoading = false), 650);
 		setupVoice();
-		return () => clearTimeout(t);
+
+		// Fill live featured-card numbers WITHOUT blocking the page (the shells already
+		// rendered from load). Fail-open in EVERY branch: on any error, non-2xx, or
+		// timeout we set fcLive = [] so live cards HIDE (rather than shimmer forever).
+		let fcTimer = 0;
+		if (featuredCards.some((c) => c.type !== 'text')) {
+			const ctrl = new AbortController();
+			const to = setTimeout(() => ctrl.abort(), 8000);
+			fetch(`/api/featured?client=${encodeURIComponent(client.slug)}`, { signal: ctrl.signal })
+				.then((r) => (r.ok ? r.json() : { cards: [] }))
+				.then((d) => { fcLive = d && Array.isArray(d.cards) ? d.cards : []; })
+				.catch(() => { fcLive = []; })
+				.finally(() => clearTimeout(to));
+		}
+		if (featuredCards.some((c) => c.type === 'preview_countdown')) fcTimer = setInterval(() => (fcNow = Date.now()), 1000);
+
+		return () => { clearTimeout(t); if (fcTimer) clearInterval(fcTimer); };
 	});
 
 	function persist() {
@@ -623,6 +674,36 @@
 											</button>
 										</div>
 									</article>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Featured cards (admin-configured; live numbers via /api/featured) -->
+					{#if fcShown.length}
+						<div class="featured fc-block">
+							<div class="feat-head"><span class="label">At a glance</span></div>
+							<div class="fc-grid">
+								{#each fcShown as c}
+									<div class="fc-card">
+										<span class="fc-icon">{@html fcIcon(c.icon)}</span>
+										{#if c.type === 'text'}
+											{#if c.title}<div class="fc-value fc-text">{c.title}</div>{/if}
+											{#if c.subtitle}<div class="fc-sub">{c.subtitle}</div>{/if}
+										{:else if c._live === undefined}
+											<div class="fc-value"><span class="fc-skel shimmer"></span></div>
+											<div class="fc-title">{c.title || fcTitle(c.type)}</div>
+										{:else if c.type === 'preview_countdown'}
+											{@const cd = countdown(c._live.openingAtISO, fcNow)}
+											<div class="fc-value fc-cd">{cd || 'Open now'}</div>
+											<div class="fc-title">{c.title || c._live.projectName || 'Buying opens'}</div>
+											<div class="fc-sub">{c.subtitle || (cd ? 'opens ' + c._live.openingLabel : 'preview ended')}</div>
+										{:else}
+											<div class="fc-value">{Number(c._live.value).toLocaleString()}</div>
+											<div class="fc-title">{c.title || fcTitle(c.type)}</div>
+											{#if c.subtitle}<div class="fc-sub">{c.subtitle}</div>{/if}
+										{/if}
+									</div>
 								{/each}
 							</div>
 						</div>
@@ -1155,6 +1236,54 @@
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
 		gap: 12px;
+	}
+
+	/* ---- Featured cards (admin-configured live snapshots) ---------------- */
+	.fc-block { margin-top: 4px; }
+	.fc-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 12px;
+	}
+	.fc-card {
+		background: var(--surface);
+		border: 1px solid var(--hair);
+		border-radius: var(--radius);
+		box-shadow: var(--shadow);
+		padding: 16px;
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		min-height: 108px;
+	}
+	.fc-icon {
+		display: inline-flex;
+		width: 34px;
+		height: 34px;
+		align-items: center;
+		justify-content: center;
+		border-radius: 10px;
+		background: var(--brand-soft);
+		color: var(--brand);
+		margin-bottom: 6px;
+	}
+	.fc-value {
+		font-size: 1.7rem;
+		font-weight: 800;
+		line-height: 1.1;
+		color: var(--ink);
+		letter-spacing: -0.01em;
+	}
+	.fc-value.fc-text { font-size: 1.05rem; font-weight: 700; }
+	.fc-value.fc-cd { font-variant-numeric: tabular-nums; font-size: 1.45rem; }
+	.fc-title { font-size: 0.9rem; font-weight: 600; color: var(--ink-2); }
+	.fc-sub { font-size: 0.8rem; color: var(--muted); }
+	.fc-skel {
+		display: inline-block;
+		width: 84px;
+		height: 1.5rem;
+		border-radius: 8px;
+		vertical-align: middle;
 	}
 
 	/* ---- Tour card ------------------------------------------------------- */
@@ -2022,6 +2151,7 @@
 		.turn.user .bubble-wrap { max-width: 90%; }
 		.bubble.user { font-size: 14.5px; }
 		.feat-grid { grid-template-columns: 1fr; }
+		.fc-grid { grid-template-columns: 1fr; }
 		.turns { gap: 20px; }
 	}
 </style>

@@ -8,6 +8,8 @@ import { parseDetails, parseKnowledgeInput } from './knowledge.js';
 import { departuresByItem } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
 import { clampGreeting } from '$lib/greeting.js';
+import { normalizeFeatured } from '$lib/featured-cards.js';
+import { industryKeyOf } from '$lib/industries.js';
 
 const ITEM_COLS = 'id, client_id, title, body, category, price_amount, price_currency, metadata';
 
@@ -367,6 +369,15 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 	if (form.has('_attachments_enabled')) patch.attachments_enabled = form.get('attachments_enabled') === 'on';
 	if (form.has('_voice_enabled')) patch.voice_enabled = form.get('voice_enabled') === 'on';
 
+	// Featured cards on the hosted welcome screen (migration 029). A hidden field
+	// carries the JSON; normalizeFeatured validates + sanitises defensively (drops
+	// unknown types, caps count + string lengths). Live gov (TAUSI) card types are
+	// gated to the government tenant server-side — the client editor gate isn't trusted.
+	if (form.has('featured_cards')) {
+		const { data: fc } = await supabase.from('clients').select('industry').eq('id', clientId).maybeSingle();
+		patch.featured_cards = normalizeFeatured(form.get('featured_cards'), { allowGov: industryKeyOf(fc ?? {}) === 'government' });
+	}
+
 	if (allowAdmin) {
 		// The admin settings form always carries the is_active checkbox, so an
 		// unchecked box (which submits nothing) correctly means "paused".
@@ -391,7 +402,7 @@ export async function updateClientSettings(clientId, form, { allowAdmin }) {
 	// missing-column / "schema cache" message — fail open: drop those columns and
 	// save the rest so settings still work, and flag it so we don't falsely report
 	// the deferred fields as saved.
-	const OPTIONAL_COLS = ['greeting_message', 'greeting_enabled', 'attachments_enabled', 'voice_enabled'];
+	const OPTIONAL_COLS = ['greeting_message', 'greeting_enabled', 'attachments_enabled', 'voice_enabled', 'featured_cards'];
 	let { error } = await supabase.from('clients').update(patch).eq('id', clientId);
 	let deferred = false;
 	if (error && /(column|schema cache)/i.test(error.message) && OPTIONAL_COLS.some((c) => c in patch)) {

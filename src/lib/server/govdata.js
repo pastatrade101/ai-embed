@@ -372,6 +372,54 @@ export async function landNationalSummary(status = 'open') {
 	}
 }
 
+/** Structured national totals for the featured cards: available plots, councils
+ *  with land, and projects. Returns null (never throws) if TAUSI is unreachable —
+ *  callers show a graceful state. Numbers only, no PII. */
+export async function landAvailableStats() {
+	const cached = cacheGet('featured:avail'); // shared across tenants via govdata's cache
+	if (cached !== undefined) return cached;
+	try {
+		const rows = await summaryRows('open');
+		const val = {
+			councils: rows.length,
+			plots: rows.reduce((a, r) => a + (r.plots || 0), 0),
+			projects: rows.reduce((a, r) => a + (r.projects || 0), 0)
+		};
+		cacheSet('featured:avail', val, 10 * 60 * 1000); // only success is cached
+		return val;
+	} catch (err) {
+		log.warn('govdata_available_stats_failed', { error: String(err?.message || err) });
+		return null;
+	}
+}
+
+/** Live preview state for ONE project (for an on-preview countdown card): the
+ *  soonest future opening + available/preview counts. null if no project, no
+ *  future opening, or TAUSI unreachable. Reuses the cached plot search. */
+export async function landProjectPreview(projectId) {
+	const id = String(projectId ?? '').trim();
+	if (!id) return null;
+	try {
+		const feats = await searchProjectFeatures(id);
+		const plots = feats.map((ft) => ft?.properties || {}).filter((p) => p && p.plotStatus != null);
+		if (!plots.length) return null;
+		const onPreview = plots.filter((p) => Number(p.plotStatus) === 10);
+		let soonest = null;
+		for (const p of onPreview) { const o = previewOpening(p); if (o && (!soonest || o.at < soonest.at)) soonest = o; }
+		return {
+			projectId: id,
+			projectName: clean(plots.find((p) => p.landProjectName)?.landProjectName || id, 80),
+			council: clean(plots.find((p) => p.administrativeAreaName)?.administrativeAreaName || '', 60),
+			availableCount: plots.filter((p) => Number(p.plotStatus) === 3).length,
+			previewCount: onPreview.length,
+			opening: soonest ? { atISO: new Date(soonest.at).toISOString(), label: soonest.absolute } : null
+		};
+	} catch (err) {
+		log.warn('govdata_project_preview_failed', { projectId: id, error: String(err?.message || err) });
+		return null;
+	}
+}
+
 /** List projects in one council. `council` may be a name or an area code. */
 export async function landCouncilProjects(council, status = 'open') {
 	const st = status === 'sold' ? 'sold' : 'open';

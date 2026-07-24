@@ -9,6 +9,7 @@ import { FEATURE, planUnlocks } from '$lib/server/gating.js';
 import { suggestionChips } from '$lib/server/suggest.js';
 import { serverIndustry } from '$lib/server/industries.js';
 import { industryOf } from '$lib/industries.js';
+import { normalizeFeatured } from '$lib/featured-cards.js';
 
 const metaGet = (md, ...keys) => {
 	if (!md || typeof md !== 'object') return null;
@@ -111,6 +112,11 @@ export async function load({ params, url }) {
 		// (tourism keeps its original copy verbatim; others derive from terms).
 		industry: industryOf(client),
 		tours,
+		// Admin-authored featured cards (config only — live numbers are filled after
+		// mount via /api/featured so the page never blocks on the TAUSI API). Safe with
+		// or without the migration: absent column → undefined → []. Gated by industry
+		// with the SAME rule as resolveFeatured so the shells and the live array align.
+		featuredCards: normalizeFeatured(client.featured_cards, { allowGov: industryOf(client).key === 'government' }),
 		// SEO: the operator's own description + absolute origin for canonical/OG.
 		description: (client.business_context ?? '').trim() || null,
 		origin: url.origin
