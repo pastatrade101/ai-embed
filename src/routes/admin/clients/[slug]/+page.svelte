@@ -14,6 +14,21 @@
 	$: client = data.client;
 	let tab = 'overview';
 
+	// Tool-pack assignment (super admin). Seed from the server's per-client state, but
+	// ONLY re-seed when that state actually CHANGES — otherwise a sibling form's save
+	// (which triggers invalidateAll) would clobber an unsaved toggle here. Each toggle
+	// is stored as an explicit on/off in tool_packs.
+	let packState = {};
+	let packSrc = '';
+	$: {
+		const fresh = JSON.stringify((data.toolPacks || []).map((p) => [p.key, p.active]));
+		if (fresh !== packSrc) {
+			packSrc = fresh;
+			packState = Object.fromEntries((data.toolPacks || []).map((p) => [p.key, p.active]));
+		}
+	}
+	$: packJson = JSON.stringify(packState);
+
 	// Plan capacity ≈ conversations from the AI budget — the same basis the
 	// operator billing and pricing pages use, so every screen shows one number.
 	const nf = (n) => Number(n ?? 0).toLocaleString();
@@ -150,6 +165,30 @@
 		</div>
 		<div><button type="submit">Save settings</button></div>
 	</form>
+
+	{#if form?.section === 'tools'}{#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}<div class="notice">{form.ok}</div>{/if}{/if}
+	<form class="card grid" method="POST" action="?/updateToolPacks" use:enhance>
+		<h2 class="section" style="margin:0">Tools & data connectors</h2>
+		<p class="hint" style="margin:0">Assign an institution's live-data toolset to this client, or shut it down. The default for the <b>{industryOf(client).label}</b> industry applies unless you change it here.</p>
+		{#if !data.toolPacks?.length}
+			<p class="muted" style="margin:0">No tool packs are defined yet.</p>
+		{:else}
+			<div class="packs">
+				{#each data.toolPacks as p}
+					<label class="pack-row">
+						<input type="checkbox" checked={packState[p.key]} on:change={(e) => { packState[p.key] = e.currentTarget.checked; packState = packState; }} />
+						<span class="pack-body">
+							<span class="pack-title">{p.label}{#if p.isDefault}<span class="pack-tag">default</span>{/if}</span>
+							<span class="pack-sub">{p.institution} · {p.toolCount} tool{p.toolCount === 1 ? '' : 's'}</span>
+						</span>
+						<span class="pack-state {packState[p.key] ? 'on' : 'off'}">{packState[p.key] ? 'Active' : 'Off'}</span>
+					</label>
+				{/each}
+			</div>
+		{/if}
+		<input type="hidden" name="tool_packs" value={packJson} />
+		<div><button type="submit">Save tool access</button></div>
+	</form>
 {/if}
 
 {#if tab === 'access'}
@@ -186,3 +225,25 @@
 		<div><button type="submit">Create login</button></div>
 	</form>
 {/if}
+
+<style>
+	.packs { display: flex; flex-direction: column; gap: 0.5rem; }
+	.pack-row {
+		display: flex;
+		align-items: center;
+		gap: 0.7rem;
+		padding: 0.7rem 0.8rem;
+		border: 1px solid var(--edge);
+		border-radius: 12px;
+		background: rgba(var(--panel-rgb), 0.5);
+		cursor: pointer;
+	}
+	.pack-row input { width: auto; flex: none; }
+	.pack-body { flex: 1; display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; }
+	.pack-title { font-size: 0.92rem; font-weight: 600; color: var(--strong); display: flex; align-items: center; gap: 0.45rem; }
+	.pack-sub { font-size: 0.78rem; color: var(--muted); }
+	.pack-tag { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; color: var(--muted); border: 1px solid var(--edge); border-radius: 999px; padding: 0.05rem 0.4rem; }
+	.pack-state { font-size: 0.78rem; font-weight: 700; flex: none; }
+	.pack-state.on { color: var(--accent); }
+	.pack-state.off { color: var(--faint); }
+</style>

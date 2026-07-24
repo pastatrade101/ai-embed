@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { hashPassword } from '$lib/server/password.js';
 import { AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
+import { clientPackState, sanitizeToolPacks } from '$lib/server/tool-packs.js';
 import {
 	getClientBySlug,
 	loadWorkspace,
@@ -27,7 +28,15 @@ export async function load({ params }) {
 		supabase.from('plans').select('*').order('sort'),
 		supabase.from('users').select('id, email, name, role, last_login_at, created_at').eq('client_id', client.id).order('created_at')
 	]);
-	return { client, ...workspace, plans: plansRes.data ?? [], operators: usersRes.data ?? [], costPerConversation: AVG_COST_PER_CONVERSATION };
+	return {
+		client,
+		...workspace,
+		plans: plansRes.data ?? [],
+		operators: usersRes.data ?? [],
+		costPerConversation: AVG_COST_PER_CONVERSATION,
+		// Institution tool packs (assign/shut down live-data connectors per client).
+		toolPacks: clientPackState(client)
+	};
 }
 
 export const actions = {
@@ -60,6 +69,19 @@ export const actions = {
 			event_payload: { plan_key: plan.key, from: client.plan }
 		});
 		return { section: 'plan', ok: `${client.name} is now on ${plan.name}.` };
+	},
+	// Assign / shut down institution tool packs for this client (super-admin only —
+	// the whole /admin tree is guarded to super_admin in hooks.server.js).
+	updateToolPacks: async ({ request, params }) => {
+		const client = await requireClient(params.slug);
+		const form = await request.formData();
+		const packs = sanitizeToolPacks(form.get('tool_packs'));
+		const { error: err } = await supabase.from('clients').update({ tool_packs: packs }).eq('id', client.id);
+		if (err) {
+			const pending = /(column|schema cache)/i.test(err.message); // migration 030 not run yet
+			return fail(400, { section: 'tools', error: pending ? 'Run db/030_tool_packs.sql in Supabase to enable per-client tool assignment.' : err.message });
+		}
+		return { section: 'tools', ok: 'Tool access updated.' };
 	},
 	addItem: async ({ request, params }) => {
 		const client = await requireClient(params.slug);

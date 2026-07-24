@@ -71,7 +71,10 @@ const createLeadGeneric = (interestDesc) => ({
 // Backed by govdata.js, which fetches the live citizen catalogue at request time
 // so the assistant answers with CURRENT data instead of guessing. Attached only
 // to the `government` industry (see SERVER.government below).
-const TAUSI_PUBLIC_TOOLS = [
+// Exported so the institution tool-pack registry (tool-packs.js) owns TAUSI as a
+// per-client-assignable pack, rather than it being hardwired to the government
+// industry. The government industry no longer attaches these directly.
+export const TAUSI_PUBLIC_TOOLS = [
 	{
 		name: 'land_national_summary',
 		description:
@@ -182,7 +185,7 @@ const TAUSI_PUBLIC_TOOLS = [
 
 // Appended to the government qualify script so the model knows WHEN to reach for
 // the live TAUSI tools and to never fabricate data.
-const TAUSI_PUBLIC_QUALIFY =
+export const TAUSI_PUBLIC_QUALIFY =
 	'You have LIVE TAUSI tools for public government data — use them instead of guessing, and report ONLY what they return. Never invent projects, plots, laws, numbers, locations, sizes or prices; but you MAY state any figure a tool actually returned. ' +
 	'Land: land_national_summary (open/sold) for which councils have land and how much; land_council_projects with a council name once the citizen names an area (it lists each project with its id); project_plots with a project id for per-plot block, lot number, size, price, fees and status — and when the citizen asks about a SPECIFIC plot (the largest, cheapest, or in a price/size band) pass sort (price_asc/price_desc/size_asc/size_desc) and/or min_price/max_price/min_area/max_area so the exact plot surfaces with its block, lot number and price; land_area_codes to resolve a council; land_lot_use for lot-use categories. ' +
 	'House rent: house_rent_summary. By-laws / local legislation: published_laws, then councils_with_bylaws + council_bylaws for a specific council, and bylaw_detail for the full text. Taxpayer categories: taxpayer_categories. E-auctions: auction_listings. ' +
@@ -434,8 +437,10 @@ const SERVER = {
 		persona: 'a patient public-service assistant helping citizens understand services, procedures and requirements',
 		qualifyFields: 'the service they need, what stage they are at, and any documents they already have',
 		researchDomain: 'fees, processing times, required documents',
-		extraTools: TAUSI_PUBLIC_TOOLS,
-		extraQualify: TAUSI_PUBLIC_QUALIFY,
+		// Institution live tools (TAUSI, and future institutions) are attached PER CLIENT
+		// via tool-packs.js, not hardwired here — a super admin assigns/shuts them down
+		// per tenant. The `tausi` pack is defaultFor 'government', so existing government
+		// clients keep the exact same toolset until an admin changes it.
 		noLeads: true // citizen services don't harvest sales leads
 	}),
 	retail: genericServer(INDUSTRIES.retail, {

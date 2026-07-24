@@ -10,6 +10,7 @@ import { searchTours, getTourPrice } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
 import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
+import { clientAllowsTool } from './tool-packs.js';
 import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse, projectPlots, houseRentSummary, publishedLaws, councilsWithBylaws, bylawDetail, councilBylaws, taxpayerCategories, auctionListings } from './govdata.js';
 import { plotLocationContext } from './location-context.js';
 
@@ -40,6 +41,12 @@ export async function runTool(name, input, ctx) {
 	}
 	if (env.LOCATION_CONTEXT_DISABLED === 'on' && name === 'plot_location_context') {
 		return 'Location detail is temporarily unavailable. The plot facts, prices and official description are still available — ask about those.';
+	}
+	// Institution tool packs: a tool from a pack this client isn't assigned (or that a
+	// super admin shut down) is blocked here too — defence-in-depth, since it is also
+	// never offered to the model in the first place.
+	if (ctx?.client && !clientAllowsTool(ctx.client, name)) {
+		return 'This assistant is not configured to use that data source.';
 	}
 
 	if (name === 'search_tours') {

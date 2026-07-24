@@ -9,6 +9,7 @@ import { chunkItem } from './knowledge.js';
 import { estimateCost } from './pricing.js';
 import { runTool } from './tools.js';
 import { serverIndustry } from './industries.js';
+import { clientToolset } from './tool-packs.js';
 import { FEATURE, planAllows, planUnlocks } from './gating.js';
 import { budgetStatus } from './credits.js';
 import { notifyUsageIfCrossed } from './usage-alerts.js';
@@ -211,9 +212,10 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	const attachmentAllowed = attachment && (await planUnlocks(client.plan, FEATURE.ATTACHMENTS));
 	const toursAllowed = await planAllows(client.plan, FEATURE.TOURS);
 	const summariesAllowed = await planAllows(client.plan, FEATURE.SUMMARIES);
-	// The toolset is the industry's (tourism = the original four defs); the
-	// structured-catalogue tools stay behind the same plan feature as before.
-	const ind = serverIndustry(client);
+	// Per-client toolset: the industry's base tools + any institution tool packs a
+	// super admin assigned to THIS client (clientToolset). Structured-catalogue tools
+	// stay behind the same plan feature as before.
+	const ind = clientToolset(client);
 	const tools = toursAllowed ? ind.tools : ind.tools.filter((t) => t.name !== 'search_tours' && t.name !== 'get_tour_price');
 
 	// 1b. Resolve the conversation. A known id → we're continuing (append + reuse
