@@ -1,4 +1,4 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { supabase } from '$lib/server/supabase.js';
 import { hashPassword } from '$lib/server/password.js';
 import { AVG_COST_PER_CONVERSATION } from '$lib/server/credits.js';
@@ -70,6 +70,25 @@ export const actions = {
 		});
 		return { section: 'plan', ok: `${client.name} is now on ${plan.name}.` };
 	},
+	// Enable / disable a client (pause the assistant). One-click toggle of is_active.
+	toggleActive: async ({ params }) => {
+		const client = await requireClient(params.slug);
+		const { error: err } = await supabase.from('clients').update({ is_active: !client.is_active }).eq('id', client.id);
+		if (err) return fail(400, { section: 'danger', error: err.message });
+		return { section: 'danger', ok: client.is_active ? `${client.name} disabled — the assistant will not answer visitors.` : `${client.name} enabled — the assistant is live again.` };
+	},
+
+	// Permanently delete a client and ALL its data (knowledge, conversations, leads,
+	// operators, … cascade). Irreversible — gated by typed-slug confirmation.
+	deleteClient: async ({ request, params }) => {
+		const client = await requireClient(params.slug);
+		const confirm = String((await request.formData()).get('confirm') ?? '').trim();
+		if (confirm !== client.slug) return fail(400, { section: 'danger', error: `Type the client slug exactly (“${client.slug}”) to confirm deletion.` });
+		const { error: err } = await supabase.from('clients').delete().eq('id', client.id);
+		if (err) return fail(400, { section: 'danger', error: err.message });
+		throw redirect(303, '/admin?deleted=' + encodeURIComponent(client.name));
+	},
+
 	// Assign / shut down institution tool packs for this client (super-admin only —
 	// the whole /admin tree is guarded to super_admin in hooks.server.js).
 	updateToolPacks: async ({ request, params }) => {

@@ -13,6 +13,7 @@
 
 	$: client = data.client;
 	let tab = 'overview';
+	let deleteConfirm = ''; // super admin must type the slug to enable the delete button
 
 	// Tool-pack assignment (super admin). Seed from the server's per-client state, but
 	// ONLY re-seed when that state actually CHANGES — otherwise a sibling form's save
@@ -64,6 +65,9 @@
 	<div class="actions">
 		<a class="btn ghost sm" href="/admin">← All clients</a>
 		<button class="ghost sm" on:click={copyEmbed}>{copied ? 'Copied!' : 'Copy embed'}</button>
+		<form method="POST" action="?/toggleActive" use:enhance style="display:inline">
+			<button class="{client.is_active ? 'danger' : ''} sm" type="submit">{client.is_active ? 'Disable' : 'Enable'}</button>
+		</form>
 	</div>
 </div>
 
@@ -189,6 +193,24 @@
 		<input type="hidden" name="tool_packs" value={packJson} />
 		<div><button type="submit">Save tool access</button></div>
 	</form>
+
+	<!-- Danger zone: permanently delete the client (super admin). Disable/enable
+	     lives in the head-bar toggle and the "Active" checkbox above. -->
+	{#if form?.section === 'danger'}{#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}<div class="notice">{form.ok}</div>{/if}{/if}
+	<div class="card danger-zone">
+		<h2 class="section" style="margin:0">Danger zone</h2>
+
+		<div class="dz-row dz-delete">
+			<div style="flex:1;min-width:220px">
+				<strong>Delete this client permanently</strong>
+				<div class="hint" style="margin:.2rem 0 0">Removes <b>{client.name}</b> and ALL of its data — knowledge, conversations, leads and operator logins. This cannot be undone. To pause without deleting, use <b>Disable</b> at the top instead. Type the slug <code>{client.slug}</code> to confirm.</div>
+			</div>
+			<form method="POST" action="?/deleteClient" use:enhance class="dz-delete-form">
+				<input name="confirm" bind:value={deleteConfirm} placeholder="type the slug to confirm" autocomplete="off" spellcheck="false" />
+				<button class="danger" type="submit" disabled={deleteConfirm.trim() !== client.slug}>Delete client</button>
+			</form>
+		</div>
+	</div>
 {/if}
 
 {#if tab === 'access'}
@@ -246,4 +268,10 @@
 	.pack-state { font-size: 0.78rem; font-weight: 700; flex: none; }
 	.pack-state.on { color: var(--accent); }
 	.pack-state.off { color: var(--faint); }
+
+	.danger-zone { margin-top: 1rem; border-color: rgba(255, 93, 108, 0.4); }
+	.dz-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 0.8rem 0; border-top: 1px solid var(--line-2, rgba(var(--fg-rgb), 0.08)); }
+	.dz-row:first-of-type { border-top: none; }
+	.dz-delete-form { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+	.dz-delete-form input { min-width: 200px; }
 </style>

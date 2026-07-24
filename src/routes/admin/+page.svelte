@@ -1,10 +1,13 @@
 <script>
 	import { onMount } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { page } from '$app/stores';
 	import { usdToLocal } from '$lib/fx.js';
 
 	export let data;
 	export let form;
+	// One-shot confirmation after a client was deleted from the detail page.
+	$: deletedName = $page.url.searchParams.get('deleted');
 	$: t = data.totals;
 	$: rev = data.revenue;
 	$: spend = data.spend;
@@ -82,6 +85,9 @@
 	<div class="page-head"><div><h1>Command center</h1></div></div>
 	<div class="notice err">Could not load platform data: {data.loadError}</div>
 {:else if t}
+	{#if deletedName}
+		<div class="notice">Deleted <strong>{deletedName}</strong> and all of its data.</div>
+	{/if}
 	<!-- HERO — executive AI summary -->
 	<section class="hero">
 		<div class="hero-main">
