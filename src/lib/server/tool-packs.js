@@ -7,11 +7,12 @@
 // with the per-client overrides stored in `clients.tool_packs` (a { packKey: bool }
 // map): true = assigned/on, false = shut down. Absent → the industry default.
 
-import { serverIndustry, TAUSI_PUBLIC_TOOLS, TAUSI_PUBLIC_QUALIFY } from './industries.js';
+import { serverIndustry, TAUSI_PUBLIC_TOOLS, TAUSI_PUBLIC_QUALIFY, NEST_PUBLIC_TOOLS, NEST_PUBLIC_QUALIFY } from './industries.js';
 import { industryKeyOf } from '$lib/industries.js';
 
 /** The registry. Add a pack per institution. `defaultFor` is the industry that
- *  gets the pack automatically (so nothing breaks for existing tenants). */
+ *  gets the pack automatically (so nothing breaks for existing tenants); omit it
+ *  for a pack that a super admin assigns explicitly per client. */
 export const TOOL_PACKS = {
 	tausi: {
 		key: 'tausi',
@@ -20,6 +21,16 @@ export const TOOL_PACKS = {
 		defaultFor: 'government',
 		tools: TAUSI_PUBLIC_TOOLS,
 		qualify: TAUSI_PUBLIC_QUALIFY
+	},
+	nest: {
+		key: 'nest',
+		label: 'NeST — public tender notices (e-procurement)',
+		institution: 'PPRA — National e-Procurement System',
+		// No defaultFor: assigned explicitly by a super admin to the procurement
+		// client, so existing government (land) tenants are unaffected.
+		defaultFor: null,
+		tools: NEST_PUBLIC_TOOLS,
+		qualify: NEST_PUBLIC_QUALIFY
 	}
 };
 

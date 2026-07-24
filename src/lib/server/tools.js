@@ -12,6 +12,7 @@ import { enrichLead } from './lead-ai.js';
 import { serverIndustry } from './industries.js';
 import { clientAllowsTool } from './tool-packs.js';
 import { landNationalSummary, landCouncilProjects, landAreaCodes, landLotUse, projectPlots, houseRentSummary, publishedLaws, councilsWithBylaws, bylawDetail, councilBylaws, taxpayerCategories, auctionListings } from './govdata.js';
+import { tenderSearch } from './nestdata.js';
 import { plotLocationContext } from './location-context.js';
 
 /** Tool schemas exposed to Claude now live in the Industry Registry — each
@@ -34,10 +35,16 @@ const TAUSI_LIVE_TOOLS = new Set([
 	'plot_location_context', 'house_rent_summary', 'published_laws', 'councils_with_bylaws', 'bylaw_detail',
 	'council_bylaws', 'taxpayer_categories', 'auction_listings'
 ]);
+// NeST (PPRA e-procurement) live tools — their own kill switch so one institution
+// can be shed under load or upstream trouble without touching the others.
+const NEST_LIVE_TOOLS = new Set(['tender_search']);
 
 export async function runTool(name, input, ctx) {
 	if (env.TAUSI_LIVE_DISABLED === 'on' && TAUSI_LIVE_TOOLS.has(name)) {
 		return 'Live government data is paused for maintenance right now — please try again shortly, or use the TAUSI portal directly: [TAUSI portal](https://tausi.tamisemi.go.tz).';
+	}
+	if (env.NEST_LIVE_DISABLED === 'on' && NEST_LIVE_TOOLS.has(name)) {
+		return 'Live tender data is paused for maintenance right now — please try again shortly, or use the NeST portal directly: [NeST](https://nest.go.tz).';
 	}
 	if (env.LOCATION_CONTEXT_DISABLED === 'on' && name === 'plot_location_context') {
 		return 'Location detail is temporarily unavailable. The plot facts, prices and official description are still available — ask about those.';
@@ -119,6 +126,12 @@ export async function runTool(name, input, ctx) {
 
 	if (name === 'auction_listings') {
 		return auctionListings(input?.page_no, input?.page_size);
+	}
+
+	// Live NeST (PPRA) published-tender search. Public procurement notices; returns
+	// an AI-readable string and never throws — unreachable → graceful message.
+	if (name === 'tender_search') {
+		return tenderSearch({ query: input?.query, category: input?.category, limit: input?.limit });
 	}
 
 	if (name === 'search_knowledge') {
