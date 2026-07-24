@@ -15,6 +15,9 @@ import { budgetStatus } from './credits.js';
 import { notifyUsageIfCrossed } from './usage-alerts.js';
 
 const MAX_TOOL_LOOPS = 6;
+// Output budget for a chat answer. Needs headroom for list-style replies (e.g. a
+// live tender list translated into Swahili) — 1024 truncated those mid-sentence.
+const CHAT_MAX_TOKENS = 2048;
 // Premium model tier unlocked by the "Advanced (Sonnet) AI model" plan feature.
 const SONNET_MODEL = 'claude-sonnet-5';
 
@@ -338,7 +341,7 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	for (let i = 0; i < MAX_TOOL_LOOPS; i++) {
 		const response = await anthropic().messages.create({
 			model,
-			max_tokens: 1024,
+			max_tokens: CHAT_MAX_TOKENS,
 			system,
 			tools,
 			messages: convo
@@ -369,7 +372,7 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	if (lastStop === 'tool_use') {
 		const finalResp = await anthropic().messages.create({
 			model,
-			max_tokens: 1024,
+			max_tokens: CHAT_MAX_TOKENS,
 			system,
 			tools,
 			tool_choice: { type: 'none' },
