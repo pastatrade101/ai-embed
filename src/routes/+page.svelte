@@ -68,55 +68,55 @@
 	});
 
 	const unanswered = [
-		'How much does this cost?',
-		'Do you have it available this week?',
-		'What’s included in the price?',
-		'Can you deliver to my area?',
-		'How do I get started?'
+		'How much does this cost, and is it available?',
+		'What are the requirements — and the deadline?',
+		'How do I apply, and what happens next?',
+		'Do you serve my area?',
+		'Can someone help me with this today?'
 	];
 	const capabilities = [
+		'Answer questions instantly, in plain language',
+		'Explain your prices, fees and requirements',
+		'Look things up in your live systems',
+		'Guide people to the right next step',
+		'Check what’s available right now',
 		'Recommend the right option',
-		'Answer questions instantly',
-		'Explain pricing & details',
-		'Compare your options',
-		'Check what’s available',
-		'Suggest upgrades & add-ons',
-		'Reply in the customer’s language',
-		'Read photos & PDFs',
-		'Qualify serious buyers',
-		'Capture leads automatically',
-		'Hand off to WhatsApp with full context',
-		'Work 24/7, even while you sleep'
+		'Reply in the person’s own language',
+		'Read photos & PDFs they send',
+		'Capture and qualify leads',
+		'Hand off to a human with full context',
+		'Draft quotes, proposals & documents',
+		'Work 24/7, across every channel'
 	];
 	const steps = [
 		{ n: '01', t: 'Create your AI assistant', d: 'Set it up in minutes — no code, no technical skills.' },
-		{ n: '02', t: 'Add your knowledge', d: 'Import from CSV, JSON, PDF, or paste content. The AI organises everything.' },
-		{ n: '03', t: 'Share your assistant', d: 'WhatsApp, Instagram bio, Facebook, Google Business, QR code, your website.' },
-		{ n: '04', t: 'Receive sales-ready leads', d: 'Qualified customers arrive in your WhatsApp with all the important details.' }
+		{ n: '02', t: 'Add your knowledge', d: 'Import from CSV, JSON, PDF or your website — and connect live data sources. The AI organises everything.' },
+		{ n: '03', t: 'Share it anywhere', d: 'WhatsApp, Instagram, Facebook, Google Business, a QR code, or your own site.' },
+		{ n: '04', t: 'Let it handle the rest', d: 'It answers every enquiry, looks up what’s needed, and routes people to the right outcome — day and night.' }
 	];
 	const proposalPower = [
-		'Drafts the quote straight from the chat',
+		'Drafts the document straight from the chat',
 		'Priced from your real catalogue — never guessed',
-		'A premium, branded quotation page',
-		'Customers accept in a single tap',
+		'A premium, branded quotation or proposal page',
+		'Recipients accept in a single tap',
 		'Smart upsell & cross-sell suggestions',
 		'Stays in sync as the details change',
 		'See when it’s opened and accepted',
 		'Explains why it recommended each option'
 	];
-	const builtWith = ['Your prices', 'Your products & services', 'Your availability', 'Your FAQs', 'Your policies', 'Your process'];
+	const builtWith = ['Your prices & fees', 'Your products & services', 'Your rules & requirements', 'Your records & live data', 'Your FAQs & policies', 'Your process'];
 	const channels = ['Instagram', 'WhatsApp', 'Facebook', 'Google Business', 'Your website', 'QR Codes'];
 	const reasons = [
 		'Setup in under 10 minutes',
 		'No coding required',
 		'No website required',
-		'Mobile friendly',
-		'AI auto-updates',
-		'Adapts to your industry',
-		'Professional experience',
+		'Works on any device',
+		'Answers only from your verified information',
+		'Adapts to your sector',
+		'Serves customers & citizens alike',
+		'Connects to your live systems',
 		'Captures qualified leads',
-		'Saves hours each week',
-		'Converts more enquiries'
+		'Saves hours every week'
 	];
 	// Live pricing from the plans catalogue (see +page.server.js). Prices come
 	// through in the plan's own currency (TZS for the paid tiers).
@@ -144,22 +144,22 @@
 		};
 	});
 	const faqs = [
-		{ q: 'Is this just a chatbot?', a: 'No. Alongside the customer-facing assistant, you get an AI analyst that answers questions about your business from your real numbers, an AI researcher that drafts new knowledge from the web for you to approve, automatic website sync, and a scored sales pipeline.' },
+		{ q: 'Is this just a chatbot?', a: 'No. It answers from your own verified information — and can look things up in your live systems in real time. Alongside the public-facing assistant you get an AI analyst that answers questions from your real data, an AI researcher that drafts new knowledge for you to approve, automatic website sync, and a scored pipeline of everyone who reaches out.' },
+		{ q: 'Who is it for?', a: 'Any organisation that answers questions all day — businesses turning enquiries into sales, and public institutions serving citizens. The same assistant adapts to your sector, your language and your information.' },
+		{ q: 'Can it look up live, real-time information?', a: 'Yes. Beyond your uploaded knowledge, Makutano AI can connect to live data sources and official systems and answer from current data — so people get accurate, up-to-the-minute answers instead of a stale FAQ.' },
+		{ q: 'Does the AI use only my own information?', a: 'Yes. It answers from your verified knowledge and connected systems — never random internet content — so every price, rule, date and detail is accurate.' },
 		{ q: 'Do I need a website?', a: 'No. Makutano AI creates a hosted AI page automatically — just share the link or QR code. If you do have a website, it can scan and import your content for you.' },
-		{ q: 'Does the AI use my own prices?', a: 'Yes. It answers only from your verified catalogue — never generic internet knowledge — so every price, date and detail is accurate.' },
-		{ q: 'Can customers still reach me on WhatsApp?', a: 'Yes. The AI hands sales-ready customers directly to your WhatsApp, carrying the full conversation so you pick up right where it left off.' },
-		{ q: 'Can it create quotations and proposals?', a: 'Yes. When a customer is ready to buy, Makutano AI drafts a full quotation from the conversation — priced from your real catalogue — which you review in a click. Your customer opens a premium branded page and accepts in one tap, and you can see the moment it’s viewed and accepted.' },
-		{ q: 'What languages does it speak?', a: 'It replies in the customer’s language automatically, and can read photos and PDFs they send.' },
-		{ q: 'How do I add my information?', a: 'Import from CSV, JSON or PDF, paste your content, or point it at your website and let it import automatically. The AI organises everything.' },
-		{ q: 'How much does the AI cost to run?', a: 'Every plan includes a generous monthly AI allowance shown as simple usage — no tokens to think about — with clear forecasts and top-ups if you ever need more.' },
-		{ q: 'How long does setup take?', a: 'Most businesses are live in less than 10 minutes.' }
+		{ q: 'Can people still reach a human?', a: 'Yes. The assistant hands anyone who needs a person straight to your WhatsApp or your team, carrying the full conversation so they pick up right where it left off.' },
+		{ q: 'Can it create quotations, proposals or documents?', a: 'Yes. When someone is ready to proceed, Makutano AI drafts a full quotation or proposal from the conversation — priced from your real catalogue — which you review in a click. They open a premium branded page and accept in one tap, and you can see the moment it’s viewed and accepted.' },
+		{ q: 'What languages does it speak?', a: 'It replies in each person’s own language automatically, and can read photos and PDFs they send.' },
+		{ q: 'How long does setup take?', a: 'Most organisations are live in under 10 minutes.' }
 	];
 
 	// ---- SEO / social share ----
 	const SITE = 'Makutano AI';
-	const SEO_TITLE = 'Makutano AI — AI Sales Assistant for Every Business';
+	const SEO_TITLE = 'Makutano AI — The AI Assistant for Every Organization';
 	const SEO_DESC =
-		'The complete AI team for any business: an assistant that answers customers, recommends the right option and qualifies leads 24/7 — then drafts branded quotations customers accept in one tap. Plus an AI analyst that reads your numbers, an AI researcher that fills knowledge gaps, website auto-sync and a sales pipeline. No website needed.';
+		'An AI assistant your customers and citizens can actually talk to. It answers every question instantly from your own knowledge, looks things up in your live systems, and guides people to the right next step — 24/7, in their language. Businesses turn enquiries into sales; public institutions serve citizens. Plus an AI analyst, an AI researcher, website auto-sync and a scored pipeline. No website needed.';
 	$: seoOrigin = data.origin ?? 'https://ai.makutano.co.tz';
 	$: canonicalUrl = `${seoOrigin}/`;
 	$: ogImage = `${seoOrigin}/og-image.png`;
@@ -216,7 +216,7 @@
 	<meta property="og:image" content={ogImage} />
 	<meta property="og:image:width" content="1200" />
 	<meta property="og:image:height" content="630" />
-	<meta property="og:image:alt" content="Makutano AI — AI sales assistant for every business" />
+	<meta property="og:image:alt" content="Makutano AI — the AI assistant for every organization" />
 	<meta property="og:locale" content="en_US" />
 
 	<!-- Twitter -->
@@ -253,27 +253,27 @@
 		<div class="hero-bg"></div>
 		<div class="wrap hero-in">
 			<div class="hero-copy">
-				<span class="pill"><Icon name="sparkles" size={14} /> Built for modern businesses</span>
-				<h1>Your best salesperson<br /><em>never sleeps.</em></h1>
+				<span class="pill"><Icon name="sparkles" size={14} /> For businesses &amp; public institutions</span>
+				<h1>The AI that speaks<br /><em>for your organization.</em></h1>
 				<p class="lead">
-					Turn every website visitor, WhatsApp enquiry, Instagram bio click, Google Business visitor or QR scan into a
-					qualified sales conversation — 24/7.
+					An assistant your customers and citizens can actually talk to — it answers every question the moment it's
+					asked, looks things up in your live systems, and guides people to the right next step. 24/7, in their language.
 				</p>
 				<p class="sub">
-					Makutano AI instantly answers customer questions, recommends the right option, qualifies leads, and hands
-					sales-ready customers directly to your WhatsApp.
+					Whether you're turning enquiries into sales or serving the public, Makutano AI replies instantly from your own
+					information — and hands anyone who needs a person straight to your team.
 				</p>
 				<div class="cta-row">
 					<a class="btn gold" href={ONBOARD}>Get started free <Icon name="arrow-right" size={18} /></a>
 					<a class="btn ghost" href="#how"><Icon name="play" size={17} /> See how it works</a>
 				</div>
-				<p class="trust">Trusted by modern businesses to capture more leads with AI</p>
+				<p class="trust">Trusted by businesses and public institutions across East Africa</p>
 			</div>
 			<div class="hero-art">
 				<span class="hero-art-glow"></span>
 				<img
 					src="/hero-device.png"
-					alt="The Makutano AI assistant live on a business's website, shown on a laptop and phone"
+					alt="The Makutano AI assistant answering a question live, shown on a laptop and phone"
 					width="1600"
 					height="986"
 					loading="eager"
@@ -287,10 +287,10 @@
 		<div class="wrap grid-2">
 			<div>
 				<div class="label">Why Makutano AI</div>
-				<h2 class="dark">Customers don't wait. If nobody replies quickly, they book somewhere else.</h2>
+				<h2 class="dark">People don't wait. When no one answers, they give up — or ask again, and again.</h2>
 				<p class="muted">
-					Makutano AI makes sure that never happens — answering every enquiry the moment it arrives, in your voice,
-					with your prices.
+					Makutano AI makes sure every question gets a clear answer the moment it's asked — in your voice, from your own
+					information, at any hour.
 				</p>
 			</div>
 			<div class="card qcard">
@@ -310,16 +310,16 @@
 			<div class="chatmock">
 				<div class="cm-head"><img src="/ICON-AI.png" alt="" /><span>Goldie · your AI assistant</span></div>
 				<div class="cm-body">
-					<div class="cm-msg cm-user">Hi! How much is this, and do you have it available this week?</div>
-					<div class="cm-msg cm-ai">It's <b>$120</b> and yes — we have availability this week. It includes everything you need to get started. Want me to hold a slot for you?</div>
-					<div class="cm-msg cm-user">Yes please. Can I pay on delivery?</div>
-					<div class="cm-msg cm-ai">Of course. Shall I hand you to the team on WhatsApp to confirm the details and get you sorted?</div>
+					<div class="cm-msg cm-user">Hi! What do I need to get started, and is it available right now?</div>
+					<div class="cm-msg cm-ai">Great question — here's what you'll need, and yes, it's available. Let me check the latest status for you… it's live right now. Want me to walk you through the next step?</div>
+					<div class="cm-msg cm-user">Yes please. Can someone help me finish it?</div>
+					<div class="cm-msg cm-ai">Of course. I'll connect you to the team on WhatsApp with everything we've covered, so you don't have to repeat a thing.</div>
 				</div>
 			</div>
 			<div>
-				<div class="label">Meet your AI sales assistant</div>
-				<h2>The first person every customer speaks to.</h2>
-				<p class="cream-muted">It works 24 hours a day — even while you're sleeping or busy with a customer.</p>
+				<div class="label">Meet your AI assistant</div>
+				<h2>The first point of contact for everyone who reaches out.</h2>
+				<p class="cream-muted">It works around the clock — answering the moment someone asks, whether it's a customer or a citizen, day or night.</p>
 				<ul class="cap-grid">
 					{#each capabilities as c}
 						<li><span class="dot"></span>{c}</li>
@@ -334,24 +334,24 @@
 		<div class="wrap">
 			<div class="head-narrow">
 				<div class="label">More than a chatbot</div>
-				<h2 class="dark">One subscription. A whole AI team working your sales.</h2>
+				<h2 class="dark">One subscription. A whole AI team working for your organization.</h2>
 				<p class="muted">Makutano AI isn't a single bot — it's several specialists, each doing a job you'd otherwise hire for.</p>
 			</div>
 			<div class="roles">
 				<div class="role card">
 					<div class="role-ico"><Icon name="bot" size={24} /></div>
-					<h3>Your AI salesperson</h3>
-					<p>Answers every customer in seconds, recommends the right option from your own catalogue, explains pricing and availability, qualifies the serious buyers and hands them to WhatsApp with the full conversation — day and night.</p>
+					<h3>Your AI assistant</h3>
+					<p>Answers everyone in seconds from your own information, looks things up in your live systems, recommends the right option, guides people through your process, and hands anyone who needs a person to your team — day and night.</p>
 				</div>
 				<div class="role card">
 					<div class="role-ico"><Icon name="bar-chart" size={24} /></div>
 					<h3>Your AI analyst</h3>
-					<p>Ask it anything about your business and it answers from your real numbers — top performers, conversion, potential sales value, what's in demand, where enquiries stall — and flags the catalogue gaps quietly costing you sales.</p>
+					<p>Ask it anything about your operation and it answers from your real numbers — demand, conversion, potential value, what people ask for most, where enquiries stall — and flags the gaps quietly costing you.</p>
 				</div>
 				<div class="role card">
 					<div class="role-ico"><Icon name="search" size={24} /></div>
 					<h3>Your AI researcher</h3>
-					<p>Point it at a question customers keep asking and it researches the web, drafts a knowledge entry for you to approve, and keeps your website content in sync — so your assistant only ever gets sharper.</p>
+					<p>Point it at a question people keep asking and it researches, drafts a knowledge entry for you to approve, and keeps your published information in sync — so your assistant only ever gets sharper.</p>
 				</div>
 			</div>
 		</div>
@@ -362,9 +362,9 @@
 		<div class="proposals-bg"></div>
 		<div class="wrap grid-2 aligned">
 			<div class="proposals-copy">
-				<div class="label">New · AI Proposals &amp; Quotations</div>
-				<h2>From a conversation to a signed quotation — automatically.</h2>
-				<p class="cream-muted">The moment a customer is ready to buy, Makutano AI turns the whole conversation into a polished, branded quotation — priced from your real catalogue. Review it in a click; your customer opens a beautiful page and accepts in a single tap.</p>
+				<div class="label">AI Proposals, Quotations &amp; Documents</div>
+				<h2>From a conversation to a finished document — automatically.</h2>
+				<p class="cream-muted">The moment someone's ready to proceed, Makutano AI turns the whole conversation into a polished, branded quotation or proposal — priced from your real catalogue. Review it in a click; they open a beautiful page and accept in a single tap.</p>
 				<ul class="cap-grid">
 					{#each proposalPower as c}
 						<li><span class="dot"></span>{c}</li>
@@ -418,29 +418,29 @@
 		<div class="wrap">
 			<div class="head-narrow">
 				<div class="label">Everything you need</div>
-				<h2 class="dark">A complete sales engine. Powered by AI, tuned to your business.</h2>
+				<h2 class="dark">A complete AI engine. Tuned to your organization.</h2>
 			</div>
 			<div class="bento">
 				<div class="b b-hero">
 					<div class="b-ico"><Icon name="bot" size={26} /></div>
-					<h3>AI Sales Assistant</h3>
-					<p>Answers customer questions instantly using your own business information — not random internet knowledge.</p>
+					<h3>AI Assistant</h3>
+					<p>Answers questions instantly using your own verified information — not random internet knowledge.</p>
 					<div class="b-chat">
-						<div class="bc user">"How much is this, and do you have it available this week?"</div>
-						<div class="bc ai">It's $120 and yes — we have availability this week. It includes everything you need to get started. Want me to hold a slot for you?</div>
+						<div class="bc user">"What do I need to get started, and is it available right now?"</div>
+						<div class="bc ai">Here's exactly what you'll need — and yes, it's available. I just checked the latest status for you. Want me to walk you through the next step?</div>
 					</div>
 				</div>
-				<div class="b b-card"><div class="b-ico"><Icon name="book-open" size={22} /></div><h3>AI Knowledge</h3><p>Upload once. The AI learns your products, services, prices, policies, FAQs and everything customers ask about.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="calendar" size={22} /></div><h3>Real-Time Availability</h3><p>"Do you have it available next week?" The AI checks your real schedule before answering.</p></div>
-				<div class="b b-gold"><div class="b-ico b-ico-ink"><Icon name="message-circle" size={26} /></div><h3>WhatsApp Handoff</h3><p>Sales-ready customers land directly in your WhatsApp. No copying. No exporting. No CRM headaches.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="book-open" size={22} /></div><h3>AI Knowledge</h3><p>Upload once. The AI learns your products, services, prices, rules, policies, FAQs and everything people ask about.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="calendar" size={22} /></div><h3>Live Data &amp; Lookups</h3><p>Connect your systems and official data sources. "Is it available?", "What's the current status?" — the AI checks live before answering.</p></div>
+				<div class="b b-gold"><div class="b-ico b-ico-ink"><Icon name="message-circle" size={26} /></div><h3>WhatsApp Handoff</h3><p>Anyone who needs a person lands directly in your WhatsApp — with the full conversation. No copying, no exporting, no CRM headaches.</p></div>
 				<div class="b b-card b-wide"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>AI Lead Qualification</h3><p>Budget, timing, needs, interests & buying intent — extracted automatically into a clean lead record before you even reply.</p></div>
 					<div class="b b-card b-wide"><div class="b-ico"><Icon name="file-text" size={22} /></div><h3>AI Proposals & Quotations</h3><p>Turn a ready-to-buy chat into a branded quotation priced from your catalogue — your customer opens a premium page and accepts in one tap.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>AI Data Analyst</h3><p>Ask your business anything — "What converts best?", "Where are leads dropping off?" — answered from your real numbers, never guessed.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="bar-chart" size={22} /></div><h3>AI Data Analyst</h3><p>Ask your operation anything — "What's in demand?", "Where do enquiries stall?" — answered from your real numbers, never guessed.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="search" size={22} /></div><h3>AI Research Assistant</h3><p>Point it at a topic customers keep asking about; it researches the web and drafts a ready-to-publish knowledge entry for you to approve.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="refresh" size={22} /></div><h3>Website Sync</h3><p>Connect your website and it imports your pages automatically — deep-scanning your whole site — and keeps your AI in sync as things change.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="trending-up" size={22} /></div><h3>Sales Pipeline & Revenue</h3><p>Every enquiry scored and staged automatically — track pipeline value, conversion and revenue in one clear dashboard.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="languages" size={22} /></div><h3>Speaks Their Language</h3><p>Replies in each customer's own language, and reads photos & PDFs they send — a receipt, an ID, a screenshot of another quote.</p></div>
-				<div class="b b-card"><div class="b-ico"><Icon name="globe" size={22} /></div><h3>Hosted AI Page</h3><p>No website? We create a professional AI page for your business — with rich product & pricing cards. Just share the link.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="languages" size={22} /></div><h3>Speaks Their Language</h3><p>Replies in each person's own language, and reads photos & PDFs they send — a receipt, an ID, a screenshot, a document.</p></div>
+				<div class="b b-card"><div class="b-ico"><Icon name="globe" size={22} /></div><h3>Hosted AI Page</h3><p>No website? We create a professional AI page for your organization — with rich info & pricing cards. Just share the link.</p></div>
 				<div class="b b-card"><div class="b-ico"><Icon name="qr" size={22} /></div><h3>QR Code Chat</h3><p>Print your QR on your storefront, packaging, flyers & cards. Visitors scan and start chatting.</p></div>
 			</div>
 		</div>
@@ -452,9 +452,9 @@
 		<div class="wrap built-in">
 			<div class="built-copy">
 				<div class="head-narrow">
-					<div class="label">Built for your business</div>
-					<h2>Unlike generic chatbots, Makutano AI understands your business.</h2>
-					<p class="cream-muted">It answers using your verified business information — never random internet content. So customers always receive accurate answers.</p>
+					<div class="label">Built for your organization</div>
+					<h2>Unlike generic chatbots, Makutano AI understands your organization.</h2>
+					<p class="cream-muted">It answers using your verified information and live systems — never random internet content. So people always receive accurate answers.</p>
 				</div>
 				<ul class="built-list">
 					{#each builtWith as b}
@@ -465,7 +465,7 @@
 			<div class="built-art">
 				<img
 					src="/dedicated_ai-web.png"
-					alt="A customer chatting with a business's Makutano AI page on a phone"
+					alt="A person chatting with an organization's Makutano AI page on a phone"
 					width="814"
 					height="1000"
 					loading="lazy"
@@ -478,7 +478,7 @@
 	<section class="nowebsite">
 		<div class="wrap center">
 			<div class="label">No website? No problem.</div>
-			<h2 class="dark narrow">Wherever your customers already are, Makutano AI meets them.</h2>
+			<h2 class="dark narrow">Wherever your people already are, Makutano AI meets them.</h2>
 			<div class="chips">
 				{#each channels as c}<span class="chip">{c}</span>{/each}
 			</div>
@@ -489,8 +489,8 @@
 	<section class="love">
 		<div class="wrap">
 			<div class="head-narrow">
-				<div class="label">Why businesses love it</div>
-				<h2 class="dark">Ten reasons businesses switch to Makutano AI.</h2>
+				<div class="label">Why organizations choose it</div>
+				<h2 class="dark">Ten reasons organizations choose Makutano AI.</h2>
 			</div>
 			<div class="reasons">
 				{#each reasons as r}<div class="reason"><span class="tick"><Icon name="check" size={15} stroke={2.5} /></span>{r}</div>{/each}
@@ -503,8 +503,8 @@
 		<div class="wrap">
 			<div class="head-narrow">
 				<div class="label">Pricing</div>
-				<h2 class="dark">One sale can pay for months of Makutano AI.</h2>
-				<p class="muted">Choose the plan that fits your business. Upgrade anytime. No hidden fees.</p>
+				<h2 class="dark">Simple plans that scale with your organization.</h2>
+				<p class="muted">Choose the plan that fits. Upgrade anytime. No hidden fees.</p>
 			</div>
 			<div class="plans">
 				{#each plans as p}
@@ -545,10 +545,10 @@
 	<section class="final">
 		<div class="wrap center">
 			<div class="label">Final call</div>
-			<h2 class="big">Stop losing customers <em>while you're offline.</em></h2>
+			<h2 class="big">Never leave a question <em>unanswered.</em></h2>
 			<p class="cream-muted narrow">
-				Your next customer is already asking questions somewhere. Make sure your business answers first — let Makutano
-				AI become your smartest employee.
+				Someone is asking about you right now. Make sure they get an instant, accurate answer — and a clear next step —
+				every time. Let Makutano AI be the assistant that never clocks off.
 			</p>
 			<div class="cta-row center-row">
 				<a class="btn gold" href={ONBOARD}>Get started free</a>
@@ -566,7 +566,7 @@
 					<img src="/ICON-AI.png" alt="" />
 					<span class="foot-name">Makutano&nbsp;AI</span>
 				</a>
-				<p class="foot-tag">The AI sales assistant built for modern businesses — turn every website visitor, WhatsApp enquiry and QR scan into a qualified lead, 24/7.</p>
+				<p class="foot-tag">The AI assistant for businesses and public institutions — answer every customer and citizen instantly from your own information, look things up in your live systems, and guide people to the right next step, 24/7.</p>
 				<a class="foot-chip" href="https://wa.me/255752093014" target="_blank" rel="noopener noreferrer">
 					<Icon name="message-circle" size={15} /> Chat with us on WhatsApp
 				</a>
