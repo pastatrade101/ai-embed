@@ -476,7 +476,9 @@
 		font-family: 'Lexend Deca', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 		line-height: 1.5;
 		-webkit-font-smoothing: antialiased;
-		overflow-x: hidden;
+		/* clip (not hidden) so horizontal overflow is contained WITHOUT creating a
+		   scroll container — hidden here would break the sticky nav below. */
+		overflow-x: clip;
 	}
 	.lp :global(*) { box-sizing: border-box; }
 	.container { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
