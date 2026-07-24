@@ -464,6 +464,7 @@
 			<div class="foot-brand">
 				<a class="brand" href="#top"><img class="brand-logo" src="/ICON-AI.png" alt="" width="32" height="32" /><span class="brand-name">Makutano&nbsp;AI</span></a>
 				<p>The AI assistant for businesses and public institutions — answer every customer and citizen instantly from your own information, 24/7.</p>
+				<a class="foot-mail" href="mailto:pastory@makutano.co.tz">pastory@makutano.co.tz</a>
 			</div>
 			<nav class="foot-links">
 				<a href="#features">Features</a>
@@ -695,6 +696,8 @@
 	.foot-in { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 2rem; }
 	.foot-brand { max-width: 340px; }
 	.foot-brand p { color: var(--muted); font-size: 0.85rem; margin: 0.8rem 0 0; }
+	.foot-mail { display: inline-block; margin-top: 0.7rem; color: var(--forest); font-size: 0.85rem; font-weight: 600; text-decoration: none; }
+	.foot-mail:hover { text-decoration: underline; }
 	.foot-links { display: flex; flex-wrap: wrap; gap: 1.4rem; }
 	.foot-links a { color: var(--muted); text-decoration: none; font-size: 0.88rem; }
 	.foot-links a:hover { color: var(--text); }
