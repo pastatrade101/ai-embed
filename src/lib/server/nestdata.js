@@ -104,14 +104,19 @@ function normCategory(c) {
 	return null;
 }
 
-/** Show just the calendar date when the value starts with one; else a cleaned
- *  passthrough. We never RECOMPUTE a deadline — timezone is unknown, so relaying
- *  the portal's own value verbatim is the only honest option. */
+/** Format a NeST datetime for display. Real values look like "2026-07-30T14:00"
+ *  (no seconds, no timezone) and the submission-deadline TIME matters to bidders,
+ *  so keep it — but drop a bare "00:00" (a date-only value). We never RECOMPUTE or
+ *  shift the value: the timezone is unknown, so relaying the portal's own wall-clock
+ *  verbatim is the only honest option. Unparseable input → cleaned passthrough. */
 function fmtDate(v) {
 	const s = String(v ?? '').trim();
 	if (!s) return '';
-	const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-	return m ? m[1] + '-' + m[2] + '-' + m[3] : clean(s, 40);
+	const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/);
+	if (!m) return clean(s, 40);
+	const date = `${m[1]}-${m[2]}-${m[3]}`;
+	const time = m[4] != null ? `${m[4]}:${m[5]}` : '';
+	return time && time !== '00:00' ? `${date} ${time}` : date;
 }
 
 function buildVariables({ page = 1, pageSize = 10, category, search }) {
@@ -170,11 +175,14 @@ export async function tenderSearch({ query, category, limit } = {}) {
 			);
 		}
 		const lines = rows.map((r) => {
-			const ref = clean(r.referenceNumber || r.entityNumber || '', 50) || '(no ref)';
+			// entityNumber is the clean, canonical tender number; referenceNumber is
+			// sometimes a malformed per-stage variant (e.g. "250/TZA--S001"), so prefer
+			// the entityNumber for the identifier we show.
+			const ref = clean(r.entityNumber || r.referenceNumber || '', 50) || '(no ref)';
 			const desc = clean(r.descriptionOfTheProcurement || '', 200) || '(no description)';
 			const entity = clean(r.procuringEntityName || '', 90) || 'Unknown procuring entity';
 			const catName = clean(r.procurementCategoryName || CATS[normCategory(r.procurementCategoryAcronym)] || '', 40);
-			const sub = clean(r.entitySubCategoryName || '', 40);
+			const sub = clean(r.entitySubCategoryName || '', 60);
 			const close = fmtDate(r.submissionOrOpeningDate);
 			const lots = Number(r.lotCount);
 			const meta = [
