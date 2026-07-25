@@ -3,7 +3,7 @@
 // client_id in one place.
 import { fail } from '@sveltejs/kit';
 import { supabase } from './supabase.js';
-import { reingestItem } from './rag.js';
+import { reingestItem, reingestItems } from './rag.js';
 import { parseDetails, parseKnowledgeInput } from './knowledge.js';
 import { departuresByItem } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
@@ -198,8 +198,8 @@ export async function importKnowledge(clientId, form) {
 		return fail(400, { section: 'import', error: errors[0] ?? 'No valid rows found.' });
 	}
 
-	let created = 0;
 	const failed = [...errors];
+	const inserted = [];
 	for (const row of items) {
 		const { data: item, error } = await supabase
 			.from('knowledge_items')
@@ -218,12 +218,15 @@ export async function importKnowledge(clientId, form) {
 			failed.push(`"${row.title}": ${error.message}`);
 			continue;
 		}
-		try {
-			await reingestItem(item);
-			created++;
-		} catch (e) {
-			failed.push(`"${row.title}": saved but embedding failed — ${e.message}`);
-		}
+		inserted.push(item);
+	}
+
+	// Embed all rows in batches — one Voyage call per ~96 chunks instead of one
+	// per item — so a big import can't fan out into hundreds of rate-limited
+	// requests that leave later items silently unembedded (invisible to the AI).
+	const { done: created, failed: embedFailed } = await reingestItems(inserted, { clientId });
+	for (const { item, error } of embedFailed) {
+		failed.push(`"${item.title}": saved but embedding failed — ${error.message}`);
 	}
 
 	return {
@@ -247,16 +250,10 @@ export async function resyncEmbeddings(clientId) {
 	const missing = (items ?? []).filter((i) => !embedded.has(i.id));
 	if (!missing.length) return { section: 'resync', ok: 'Everything is already in sync — the AI can search all your knowledge.' };
 
-	let done = 0;
-	const failed = [];
-	for (const item of missing) {
-		try {
-			await reingestItem(item);
-			done++;
-		} catch (e) {
-			failed.push(`"${item.title}": ${e.message}`);
-		}
-	}
+	// Batch the re-embed so clearing a large backlog is a handful of Voyage calls,
+	// not one per item (which is what caused the backlog under the rate limit).
+	const { done, failed: embedFailed } = await reingestItems(missing, { clientId });
+	const failed = embedFailed.map(({ item, error }) => `"${item.title}": ${error.message}`);
 	const remaining = missing.length - done;
 	return {
 		section: 'resync',

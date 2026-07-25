@@ -5,6 +5,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { env } from '$env/dynamic/private';
 import { supabase } from './supabase.js';
 import { embed, embedQuery } from './embeddings.js';
+import { retrieveChunks } from './retrieval.js';
 import { chunkItem } from './knowledge.js';
 import { estimateCost } from './pricing.js';
 import { runTool } from './tools.js';
@@ -171,6 +172,7 @@ RULES — follow these exactly:
 4. Be warm and concise. ${langRule}
 5. ${leadRule}
 6. When the CONTEXT, a tool result, or the knowledge base gives an official link (website, portal, app or page) relevant to the customer's next step, include it as a clickable Markdown link — e.g. [Open the portal](https://example.org) — so it works in chat instead of plain text. Only share links that appear in your verified sources; never invent or guess a URL.
+7. Your knowledge base may hold several kinds of source (for example a law, its regulations, and related guidelines). When a question could be governed by more than one of them, don't stop at the first match in CONTEXT — call search_knowledge with focused follow-up terms to gather the other relevant sources, then answer from all of them and cite each one you used.
 
 ${ind.qualify}`;
 }
@@ -271,14 +273,11 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
 	if (question) {
 		const queryEmbedding = await embedQuery(question, { clientId: client.id, feature: 'embedding' });
 
-		// 3. Retrieve scoped chunks. Isolation is enforced in SQL (match_chunks).
-		const { data, error: matchErr } = await supabase.rpc('match_chunks', {
-			p_client_id: client.id,
-			p_query_embedding: queryEmbedding,
-			p_match_count: 5
-		});
-		if (matchErr) throw new Error(`match_chunks failed: ${matchErr.message}`);
-		chunks = data ?? [];
+		// 3. Retrieve scoped, breadth-controlled chunks. Isolation is enforced in
+		//    SQL (match_chunks); retrieveChunks over-fetches and diversifies across
+		//    documents/categories so a large single source (e.g. the regulations)
+		//    can't crowd out the Act, guidelines and everything else.
+		chunks = await retrieveChunks(client.id, queryEmbedding, { want: 12, perItem: 5, perCategory: 8 });
 	}
 
 	// 4. Run the agent loop: the model answers, and may call tools
@@ -449,13 +448,16 @@ export async function answerQuestion({ slug, messages, conversationId = null, so
  * @param {{ id:string, client_id:string, title:string, body?:string, category?:string, price_amount?:number, price_currency?:string, metadata?:object }} item
  */
 export async function reingestItem(item) {
-	// Clear old chunks so edits don't leave stale vectors behind.
-	await supabase.from('content_chunks').delete().eq('item_id', item.id);
-
 	const texts = chunkItem(item);
-	if (!texts.length) return;
+	// Embed FIRST, then delete. If embedding throws (e.g. a Voyage rate-limit),
+	// the item keeps its existing vectors instead of being left searchable-by-
+	// nobody — a delete-first order made a transient failure erase a live item.
+	const vectors = texts.length
+		? await embed(texts, 'document', { clientId: item.client_id, feature: 'knowledge_index' })
+		: [];
 
-	const vectors = await embed(texts, 'document', { clientId: item.client_id, feature: 'knowledge_index' });
+	await supabase.from('content_chunks').delete().eq('item_id', item.id);
+	if (!texts.length) return;
 
 	const rows = texts.map((content, i) => ({
 		client_id: item.client_id,
@@ -466,4 +468,70 @@ export async function reingestItem(item) {
 
 	const { error } = await supabase.from('content_chunks').insert(rows);
 	if (error) throw new Error(`chunk insert failed: ${error.message}`);
+}
+
+// Chunks per Voyage call for the bulk path. Batching collapses a big import from
+// hundreds of rate-limited single-item requests into a handful of calls.
+const EMBED_BATCH = 96;
+
+/**
+ * Batched ingestion for the bulk paths (import, re-sync). Embeds chunks across
+ * MANY items in a few Voyage calls instead of one call per item, so a large
+ * import doesn't fan out into hundreds of requests that trip the embedding rate
+ * limit and silently leave whole categories unembedded (invisible to retrieval).
+ * Embeds before deleting, and persists item-by-item, so a mid-way failure never
+ * wipes an already-visible item and never discards the batches that succeeded.
+ * @param {Array<{ id:string, client_id:string, title?:string, body?:string, category?:string, price_amount?:number, price_currency?:string, metadata?:object }>} items
+ * @param {{ clientId?: string }} [meta]
+ * @returns {Promise<{ done: number, failed: Array<{ item: object, error: Error }> }>}
+ */
+export async function reingestItems(items, meta = {}) {
+	const jobs = items.map((item) => ({ item, texts: chunkItem(item), vectors: [] }));
+
+	// Flatten every chunk (in job order) so batches can span item boundaries.
+	const flat = [];
+	jobs.forEach((job, ji) => job.texts.forEach((text) => flat.push({ ji, text })));
+
+	// Embed in batches; stop at the first hard failure but keep what already came
+	// back, so a rate-limit near the end doesn't throw away the whole import.
+	let embedError = null;
+	for (let i = 0; i < flat.length && !embedError; i += EMBED_BATCH) {
+		const slice = flat.slice(i, i + EMBED_BATCH);
+		try {
+			const vecs = await embed(
+				slice.map((s) => s.text),
+				'document',
+				{ clientId: meta.clientId, feature: 'knowledge_index' }
+			);
+			slice.forEach((s, k) => jobs[s.ji].vectors.push(vecs[k]));
+		} catch (e) {
+			embedError = e;
+		}
+	}
+
+	// Persist only items whose chunks ALL embedded (vector count === chunk count).
+	// For those, embedding already succeeded, so delete-then-insert is safe.
+	const failed = [];
+	let done = 0;
+	for (const { item, texts, vectors } of jobs) {
+		if (vectors.length !== texts.length) {
+			failed.push({ item, error: embedError ?? new Error('embedding incomplete') });
+			continue;
+		}
+		try {
+			await supabase.from('content_chunks').delete().eq('item_id', item.id);
+			const rows = texts.map((content, i) => ({
+				client_id: item.client_id,
+				item_id: item.id,
+				content,
+				embedding: vectors[i]
+			}));
+			const { error } = await supabase.from('content_chunks').insert(rows);
+			if (error) throw new Error(error.message);
+			done++;
+		} catch (e) {
+			failed.push({ item, error: e });
+		}
+	}
+	return { done, failed };
 }

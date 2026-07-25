@@ -4,6 +4,7 @@
 // new prompt logic.
 import { env } from '$env/dynamic/private';
 import { embedQuery } from './embeddings.js';
+import { retrieveChunks } from './retrieval.js';
 import { supabase } from './supabase.js';
 import { sendLeadEmail } from './email.js';
 import { searchTours, getTourPrice } from './tours.js';
@@ -141,14 +142,16 @@ export async function runTool(name, input, ctx) {
 	if (name === 'search_knowledge') {
 		const q = String(input?.query ?? '').trim();
 		if (!q) return 'No query provided.';
-		const emb = await embedQuery(q, { clientId: ctx.client.id, feature: 'embedding' });
-		const { data, error } = await supabase.rpc('match_chunks', {
-			p_client_id: ctx.client.id,
-			p_query_embedding: emb,
-			p_match_count: 5
-		});
-		if (error) return `Search failed: ${error.message}`;
-		if (!data || !data.length) return 'No matching information found in the catalogue.';
+		let data;
+		try {
+			// Embedding is inside the try so a Voyage failure mid-conversation returns
+			// a tool-safe string instead of throwing out of the agent loop (a 500).
+			const emb = await embedQuery(q, { clientId: ctx.client.id, feature: 'embedding' });
+			data = await retrieveChunks(ctx.client.id, emb, { want: 10, perItem: 4, perCategory: 7 });
+		} catch (e) {
+			return `Search failed: ${e.message}`;
+		}
+		if (!data.length) return 'No matching information found in the catalogue.';
 		return data.map((c, i) => `[${i + 1}] ${c.content}`).join('\n\n');
 	}
 
