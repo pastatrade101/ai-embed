@@ -49,6 +49,20 @@
 		return hay.includes(q);
 	});
 
+	// ---- Pagination: knowledge lists can be long (e.g. imported legislation). ----
+	const perPage = 25;
+	let page = 1;
+	let listTop;
+	$: pageCount = Math.max(1, Math.ceil(filtered.length / perPage));
+	// Reset to the first page whenever the search or filter changes.
+	$: filterKey = q + '|' + filter;
+	let lastKey = '';
+	$: if (filterKey !== lastKey) { lastKey = filterKey; page = 1; }
+	$: if (page > pageCount) page = pageCount; // clamp when the result set shrinks
+	$: pageStart = (page - 1) * perPage;
+	$: paged = filtered.slice(pageStart, pageStart + perPage);
+	const gotoPage = (p) => { page = Math.min(pageCount, Math.max(1, p)); listTop?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+
 	const metaVal = (md, ...keys) => {
 		if (!md || typeof md !== 'object' || Array.isArray(md)) return null;
 		for (const k of Object.keys(md)) {
@@ -248,7 +262,12 @@
 {/if}
 
 <!-- Item cards ------------------------------------------------------------->
-{#each filtered as item (item.id)}
+{#if filtered.length}
+	<div class="kb-count" bind:this={listTop}>
+		Showing {pageStart + 1}–{Math.min(pageStart + perPage, filtered.length)} of {filtered.length}
+	</div>
+{/if}
+{#each paged as item (item.id)}
 	<div class="card kb-item">
 		{#if editing === item.id}
 			<form class="grid" method="POST" action="?/updateItem" use:enhance={closeAfter}>
@@ -340,6 +359,14 @@
 		{/if}
 	</div>
 {/each}
+
+{#if pageCount > 1}
+	<div class="kb-pager">
+		<button class="btn ghost sm" type="button" disabled={page === 1} on:click={() => gotoPage(page - 1)}>← Prev</button>
+		<span class="kb-pager-info">Page {page} of {pageCount}</span>
+		<button class="btn ghost sm" type="button" disabled={page === pageCount} on:click={() => gotoPage(page + 1)}>Next →</button>
+	</div>
+{/if}
 
 <!-- Bulk import (secondary) ------------------------------------------------->
 <div class="card">
@@ -458,6 +485,29 @@
 		flex-wrap: wrap;
 		margin-bottom: 1rem;
 		overflow-x: auto;
+	}
+	.kb-count {
+		font-size: 0.8rem;
+		color: var(--muted);
+		margin: 0.2rem 0 0.6rem;
+		scroll-margin-top: 1rem;
+	}
+	.kb-pager {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 1rem;
+		margin: 1.2rem 0 0.4rem;
+	}
+	.kb-pager-info {
+		font-size: 0.85rem;
+		color: var(--muted);
+		min-width: 6.5rem;
+		text-align: center;
+	}
+	.kb-pager .btn[disabled] {
+		opacity: 0.45;
+		cursor: default;
 	}
 	.kb-chip {
 		display: inline-flex;
