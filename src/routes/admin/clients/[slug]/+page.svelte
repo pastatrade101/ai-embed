@@ -142,7 +142,7 @@
 		admin
 		plans={data.plans}
 		action="?/updateClient"
-		allowUpload={false}
+		uploadEndpoint={`/admin/clients/${data.client.slug}/upload`}
 		manageKnowledgeHref={null}
 	/>
 
