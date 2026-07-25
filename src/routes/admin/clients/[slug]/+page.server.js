@@ -9,7 +9,9 @@ import {
 	addKnowledge,
 	updateKnowledge,
 	deleteKnowledge,
+	duplicateKnowledge,
 	importKnowledge,
+	resyncEmbeddings,
 	addDeparture,
 	deleteDeparture,
 	updateClientSettings
@@ -114,9 +116,20 @@ export const actions = {
 		const client = await requireClient(params.slug);
 		return deleteKnowledge(client.id, await request.formData());
 	},
+	duplicateItem: async ({ request, params }) => {
+		const client = await requireClient(params.slug);
+		return duplicateKnowledge(client.id, await request.formData());
+	},
 	bulkImport: async ({ request, params }) => {
 		const client = await requireClient(params.slug);
 		return importKnowledge(client.id, await request.formData());
+	},
+	// Re-embed this client's items that have no vectors yet (e.g. after a
+	// rate-limited bulk import). The shared KnowledgeManager's "Re-sync AI"
+	// button posts here; without this action the admin page 404s on ?/resync.
+	resync: async ({ params }) => {
+		const client = await requireClient(params.slug);
+		return resyncEmbeddings(client.id);
 	},
 	addDeparture: async ({ request, params }) => {
 		const client = await requireClient(params.slug);
