@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import ClientStatTiles from '$lib/components/ClientStatTiles.svelte';
 	import KnowledgeManager from '$lib/components/KnowledgeManager.svelte';
+	import ClientSettingsForm from '$lib/components/ClientSettingsForm.svelte';
 	import LeadsTable from '$lib/components/LeadsTable.svelte';
 	import ConversationList from '$lib/components/ConversationList.svelte';
 	import { readableInk } from '$lib/luminance.js';
@@ -133,42 +134,17 @@
 {/if}
 
 {#if tab === 'settings'}
-	{#if form?.section === 'client'}{#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}<div class="notice">{form.ok}</div>{/if}{/if}
-	<form class="card grid" method="POST" action="?/updateClient" use:enhance>
-		<h2 class="section">Business profile</h2>
-		<div class="row">
-			<div><label for="s-name">Business name</label><input id="s-name" name="name" value={client.name} required /></div>
-			<div><label for="s-type">Business type</label><input id="s-type" name="business_type" value={client.business_type ?? ''} /></div>
-		</div>
-		<div class="row">
-			<div><label for="s-wa">WhatsApp number</label><input id="s-wa" name="whatsapp_number" value={client.whatsapp_number ?? ''} placeholder="+255…" /></div>
-			<div><label for="s-email">Lead notification email</label><input id="s-email" name="lead_email" type="email" value={client.lead_email ?? ''} /></div>
-		</div>
-		<div class="row">
-			<div><label for="s-color">Brand color</label><input id="s-color" name="brand_color" type="color" value={client.brand_color ?? '#0f6e56'} style="height:44px;padding:.25rem" /></div>
-			<div style="display:flex;align-items:flex-end;gap:.5rem;padding-bottom:.6rem"><input id="s-active" name="is_active" type="checkbox" checked={client.is_active} style="width:auto" /><label for="s-active" style="margin:0">Active — answer visitor questions</label></div>
-		</div>
-		<div><label for="s-ctx">Business context (injected into the system prompt)</label><textarea id="s-ctx" name="business_context">{client.business_context ?? ''}</textarea></div>
-
-		<h2 class="section">Subscription</h2>
-		<div class="row">
-			<div>
-				<label for="s-plan">Plan</label>
-				<select id="s-plan" name="plan">
-					{#each data.plans as p}<option value={p.key} selected={client.plan === p.key}>{p.name} — {planPrice(p)} · ≈ {nf(planConversations(p))} conv</option>{/each}
-				</select>
-				<div class="hint">Changing the plan updates the monthly conversation cap.</div>
-			</div>
-			<div>
-				<label for="s-status">Subscription status</label>
-				<select id="s-status" name="subscription_status">
-					{#each ['active', 'trialing', 'past_due', 'canceled'] as st}<option value={st} selected={client.subscription_status === st}>{st}</option>{/each}
-				</select>
-				<div class="hint">Past-due / canceled pauses answering at the cap.</div>
-			</div>
-		</div>
-		<div><button type="submit">Save settings</button></div>
-	</form>
+	<ClientSettingsForm
+		client={data.client}
+		industry={industryOf(data.client)}
+		knowledgeCount={data.items?.length ?? null}
+		{form}
+		admin
+		plans={data.plans}
+		action="?/updateClient"
+		allowUpload={false}
+		manageKnowledgeHref={null}
+	/>
 
 	{#if form?.section === 'tools'}{#if form?.error}<div class="notice err">{form.error}</div>{:else if form?.ok}<div class="notice">{form.ok}</div>{/if}{/if}
 	<form class="card grid" method="POST" action="?/updateToolPacks" use:enhance>
