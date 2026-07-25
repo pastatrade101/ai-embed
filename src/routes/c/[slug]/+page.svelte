@@ -105,7 +105,9 @@
 					: 'Explore tours and plan your trip with our AI travel assistant, 24/7.'
 				: `Ask ${client.name || 'us'} about ${terms.items}, prices and details — answered instantly by AI, 24/7.`)
 	);
-	$: ogImage = client.logo || (seoOrigin ? `${seoOrigin}/og-image.png` : '');
+	// Share image: the client's own logo if set, else a NEUTRAL Makutano mark.
+	// (Never the tourism marketing card — hosted pages serve every industry.)
+	$: ogImage = client.logo || (seoOrigin ? `${seoOrigin}/Makutano_AI_Logo.png` : '');
 	$: jsonLd = JSON.stringify({
 		'@context': 'https://schema.org',
 		'@type': schemaType,
