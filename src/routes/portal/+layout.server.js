@@ -5,6 +5,7 @@ import { error } from '@sveltejs/kit';
 import { getClientById } from '$lib/server/tenant.js';
 import { industryOf } from '$lib/industries.js';
 import { serverIndustry } from '$lib/server/industries.js';
+import { budgetStatus } from '$lib/server/credits.js';
 
 export async function load({ locals }) {
 	if (!locals.user?.client_id) throw error(403, 'No business is linked to this account.');
@@ -13,5 +14,13 @@ export async function load({ locals }) {
 	// Lead-free industries (e.g. government) have no create_lead tool — hide the
 	// Leads nav so operators aren't shown a pipeline the assistant never fills.
 	const leadsEnabled = serverIndustry(client).tools.some((t) => t.name === 'create_lead');
-	return { user: locals.user, client, industry: industryOf(client), leadsEnabled };
+	// Monthly-capacity status drives the in-app usage banner. Fail open (no banner)
+	// so a metering hiccup never blocks the portal.
+	let usage = null;
+	try {
+		usage = await budgetStatus(client.id, client.plan);
+	} catch {
+		usage = null;
+	}
+	return { user: locals.user, client, industry: industryOf(client), leadsEnabled, usage };
 }

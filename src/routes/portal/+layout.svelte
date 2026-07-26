@@ -1,6 +1,7 @@
 <script>
 	import { page } from '$app/stores';
 	import AppShell from '$lib/components/AppShell.svelte';
+	import UsageBanner from '$lib/components/UsageBanner.svelte';
 	import { readableInk } from '$lib/luminance.js';
 	export let data;
 
@@ -74,5 +75,6 @@
 
 	<span slot="topbar" class="badge dot {client.is_active ? '' : 'off'}">{client.is_active ? 'assistant live' : 'assistant paused'}</span>
 
+	<UsageBanner usage={data.usage} />
 	<slot />
 </AppShell>
