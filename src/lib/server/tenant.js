@@ -4,6 +4,8 @@
 import { fail } from '@sveltejs/kit';
 import { supabase } from './supabase.js';
 import { reingestItem, reingestItems } from './rag.js';
+import { platformConfig } from './platform-config.js';
+import { usedThisMonth, logUsage } from './ai.js';
 import { parseDetails, parseKnowledgeInput } from './knowledge.js';
 import { departuresByItem } from './tours.js';
 import { FEATURE, planAllows } from './gating.js';
@@ -196,6 +198,29 @@ export async function importKnowledge(clientId, form) {
 	const { items, errors } = parseKnowledgeInput(form.get('input'));
 	if (!items.length) {
 		return fail(400, { section: 'import', error: errors[0] ?? 'No valid rows found.' });
+	}
+
+	// Fair-usage: optional monthly bulk-import RUN quota. 0 = unlimited (default),
+	// so this is a no-op until an operator sets QUOTA_BULK_IMPORT. Fail-open — a
+	// metering hiccup must never block a legitimate import.
+	const importLimit = platformConfig().quotas.bulkImport;
+	if (importLimit > 0) {
+		try {
+			if ((await usedThisMonth(clientId, 'bulk_import_run')) >= importLimit) {
+				return fail(429, {
+					section: 'import',
+					error: `You've reached this month's bulk-import limit (${importLimit}). It resets next month — or contact support to raise it.`
+				});
+			}
+		} catch {
+			/* metering unavailable → don't block */
+		}
+	}
+	// Record this run so the quota can count it (fail-open, zero-cost marker).
+	try {
+		await logUsage(clientId, 'bulk_import_run', 'system', {});
+	} catch {
+		/* ignore */
 	}
 
 	const failed = [...errors];

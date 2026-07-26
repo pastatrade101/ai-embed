@@ -2,6 +2,21 @@
 	export let data;
 	$: health = data.health;
 	const statusWord = (s) => (s === 'operational' ? 'Operational' : 'Not set up');
+
+	// Fair-usage safeguards (env-overridable; defaults keep current behaviour).
+	$: cfg = data.config;
+	$: safeguards = cfg
+		? [
+				{ label: 'Bulk-import runs / tenant / month', value: cfg.quotas.bulkImport ? cfg.quotas.bulkImport : 'Unlimited', env: 'QUOTA_BULK_IMPORT' },
+				{ label: 'Website-sync runs / tenant / month', value: cfg.quotas.websiteSync ? cfg.quotas.websiteSync : 'Unlimited', env: 'QUOTA_WEBSITE_SYNC' },
+				{ label: 'Max upload size', value: `${cfg.limits.maxUploadMB} MB`, env: 'MAX_UPLOAD_MB' },
+				{ label: 'Max document size', value: `${cfg.limits.maxDocMB} MB`, env: 'MAX_DOC_MB' },
+				{ label: 'Input-token ceiling / request', value: cfg.limits.tokenSafetyMaxInput ? cfg.limits.tokenSafetyMaxInput.toLocaleString() : 'Off', env: 'TOKEN_SAFETY_MAX_INPUT' },
+				{ label: 'AI models available', value: cfg.models.enabled.length ? cfg.models.enabled.join(', ') : 'All', env: 'MODELS_ENABLED' },
+				{ label: 'Flag paying tenant above', value: `${cfg.fairUse.costPct}% cost / revenue`, env: 'FAIR_USE_COST_PCT' },
+				{ label: 'Flag free tenant above', value: `$${cfg.fairUse.freeUSD} / mo AI`, env: 'FAIR_USE_FREE_USD' }
+		  ]
+		: [];
 </script>
 
 <div class="page-head"><div><h1>Settings</h1><div class="sub">Platform status, integrations and what isn’t tracked yet.</div></div></div>
@@ -30,6 +45,31 @@
 		</div>
 		<p class="fineprint">Point-in-time check (reachability + configuration) — not a historical uptime %, which we don’t log.</p>
 	</div>
+
+	<!-- LIMITS & SAFEGUARDS -->
+	{#if cfg}
+		<h2 class="section">Limits &amp; safeguards</h2>
+		<div class="card">
+			<p class="sg-intro">Fair-usage protections behind the conversation-based pricing. Each is editable via an environment variable — no code or schema change — and defaults keep current behaviour (0 / “Unlimited” means off).</p>
+			<div class="sg-grid">
+				{#each safeguards as s}
+					<div class="sg">
+						<div class="sg-l">{s.label}</div>
+						<div class="sg-v">{s.value}</div>
+						<code class="sg-env">{s.env}</code>
+					</div>
+				{/each}
+			</div>
+			<p class="fineprint">
+				{#if data.profitability?.flaggedCount}
+					⚠ {data.profitability.flaggedCount} tenant{data.profitability.flaggedCount === 1 ? '' : 's'} flagged for cost review — <a href="/admin/revenue">see Revenue →</a>.
+				{:else}
+					No tenants currently flagged for cost review.
+				{/if}
+				Per-plan AI-agent quotas (research, analyst) are set on <a href="/admin/plans">Plans</a>.
+			</p>
+		</div>
+	{/if}
 
 	<!-- ROADMAP -->
 	<h2 class="section">Not yet tracked</h2>
@@ -126,6 +166,18 @@
 	.hc-status.unconfigured {
 		color: var(--faint);
 	}
+
+	/* Limits & safeguards */
+	.sg-intro { font-size: 0.85rem; color: var(--muted); margin: 0 0 0.9rem; }
+	.sg-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.6rem; }
+	.sg {
+		display: flex; flex-direction: column; gap: 0.15rem;
+		padding: 0.7rem 0.8rem; background: var(--panel-2); border-radius: 10px;
+	}
+	.sg-l { font-size: 0.78rem; color: var(--muted); }
+	.sg-v { font-size: 0.98rem; font-weight: 700; color: var(--strong); }
+	.sg-env { font-size: 0.68rem; color: var(--faint); font-family: ui-monospace, monospace; margin-top: 0.15rem; }
+	.fineprint a { color: var(--mint); text-decoration: none; font-weight: 600; }
 
 	/* Roadmap */
 	.roadmap {

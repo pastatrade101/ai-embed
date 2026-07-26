@@ -71,10 +71,10 @@ const USD_TO_PLATFORM = 2600;
  * Thresholds are constants here; Phase 4 surfaces them as editable admin config.
  * @returns {{ toReview: object[], flaggedCount: number, fleetCostPct: number|null, thresholds: object }}
  */
-export function tenantProfitability(clients, plans, costByClient = {}, currency = 'USD') {
+export function tenantProfitability(clients, plans, costByClient = {}, currency = 'USD', thresholds = {}) {
 	const pm = planMap(plans);
-	const FLAG_COST_PCT = 50; // paying tenant: AI cost > 50% of revenue → review
-	const FREE_ABUSE_USD = 2; // non-paying tenant burning > $2/mo AI → review
+	const FLAG_COST_PCT = Number(thresholds.costPct) > 0 ? Number(thresholds.costPct) : 50; // paying: AI cost > N% of revenue → review
+	const FREE_ABUSE_USD = Number(thresholds.freeUSD) > 0 ? Number(thresholds.freeUSD) : 2; // non-paying burning > $N/mo AI → review
 	const toUSD = (platform) => (currency === 'USD' ? platform : platform / USD_TO_PLATFORM);
 
 	const rows = (clients ?? []).map((c) => {

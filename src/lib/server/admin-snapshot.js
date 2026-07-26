@@ -24,6 +24,7 @@ import {
 	platformInsight
 } from '$lib/server/admin.js';
 import { industryRollups, execSummary, platformInsights } from '$lib/server/admin-intelligence.js';
+import { platformConfig } from '$lib/server/platform-config.js';
 
 const DAY = 86400000;
 
@@ -181,8 +182,10 @@ export async function adminSnapshot({ locals }) {
 		// and a deterministic platform-insight feed. All real, all derived here.
 		const billing = { failedPayments, upcomingRenewals, trialing, pastDue, canceled, mrr: rev.mrr, arr: rev.arr, currency: rev.currency };
 		const industries = industryRollups(clients, plans, spend.costByClient);
+		// Platform safeguards (env-overridable) drive the fair-use flags + the panel.
+		const config = platformConfig();
 		// Per-tenant profitability + "tenants to review" flags (no effect on customers).
-		const profitability = tenantProfitability(clients, plans, spend.costByClient, rev.currency);
+		const profitability = tenantProfitability(clients, plans, spend.costByClient, rev.currency, config.fairUse);
 
 		return {
 			superName,
@@ -193,6 +196,7 @@ export async function adminSnapshot({ locals }) {
 			billing,
 			industries,
 			profitability,
+			config,
 			execSummary: execSummary({ totals, revenue: rev, spend, billing }),
 			platformInsights: platformInsights({ clients, revenue: rev, spend, industries, totals, billing }),
 			attention: attention(clients),
