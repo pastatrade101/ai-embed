@@ -17,6 +17,10 @@
 	const USD_TZS = 2600;
 	const inRevCur = (usd) => (rev?.currency === 'USD' ? usd : usd * USD_TZS);
 
+	$: prof = data.profitability;
+	const flagLabel = (f) =>
+		f === 'loss' ? 'Running at a loss' : f === 'thin-margin' ? 'Thin margin' : f === 'free-heavy' ? 'Heavy free usage' : '';
+
 	$: planColor = (() => {
 		const m = new Map();
 		(rev?.byPlan ?? []).forEach((p, i) => m.set(p.key, PALETTE[i % PALETTE.length]));
@@ -91,8 +95,35 @@
 				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.qualified ? spend.cost / t.qualified : 0))}</div><div class="mt-l">Cost / qualified lead</div></div>
 				<div class="mini-tile"><div class="mt-v">{money(inRevCur(t.clients ? spend.cost / t.clients : 0))}</div><div class="mt-l">Cost / tenant</div></div>
 				<div class="mini-tile"><div class="mt-v">{rev.mrr > 0 ? Math.round(((rev.mrr - inRevCur(spend.projected)) / rev.mrr) * 100) + '%' : '—'}</div><div class="mt-l">Projected gross margin</div></div>
+				<div class="mini-tile"><div class="mt-v">{rev.mrr > 0 ? money(rev.mrr - inRevCur(spend.projected)) : '—'}</div><div class="mt-l">Projected gross profit</div></div>
+				<div class="mini-tile"><div class="mt-v">{prof?.fleetCostPct != null ? prof.fleetCostPct + '%' : '—'}</div><div class="mt-l">AI cost % of revenue</div></div>
 			</div>
 		</div>
+		{#if prof?.toReview?.length}
+			<div class="card" style="margin-top:1rem">
+				<div class="bars-head">Tenants to review · AI cost vs revenue <span class="cnt">{prof.flaggedCount}</span></div>
+				<div class="prof-wrap">
+					<table class="prof">
+						<thead><tr><th>Tenant</th><th>Plan</th><th>Revenue / mo</th><th>AI cost / mo</th><th>Margin</th><th>Flag</th></tr></thead>
+						<tbody>
+							{#each prof.toReview as r}
+								<tr>
+									<td>{r.name}</td>
+									<td class="mono">{r.plan}</td>
+									<td>{r.paying ? money(r.revenue) : 'free'}</td>
+									<td>{money(inRevCur(r.aiCostUSD))}</td>
+									<td class="mono" class:neg={r.marginPct != null && r.marginPct < 0} class:warn={r.marginPct != null && r.marginPct >= 0 && r.marginPct < 40}>{r.marginPct == null ? '—' : r.marginPct + '%'}</td>
+									<td><span class="flag {r.flag}">{flagLabel(r.flag)}</span></td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+				<p class="fineprint">Flagged when a paying tenant's AI cost exceeds {prof.thresholds.costPct}% of their revenue, or a free tenant burns more than ${prof.thresholds.freeUSD}/mo in AI. Informational only — normal customers are never interrupted.</p>
+			</div>
+		{:else if spend.tracked}
+			<div class="card empty-soft" style="margin-top:1rem">All tenants are within healthy AI-cost margins.</div>
+		{/if}
 		{#if spend.topSpenders?.length}
 			<div class="card" style="margin-top:1rem">
 				<div class="bars-head">Top AI spenders · this month</div>
@@ -185,6 +216,35 @@
 		color: var(--muted);
 		margin-bottom: 0.8rem;
 	}
+	.bars-head .cnt {
+		display: inline-block;
+		margin-left: 0.4rem;
+		background: rgba(239, 68, 68, 0.2);
+		color: #fca5a5;
+		font-size: 0.72rem;
+		font-weight: 800;
+		padding: 0.05rem 0.45rem;
+		border-radius: 999px;
+	}
+	/* Profitability table */
+	.prof-wrap { overflow-x: auto; }
+	.prof { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+	.prof th {
+		text-align: left; font-weight: 600; color: var(--muted);
+		padding: 0.35rem 0.55rem; border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		white-space: nowrap;
+	}
+	.prof td { padding: 0.45rem 0.55rem; border-bottom: 1px solid rgba(255, 255, 255, 0.06); white-space: nowrap; }
+	.prof tr:last-child td { border-bottom: none; }
+	.prof .neg { color: #fca5a5; }
+	.prof .warn { color: #fcd34d; }
+	.flag {
+		font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem;
+		border-radius: 999px; white-space: nowrap;
+	}
+	.flag.loss { background: rgba(239, 68, 68, 0.18); color: #fca5a5; }
+	.flag.thin-margin { background: rgba(234, 179, 8, 0.18); color: #fcd34d; }
+	.flag.free-heavy { background: rgba(59, 130, 246, 0.18); color: #bfdbfe; }
 	.bar-row {
 		display: flex;
 		align-items: center;

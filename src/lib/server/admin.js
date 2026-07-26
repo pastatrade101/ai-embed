@@ -55,6 +55,49 @@ export function revenue(clients, plans) {
 	};
 }
 
+// Approx TZS/USD — mirrors the revenue page's display rate so server-side ratios
+// and on-screen amounts agree.
+const USD_TO_PLATFORM = 2600;
+
+/**
+ * Per-tenant profitability + a "to review" flag list (profitability monitoring).
+ * Compares each tenant's monthly plan revenue against their metered AI cost this
+ * month and flags tenants worth a look — WITHOUT touching normal customers:
+ *   • paying tenants whose AI cost exceeds FLAG_COST_PCT of their revenue
+ *     (thin margin), or 100%+ (running at a loss); and
+ *   • non-paying/free tenants burning more than FREE_ABUSE_USD of AI a month.
+ * Ratios are computed in a single currency (USD) so they're correct regardless of
+ * plan currency; revenue is also returned in platform currency for display.
+ * Thresholds are constants here; Phase 4 surfaces them as editable admin config.
+ * @returns {{ toReview: object[], flaggedCount: number, fleetCostPct: number|null, thresholds: object }}
+ */
+export function tenantProfitability(clients, plans, costByClient = {}, currency = 'USD') {
+	const pm = planMap(plans);
+	const FLAG_COST_PCT = 50; // paying tenant: AI cost > 50% of revenue → review
+	const FREE_ABUSE_USD = 2; // non-paying tenant burning > $2/mo AI → review
+	const toUSD = (platform) => (currency === 'USD' ? platform : platform / USD_TO_PLATFORM);
+
+	const rows = (clients ?? []).map((c) => {
+		const price = Number(pm.get(c.plan)?.price_amount) || 0; // platform currency
+		const paying = c.is_active && c.subscription_status === 'active' && price > 0;
+		const aiCostUSD = Number(costByClient[c.id]) || 0;
+		const revenueUSD = toUSD(price);
+		const costPct = revenueUSD > 0 ? Math.round((aiCostUSD / revenueUSD) * 100) : null;
+		const marginPct = costPct == null ? null : 100 - costPct;
+		let flag = null;
+		if (paying && costPct != null && costPct >= FLAG_COST_PCT) flag = costPct >= 100 ? 'loss' : 'thin-margin';
+		else if (!paying && aiCostUSD >= FREE_ABUSE_USD) flag = 'free-heavy';
+		return { id: c.id, name: c.name, plan: c.plan, paying, revenue: price, aiCostUSD, costPct, marginPct, flag };
+	});
+
+	const toReview = rows.filter((r) => r.flag).sort((a, b) => b.aiCostUSD - a.aiCostUSD);
+	const totalRevUSD = rows.reduce((s, r) => s + (r.paying ? toUSD(r.revenue) : 0), 0);
+	const totalCostUSD = rows.reduce((s, r) => s + r.aiCostUSD, 0);
+	const fleetCostPct = totalRevUSD > 0 ? Math.round((totalCostUSD / totalRevUSD) * 100) : null;
+
+	return { toReview, flaggedCount: toReview.length, fleetCostPct, thresholds: { costPct: FLAG_COST_PCT, freeUSD: FREE_ABUSE_USD } };
+}
+
 /* ---------------------------------------------------------------- health -- */
 
 /**

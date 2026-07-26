@@ -18,6 +18,7 @@ import {
 	activity,
 	leaderboard,
 	aiSpend,
+	tenantProfitability,
 	dailySeries,
 	growthSeries,
 	platformInsight
@@ -180,6 +181,8 @@ export async function adminSnapshot({ locals }) {
 		// and a deterministic platform-insight feed. All real, all derived here.
 		const billing = { failedPayments, upcomingRenewals, trialing, pastDue, canceled, mrr: rev.mrr, arr: rev.arr, currency: rev.currency };
 		const industries = industryRollups(clients, plans, spend.costByClient);
+		// Per-tenant profitability + "tenants to review" flags (no effect on customers).
+		const profitability = tenantProfitability(clients, plans, spend.costByClient, rev.currency);
 
 		return {
 			superName,
@@ -189,6 +192,7 @@ export async function adminSnapshot({ locals }) {
 			health,
 			billing,
 			industries,
+			profitability,
 			execSummary: execSummary({ totals, revenue: rev, spend, billing }),
 			platformInsights: platformInsights({ clients, revenue: rev, spend, industries, totals, billing }),
 			attention: attention(clients),
