@@ -113,6 +113,12 @@
 		};
 	});
 
+	// Fair-usage transparency (pricing section).
+	const CONV_TOOLTIP =
+		'Estimated capacity based on typical AI conversations. Actual usage may vary depending on conversation length and advanced AI features.';
+	const FAIR_USE_NOTE =
+		'Conversation estimates are based on standard usage. Fair usage applies to unusually long conversations, large document processing, AI research tasks, and automated knowledge synchronization.';
+
 	const faqs = [
 		{ q: 'Is this just a chatbot?', a: 'No. It answers from your own verified information — and can look things up in your live systems in real time. Alongside the public-facing assistant you get an AI analyst that answers questions from your real data, an AI researcher that drafts new knowledge for you to approve, automatic website sync, and a scored pipeline of everyone who reaches out.' },
 		{ q: 'Who is it for?', a: 'Any organisation that answers questions all day — businesses turning enquiries into sales, and public institutions serving citizens. The same assistant adapts to your sector, your language and your information.' },
@@ -411,7 +417,13 @@
 				{#each plans as p}
 					<div class="plan" class:hot={p.highlight}>
 						{#if p.highlight}<div class="plan-pop">Most popular</div>{/if}
-						<div class="plan-tag">{p.tag}</div>
+						<div class="plan-tag">
+							<span>{p.tag}</span>
+							<span class="tip">
+								<span class="tip-ic" tabindex="0" role="button" aria-label={CONV_TOOLTIP}><Icon name="info" size={13} /></span>
+								<span class="tip-bub" role="tooltip">{CONV_TOOLTIP}</span>
+							</span>
+						</div>
 						<div class="plan-name">{p.name}</div>
 						<div class="plan-price">{p.price}{#if p.paid}<span>/mo</span>{/if}</div>
 						<ul>
@@ -421,6 +433,7 @@
 					</div>
 				{/each}
 			</div>
+			<p class="fair-note">{FAIR_USE_NOTE}</p>
 		</div>
 	</section>
 
@@ -473,6 +486,7 @@
 				<a href={ONBOARD}>Get started</a>
 				<a href={LOGIN}>Sign in</a>
 				<a href="/privacy-policy">Privacy Policy</a>
+				<a href="/terms">Terms &amp; Fair Usage</a>
 				<a href="https://wa.me/255752093014" target="_blank" rel="noopener noreferrer">WhatsApp</a>
 			</nav>
 			<p class="foot-copy">© {new Date().getFullYear()} Makutano&nbsp;AI. All rights reserved.</p>
@@ -663,16 +677,43 @@
 	.chip:hover { border-color: var(--gold-soft); background: var(--cream); }
 
 	/* Pricing */
-	.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.4rem; align-items: start; }
-	.plan { position: relative; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 2rem 1.7rem; display: flex; flex-direction: column; }
-	.plan.hot { border-color: var(--forest); box-shadow: 0 24px 50px -28px rgba(16, 54, 42, 0.4); }
-	.plan-pop { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink); font-size: 0.72rem; font-weight: 700; padding: 0.28rem 0.9rem; border-radius: 999px; }
-	.plan-tag { color: var(--muted); font-size: 0.78rem; }
+	.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1.4rem; align-items: stretch; }
+	.plan { position: relative; background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 2rem 1.7rem; display: flex; flex-direction: column; transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease; will-change: transform; }
+	.plan:hover { transform: translateY(-6px); box-shadow: 0 22px 44px -26px rgba(16, 54, 42, 0.32); border-color: rgba(16, 54, 42, 0.28); }
+	/* Emphasise the most-popular plan: gold ring, lift, and a slight scale on desktop. */
+	.plan.hot { border-color: var(--forest); box-shadow: 0 26px 54px -26px rgba(16, 54, 42, 0.45); z-index: 1; }
+	.plan.hot::after { content: ''; position: absolute; inset: -1px; border-radius: 20px; border: 2px solid var(--gold); pointer-events: none; opacity: 0.55; }
+	.plan.hot:hover { transform: translateY(-6px); }
+	@media (min-width: 900px) {
+		.plan.hot { transform: scale(1.045); }
+		.plan.hot:hover { transform: scale(1.045) translateY(-6px); }
+	}
+	.plan-pop { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--gold); color: var(--ink); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.02em; padding: 0.3rem 0.95rem; border-radius: 999px; box-shadow: 0 6px 16px -6px rgba(224, 178, 76, 0.7); }
+	.plan-tag { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.8rem; margin: 0.35rem 0 0.15rem; min-height: 1.2rem; }
 	.plan-name { font-weight: 700; font-size: 1.15rem; margin: 0.3rem 0 0.6rem; }
 	.plan-price { font-weight: 800; font-size: 2rem; color: var(--ink); margin-bottom: 1.2rem; }
 	.plan-price span { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
 	.plan ul { list-style: none; padding: 0; margin: 0 0 1.5rem; display: flex; flex-direction: column; gap: 0.65rem; flex: 1; }
 	.plan li { display: flex; align-items: flex-start; gap: 0.55rem; font-size: 0.88rem; color: var(--text); }
+	/* Pricing CTA states */
+	.plan .btn.full { transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease, color 0.16s ease; }
+	.plan .btn.full:hover { transform: translateY(-1px); }
+	.plan .btn.full:active { transform: translateY(0); }
+	.plan .btn.full:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+	/* Conversation-count tooltip */
+	.tip { position: relative; display: inline-flex; }
+	.tip-ic { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 999px; color: var(--muted); cursor: help; transition: color 0.15s ease, background 0.15s ease; }
+	.tip-ic:hover, .tip-ic:focus-visible { color: var(--forest); background: rgba(16, 54, 42, 0.08); outline: none; }
+	.tip-bub { position: absolute; bottom: calc(100% + 9px); left: 50%; transform: translateX(-50%) translateY(4px); width: max-content; max-width: 240px; background: var(--ink, #10362a); color: #fff; font-size: 0.74rem; line-height: 1.4; text-align: left; padding: 0.55rem 0.7rem; border-radius: 10px; box-shadow: 0 12px 28px -12px rgba(0, 0, 0, 0.45); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 0.16s ease, transform 0.16s ease; z-index: 5; }
+	.tip-bub::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: var(--ink, #10362a); }
+	.tip:hover .tip-bub, .tip:focus-within .tip-bub { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
+	/* Fair-usage note */
+	.fair-note { max-width: 640px; margin: 1.6rem auto 0; text-align: center; color: var(--muted); font-size: 0.82rem; line-height: 1.55; }
+	@media (max-width: 560px) {
+		.tip-bub { max-width: 200px; left: auto; right: 0; transform: translateY(4px); }
+		.tip-bub::after { left: auto; right: 8px; transform: none; }
+		.tip:hover .tip-bub, .tip:focus-within .tip-bub { transform: translateY(0); }
+	}
 
 	/* FAQ */
 	.faq-card { background: #fff; border: 1px solid var(--border); border-radius: 20px; padding: 0.4rem 1.7rem; }
