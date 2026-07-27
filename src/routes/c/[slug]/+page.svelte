@@ -400,9 +400,21 @@
 	}
 
 	// ---- Theme toggle --------------------------------------------------------
-	let theme = 'auto'; // 'auto' | 'light' | 'dark'
-	function cycleTheme() {
-		theme = theme === 'auto' ? 'dark' : theme === 'dark' ? 'light' : 'auto';
+	// Resolve to an explicit light/dark on mount (from the system preference) so a
+	// single click ALWAYS flips visibly. The old auto→dark→light cycle no-op'd the
+	// first click whenever the visitor's system was already dark → the "click twice"
+	// bug. 'auto' is kept only for SSR so there's no flash before hydration.
+	let theme = 'auto'; // 'auto' (SSR) | 'light' | 'dark'
+	onMount(() => {
+		try {
+			theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+		} catch {
+			theme = 'light';
+		}
+	});
+	$: isDark = theme === 'dark';
+	function toggleTheme() {
+		theme = theme === 'dark' ? 'light' : 'dark';
 	}
 
 	// ---- Inline rich-block parsing -------------------------------------------
@@ -571,29 +583,28 @@
 					>
 				</a>
 			{/if}
-			<button class="chip-btn" on:click={cycleTheme} aria-label="Toggle theme">
-				{#if theme === 'dark'}
-					<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
-						><path fill="currentColor" d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36A7 7 0 0112 3z" /></svg
-					>
-				{:else if theme === 'light'}
-					<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+			<button
+				class="theme-toggle"
+				class:on={isDark}
+				on:click={toggleTheme}
+				role="switch"
+				aria-checked={isDark}
+				aria-label="Toggle dark mode"
+				title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+			>
+				<span class="tt-ico tt-sun" aria-hidden="true"
+					><svg viewBox="0 0 24 24" width="13" height="13"
 						><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
 							><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" /></g
 						></svg
-					>
-				{:else}
-					<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
-						><path fill="currentColor" d="M12 2a10 10 0 000 20V2z" /><circle
-							cx="12"
-							cy="12"
-							r="9.2"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="1.6"
-						/></svg
-					>
-				{/if}
+					></span
+				>
+				<span class="tt-ico tt-moon" aria-hidden="true"
+					><svg viewBox="0 0 24 24" width="13" height="13"
+						><path fill="currentColor" d="M12 3a9 9 0 109 9c0-.46-.04-.92-.1-1.36A7 7 0 0112 3z" /></svg
+					></span
+				>
+				<span class="tt-knob"></span>
 			</button>
 		</div>
 	</header>
@@ -1059,7 +1070,9 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		padding: 12px 18px;
+		/* Keep the blurred bar edge-to-edge, but pull its contents in to line up
+		   with the 1040px content column so it isn't stretched wide on desktop. */
+		padding: 12px max(18px, calc((100% - 1040px) / 2));
 		background: color-mix(in srgb, var(--bg) 82%, transparent);
 		backdrop-filter: saturate(1.4) blur(14px);
 		-webkit-backdrop-filter: saturate(1.4) blur(14px);
@@ -1117,6 +1130,63 @@
 		color: var(--brand);
 		border-color: var(--brand-line);
 		transform: translateY(-1px);
+	}
+	/* Theme toggle — a compact sliding switch (sun ↔ moon). */
+	.theme-toggle {
+		position: relative;
+		flex: none;
+		width: 52px;
+		height: 28px;
+		padding: 0;
+		border-radius: 999px;
+		border: 1px solid var(--hair);
+		background: var(--surface);
+		box-shadow: var(--shadow);
+		cursor: pointer;
+		transition: background 0.2s, border-color 0.2s;
+	}
+	.theme-toggle:hover {
+		border-color: var(--brand-line);
+	}
+	.tt-ico {
+		position: absolute;
+		top: 50%;
+		transform: translateY(-50%);
+		display: grid;
+		place-items: center;
+		color: var(--ink-2);
+		pointer-events: none;
+		transition: opacity 0.2s;
+	}
+	.tt-sun {
+		left: 7px;
+	}
+	.tt-moon {
+		right: 7px;
+	}
+	.tt-knob {
+		position: absolute;
+		top: 3px;
+		left: 3px;
+		width: 20px;
+		height: 20px;
+		border-radius: 50%;
+		background: var(--brand);
+		box-shadow: 0 2px 5px -1px rgba(0, 0, 0, 0.35);
+		transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+	}
+	.theme-toggle.on {
+		background: color-mix(in srgb, var(--brand) 18%, var(--surface));
+		border-color: var(--brand-line);
+	}
+	.theme-toggle.on .tt-knob {
+		transform: translateX(24px);
+	}
+	.theme-toggle:not(.on) .tt-moon {
+		opacity: 0.45;
+	}
+	.theme-toggle.on .tt-sun {
+		opacity: 0.45;
 	}
 
 	/* ---- Thread ---------------------------------------------------------- */
