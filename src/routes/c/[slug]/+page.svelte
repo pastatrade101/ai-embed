@@ -1981,14 +1981,15 @@
 		align-items: flex-end; /* controls stay at the bottom as the text grows */
 		gap: 6px;
 		padding: 6px 8px 6px 14px;
-		border: 1px solid var(--hair);
-		border-radius: 26px;
+		/* Neutral hairline (not the warm --hair, which reads yellowish on the cream
+		   theme) + the drop shadow do the containing; no coloured focus ring. */
+		border: 1px solid rgba(0, 0, 0, 0.06);
+		border-radius: 16px;
 		background: var(--surface);
 		box-shadow: var(--shadow-lg);
-		transition: border-color 0.18s;
 	}
 	.bar:focus-within {
-		border-color: var(--hair); /* no coloured focus ring — keep the resting border */
+		border-color: rgba(0, 0, 0, 0.06); /* unchanged on focus — no visible border */
 	}
 	.bar textarea {
 		flex: 1;
