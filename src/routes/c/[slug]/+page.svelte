@@ -951,6 +951,17 @@
 
 <style>
 	/* ---- Tokens ---------------------------------------------------------- */
+	/* Full-screen chat: lock the document to the viewport so the page itself never
+	   scrolls (only .thread does). app.css sets body{min-height:100vh}, which on
+	   mobile is taller than the visible viewport (100vh > dvh) and let the whole
+	   page scroll up while the composer drifted and the fixed FAB showed through. */
+	:global(html),
+	:global(body) {
+		height: 100%;
+		overflow: hidden;
+		overscroll-behavior-y: none;
+	}
+
 	.concierge {
 		--bg: #faf9f7;
 		--bg-2: #f4f2ee;
@@ -1969,8 +1980,8 @@
 
 	/* ---- Composer -------------------------------------------------------- */
 	.composer {
-		position: sticky;
-		bottom: 0;
+		/* Flex child pinned at the bottom of the 100dvh column — no sticky needed
+		   once the document itself can't scroll (see the html/body lock above). */
 		z-index: 20;
 		padding: 10px 0 max(14px, env(safe-area-inset-bottom));
 		background: linear-gradient(180deg, transparent, var(--bg) 32%);
@@ -2154,13 +2165,16 @@
 	/* ---- Floating booking action ----------------------------------------- */
 	.fab {
 		position: fixed;
-		right: 16px;
-		bottom: calc(96px + env(safe-area-inset-bottom));
+		right: 24px;
+		bottom: 24px;
 		z-index: 15;
+		/* Hidden on mobile/tablet: the sticky top-bar WhatsApp chip already provides
+		   WhatsApp, and a bottom-fixed FAB overlaps the full-width composer here.
+		   Shown only on wide desktop, where the 1040px composer leaves side margin. */
+		display: none;
+		place-items: center;
 		width: 52px;
 		height: 52px;
-		display: grid;
-		place-items: center;
 		border-radius: 50%;
 		color: #fff;
 		background: #25d366;
@@ -2170,10 +2184,9 @@
 	.fab:hover {
 		transform: scale(1.06);
 	}
-	@media (min-width: 900px) {
+	@media (min-width: 1200px) {
 		.fab {
-			bottom: 24px;
-			right: 24px;
+			display: grid;
 		}
 	}
 
