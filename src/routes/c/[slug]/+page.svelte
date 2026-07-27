@@ -1273,24 +1273,27 @@
 	.chips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 9px;
+		gap: 8px;
 		margin-bottom: 18px;
 	}
 	.chip {
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-		padding: 10px 15px;
-		border-radius: 999px;
+		padding: 7px 13px;
+		border-radius: 12px;
 		border: 1px solid var(--hair);
 		background: var(--surface);
-		color: var(--ink);
-		font-size: 14px;
+		color: var(--ink-2);
+		font-size: 13px;
 		font-weight: 500;
+		line-height: 1.35;
+		text-align: left; /* buttons default to center — left-align wrapped questions */
 		box-shadow: var(--shadow);
 		transition: transform 0.16s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.16s, color 0.16s;
 	}
 	.chip svg {
+		flex: none;
 		color: var(--muted);
 		transition: transform 0.2s, color 0.16s;
 	}
