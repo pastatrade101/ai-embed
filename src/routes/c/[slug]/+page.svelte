@@ -1234,9 +1234,12 @@
 	.thread {
 		flex: 1;
 		min-height: 0;
-		overflow-y: auto; /* the scroll container — no overflow-x here (it breaks the
-		                     vertical scroll in this flex column); the .concierge
-		                     overflow-x:clip is the horizontal backstop. */
+		overflow-y: auto; /* the vertical scroll container */
+		/* Clip horizontal overflow so a wide child (long token, table, code block)
+		   can't make the thread swipe sideways on mobile. overflow-x:hidden pairs
+		   fine with overflow-y:auto (vertical scroll unaffected — verified); wide
+		   tables/pre keep their OWN overflow-x:auto scroller, so they stay readable. */
+		overflow-x: hidden;
 		/* no scroll-behavior:smooth — it makes the programmatic "reveal the new answer
 		   from its top" jump unreliable (the animation gets interrupted as the answer
 		   lays out). Instant reposition is predictable and reads as a clean snap. */
