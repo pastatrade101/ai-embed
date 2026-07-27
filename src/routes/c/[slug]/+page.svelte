@@ -426,6 +426,10 @@
 	onMount(() => {
 		const vv = window.visualViewport;
 		if (!vv || !conciergeEl) return;
+		// Only touch devices have a soft keyboard that resizes the viewport. On
+		// desktop, leave the CSS height:100dvh alone (overriding it there pushed the
+		// composer + "Powered by Makutano" below the fold).
+		if (!window.matchMedia('(pointer: coarse)').matches) return;
 		const apply = () => {
 			conciergeEl.style.height = `${vv.height}px`;
 			conciergeEl.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : '';
@@ -2217,11 +2221,6 @@
 	}
 	.fab:hover {
 		transform: scale(1.06);
-	}
-	@media (min-width: 1200px) {
-		.fab {
-			display: grid;
-		}
 	}
 
 	/* ---- Motion ---------------------------------------------------------- */
