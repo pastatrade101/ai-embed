@@ -957,6 +957,9 @@
 					</div>
 				</div>
 			</form>
+			<!-- AI-interaction disclosure — always shown, not operator-removable
+			     (transparency requirement, eGA AI Standards §2.1.1/§2.2.2.10/§1.5.4). -->
+			<p class="ai-disclosure">Responses are AI-generated — please confirm important details.</p>
 			{#if !client.hideBranding}<p class="poweredby">Powered by Makutano</p>{/if}
 		</div>
 	</footer>
@@ -2128,8 +2131,15 @@
 	.fineprint a:hover {
 		color: var(--brand);
 	}
+	.ai-disclosure {
+		margin: 7px 0 0;
+		text-align: center;
+		font-size: 11px;
+		line-height: 1.4;
+		color: var(--muted);
+	}
 	.poweredby {
-		margin: 6px 0 0;
+		margin: 3px 0 0;
 		text-align: center;
 		font-size: 11px;
 		font-weight: 500;
