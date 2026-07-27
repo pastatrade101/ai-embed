@@ -417,21 +417,29 @@
 		theme = theme === 'dark' ? 'light' : 'dark';
 	}
 
-	// Keyboard-safe height on mobile: track the visual viewport so the app shrinks
-	// to the space ABOVE the on-screen keyboard, keeping the composer in view. iOS
-	// WebKit ignores `interactive-widget=resizes-content`, so we drive it in JS.
+	// Keyboard-safe layout on mobile. iOS/WebKit ignores interactive-widget and,
+	// when the keyboard opens, shrinks AND offsets the visual viewport (scrolls the
+	// page under the layout). Height-only left the composer floating mid-screen, so
+	// we map the app EXACTLY onto the visible area: height = visualViewport.height,
+	// and translate down by its offsetTop to cancel the iOS shift.
+	let conciergeEl;
 	onMount(() => {
 		const vv = window.visualViewport;
-		if (!vv) return;
-		const root = document.documentElement;
-		const apply = () => root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+		if (!vv || !conciergeEl) return;
+		const apply = () => {
+			conciergeEl.style.height = `${vv.height}px`;
+			conciergeEl.style.transform = vv.offsetTop ? `translateY(${vv.offsetTop}px)` : '';
+		};
 		apply();
 		vv.addEventListener('resize', apply);
 		vv.addEventListener('scroll', apply);
 		return () => {
 			vv.removeEventListener('resize', apply);
 			vv.removeEventListener('scroll', apply);
-			root.style.removeProperty('--vvh');
+			if (conciergeEl) {
+				conciergeEl.style.height = '';
+				conciergeEl.style.transform = '';
+			}
 		};
 	});
 
@@ -575,6 +583,7 @@
 </svelte:head>
 
 <div
+	bind:this={conciergeEl}
 	class="concierge"
 	data-theme={theme === 'auto' ? null : theme}
 	style="--brand:{brand}; --brand-ink:{brandInk};"
@@ -995,9 +1004,8 @@
 		flex-direction: column;
 		height: 100vh;
 		height: 100dvh;
-		/* JS sets --vvh to the visual-viewport height so the layout shrinks above the
-		   mobile keyboard (falls back to 100dvh, then 100vh). */
-		height: var(--vvh, 100dvh);
+		/* On mobile, onMount overrides height (+ a translateY) inline from
+		   window.visualViewport so the app maps onto the space above the keyboard. */
 		width: 100%;
 		max-width: 100vw;
 		/* clip (not hidden) so a wide child can't scroll the page sideways WITHOUT
