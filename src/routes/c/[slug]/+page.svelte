@@ -1045,7 +1045,7 @@
 	/* ---- Shared column --------------------------------------------------- */
 	.column {
 		width: 100%;
-		max-width: 760px;
+		max-width: 1040px;
 		margin: 0 auto;
 		padding: 0 20px;
 	}
@@ -1907,10 +1907,10 @@
 	}
 	.bar {
 		display: flex;
-		flex-direction: column; /* ChatGPT layout: text on top, controls row below */
-		align-items: stretch;
-		gap: 4px;
-		padding: 10px 14px 8px;
+		flex-direction: row; /* inline: attach · text · send on one row */
+		align-items: flex-end; /* controls stay at the bottom as the text grows */
+		gap: 6px;
+		padding: 6px 8px 6px 14px;
 		border: 1px solid var(--hair);
 		border-radius: 26px;
 		background: var(--surface);
@@ -1918,9 +1918,12 @@
 		transition: border-color 0.18s;
 	}
 	.bar:focus-within {
-		border-color: var(--brand-line);
+		border-color: var(--hair); /* no coloured focus ring — keep the resting border */
 	}
 	.bar textarea {
+		flex: 1;
+		order: 0;
+		min-width: 0;
 		width: 100%;
 		border: 0;
 		outline: none;
@@ -1931,19 +1934,24 @@
 		font-size: 15.5px;
 		line-height: 1.5;
 		max-height: 180px;
-		padding: 6px 2px 2px;
+		padding: 8px 2px;
 	}
+	/* display:contents promotes the attach/mic/send groups into the .bar flex row
+	   so the send button sits inline with the text field instead of on a row below. */
 	.bar-row {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
+		display: contents;
 	}
 	.bar-left,
 	.bar-right {
 		display: flex;
 		align-items: center;
 		gap: 2px;
+	}
+	.bar-left {
+		order: -1;
+	}
+	.bar-right {
+		order: 1;
 	}
 	.bar textarea::placeholder {
 		color: var(--muted);
