@@ -944,12 +944,6 @@
 					</div>
 				</div>
 			</form>
-			<p class="fineprint">
-				{#if telLink}<a href={telLink}>Call</a> ·{/if}
-				{#if client.email}<a href={'mailto:' + client.email}>Email</a> ·{/if}
-				{#if mapLink}<a href={mapLink} target="_blank" rel="noopener">Visit</a> ·{/if}
-				<span>Responses are AI-generated · confirm details before you {isTourism ? 'book' : 'proceed'}</span>
-			</p>
 			{#if !client.hideBranding}<p class="poweredby">Powered by Makutano</p>{/if}
 		</div>
 	</footer>
