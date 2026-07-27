@@ -417,6 +417,24 @@
 		theme = theme === 'dark' ? 'light' : 'dark';
 	}
 
+	// Keyboard-safe height on mobile: track the visual viewport so the app shrinks
+	// to the space ABOVE the on-screen keyboard, keeping the composer in view. iOS
+	// WebKit ignores `interactive-widget=resizes-content`, so we drive it in JS.
+	onMount(() => {
+		const vv = window.visualViewport;
+		if (!vv) return;
+		const root = document.documentElement;
+		const apply = () => root.style.setProperty('--vvh', `${Math.round(vv.height)}px`);
+		apply();
+		vv.addEventListener('resize', apply);
+		vv.addEventListener('scroll', apply);
+		return () => {
+			vv.removeEventListener('resize', apply);
+			vv.removeEventListener('scroll', apply);
+			root.style.removeProperty('--vvh');
+		};
+	});
+
 	// ---- Inline rich-block parsing -------------------------------------------
 	// The assistant may surface rich UI by emitting fenced blocks the renderer
 	// intercepts. Everything else is ordinary markdown.
@@ -931,8 +949,8 @@
 				{#if client.email}<a href={'mailto:' + client.email}>Email</a> ·{/if}
 				{#if mapLink}<a href={mapLink} target="_blank" rel="noopener">Visit</a> ·{/if}
 				<span>Responses are AI-generated · confirm details before you {isTourism ? 'book' : 'proceed'}</span>
-					{#if !client.hideBranding}<span> · <a href="https://ai.makutano.co.tz" target="_blank" rel="noopener">Powered by Makutano</a></span>{/if}
 			</p>
+			{#if !client.hideBranding}<p class="poweredby">Powered by Makutano</p>{/if}
 		</div>
 	</footer>
 
@@ -983,6 +1001,9 @@
 		flex-direction: column;
 		height: 100vh;
 		height: 100dvh;
+		/* JS sets --vvh to the visual-viewport height so the layout shrinks above the
+		   mobile keyboard (falls back to 100dvh, then 100vh). */
+		height: var(--vvh, 100dvh);
 		width: 100%;
 		max-width: 100vw;
 		/* clip (not hidden) so a wide child can't scroll the page sideways WITHOUT
@@ -2100,6 +2121,14 @@
 	}
 	.fineprint a:hover {
 		color: var(--brand);
+	}
+	.poweredby {
+		margin: 6px 0 0;
+		text-align: center;
+		font-size: 11px;
+		font-weight: 500;
+		letter-spacing: 0.01em;
+		color: var(--muted);
 	}
 
 	/* ---- Attachment (gated, top tier) ------------------------------------- */
